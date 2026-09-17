@@ -1,4 +1,4 @@
-// File: /Users/users/Documents/projects/travel-planner/app/api/travel-objects/[objectId]/route.ts
+// File: /home/zen/travel-planner/app/api/travel-objects/[objectId]/route.ts
 import * as entry from '../../../../../../app/api/travel-objects/[objectId]/route.js'
 import type { NextRequest } from 'next/server.js'
 

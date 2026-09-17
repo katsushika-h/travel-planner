@@ -105,7 +105,7 @@ self.__SERVER_FILES_MANIFEST={
         "transform": "lodash/{{member}}"
       }
     },
-    "outputFileTracingRoot": "/Users/users/Documents/projects/travel-planner",
+    "outputFileTracingRoot": "/home/zen/travel-planner",
     "enablePrerenderSourceMaps": true,
     "cacheComponents": false,
     "cacheLife": {
@@ -175,7 +175,7 @@ self.__SERVER_FILES_MANIFEST={
       "proxyPrefetch": "flexible",
       "optimisticClientCache": true,
       "manualClientBasePath": false,
-      "cpus": 7,
+      "cpus": 23,
       "memoryBasedWorkersCount": false,
       "imgOptConcurrency": null,
       "imgOptOperationCache": null,
@@ -321,13 +321,13 @@ self.__SERVER_FILES_MANIFEST={
     "bundlePagesRouterDependencies": false,
     "configFileName": "next.config.ts",
     "turbopack": {
-      "root": "/Users/users/Documents/projects/travel-planner"
+      "root": "/home/zen/travel-planner"
     },
-    "repoRoot": "/Users/users/Documents/projects/travel-planner",
+    "repoRoot": "/home/zen/travel-planner",
     "distDirRoot": ".next",
     "supportsImmutableAssets": false
   },
-  "appDir": "/Users/users/Documents/projects/travel-planner",
+  "appDir": "/home/zen/travel-planner",
   "relativeAppDir": "",
   "files": [
     ".next/package.json",

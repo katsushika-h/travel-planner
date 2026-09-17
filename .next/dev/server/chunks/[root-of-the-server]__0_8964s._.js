@@ -96,7 +96,7 @@ async function PATCH(request, { params }) {
         const body = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readJsonBody"])(request);
         const data = {};
         if (body.title !== undefined) data.title = (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readTrimmedString"])(body.title, "title");
-        if (body.type !== undefined) data.type = (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readTrimmedString"])(body.type, "type");
+        if (body.type !== undefined) data.type = (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readEventType"])(body.type, "type");
         if (body.startDateTime !== undefined) data.startDateTime = (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readDate"])(body.startDateTime, "startDateTime");
         if (body.endDateTime !== undefined) data.endDateTime = (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readDate"])(body.endDateTime, "endDateTime");
         if (body.dayIndex !== undefined) data.dayIndex = (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readPositiveInteger"])(body.dayIndex, "dayIndex");
@@ -131,9 +131,10 @@ async function PATCH(request, { params }) {
         }
         const startDateTime = data.startDateTime ?? existing.startDateTime;
         const endDateTime = data.endDateTime ?? existing.endDateTime;
-        if (endDateTime < startDateTime) {
+        const isAllDay = data.isAllDay ?? existing.isAllDay;
+        if (isAllDay ? endDateTime < startDateTime : endDateTime <= startDateTime) {
             return Response.json({
-                error: "endDateTime must be on or after startDateTime."
+                error: isAllDay ? "endDateTime must be on or after startDateTime." : "endDateTime must be after startDateTime."
             }, {
                 status: 400
             });
@@ -186,6 +187,8 @@ __turbopack_context__.s([
     ()=>isRecord,
     "readDate",
     ()=>readDate,
+    "readEventType",
+    ()=>readEventType,
     "readJsonBody",
     ()=>readJsonBody,
     "readPositiveInteger",
@@ -252,6 +255,11 @@ async function readJsonBody(request) {
         throw new Error("Request body must be a JSON object.");
     }
     return body;
+}
+function readEventType(value, field = "type") {
+    const type = readTrimmedString(value, field);
+    if (type.length > 20) throw new Error(`${field} must be 20 characters or fewer.`);
+    return type;
 }
 }),
 "[project]/lib/prisma.ts [app-route] (ecmascript)", ((__turbopack_context__) => {

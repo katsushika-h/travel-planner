@@ -59,6 +59,7 @@ __turbopack_context__.s([
     "dynamic",
     ()=>dynamic
 ]);
+var __TURBOPACK__imported__module__$5b$externals$5d2f40$prisma$2f$client__$5b$external$5d$__$2840$prisma$2f$client$2c$__cjs$2c$__$5b$project$5d2f$node_modules$2f40$prisma$2f$client$29$__ = __turbopack_context__.i("[externals]/@prisma/client [external] (@prisma/client, cjs, [project]/node_modules/@prisma/client)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/api-validation.ts [app-route] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/prisma.ts [app-route] (ecmascript)");
 var __turbopack_async_dependencies__ = __turbopack_handle_async_dependencies__([
@@ -67,9 +68,11 @@ var __turbopack_async_dependencies__ = __turbopack_handle_async_dependencies__([
 [__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__] = __turbopack_async_dependencies__.then ? (await __turbopack_async_dependencies__)() : __turbopack_async_dependencies__;
 ;
 ;
+;
 const dynamic = "force-dynamic";
 function readOptionalJson(value, field) {
     if (value === undefined) return undefined;
+    if (value === null) return __TURBOPACK__imported__module__$5b$externals$5d2f40$prisma$2f$client__$5b$external$5d$__$2840$prisma$2f$client$2c$__cjs$2c$__$5b$project$5d2f$node_modules$2f40$prisma$2f$client$29$__["Prisma"].JsonNull;
     if (!(0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["isRecord"])(value)) throw new Error(`${field} must be a JSON object.`);
     return value;
 }
@@ -102,9 +105,10 @@ async function POST(request) {
         const body = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readJsonBody"])(request);
         const startDateTime = (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readDate"])(body.startDateTime, "startDateTime");
         const endDateTime = (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readDate"])(body.endDateTime, "endDateTime");
-        if (endDateTime < startDateTime) {
+        const isAllDay = body.isAllDay === true;
+        if (isAllDay ? endDateTime < startDateTime : endDateTime <= startDateTime) {
             return Response.json({
-                error: "endDateTime must be on or after startDateTime."
+                error: isAllDay ? "endDateTime must be on or after startDateTime." : "endDateTime must be after startDateTime."
             }, {
                 status: 400
             });
@@ -126,14 +130,14 @@ async function POST(request) {
             data: {
                 tripId,
                 title: (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readTrimmedString"])(body.title, "title"),
-                type: (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readTrimmedString"])(body.type ?? "activity", "type"),
+                type: (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readEventType"])(body.type ?? "unclassified", "type"),
                 startDateTime,
                 endDateTime,
                 dayIndex: (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readPositiveInteger"])(body.dayIndex ?? 1, "dayIndex"),
-                isAllDay: body.isAllDay === true,
+                isAllDay,
                 location: readOptionalJson(body.location, "location"),
                 cost: readOptionalJson(body.cost, "cost"),
-                notes: (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readTrimmedString"])(body.notes, "notes", {
+                notes: body.notes === null ? null : (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readTrimmedString"])(body.notes, "notes", {
                     optional: true
                 }),
                 tags: (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$api$2d$validation$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["readTags"])(body.tags)
@@ -160,6 +164,8 @@ __turbopack_context__.s([
     ()=>isRecord,
     "readDate",
     ()=>readDate,
+    "readEventType",
+    ()=>readEventType,
     "readJsonBody",
     ()=>readJsonBody,
     "readPositiveInteger",
@@ -226,6 +232,11 @@ async function readJsonBody(request) {
         throw new Error("Request body must be a JSON object.");
     }
     return body;
+}
+function readEventType(value, field = "type") {
+    const type = readTrimmedString(value, field);
+    if (type.length > 20) throw new Error(`${field} must be 20 characters or fewer.`);
+    return type;
 }
 }),
 "[project]/lib/prisma.ts [app-route] (ecmascript)", ((__turbopack_context__) => {

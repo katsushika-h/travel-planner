@@ -1,0 +1,9 @@
+{
+  "name": "travel-planner-migrator",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "dotenv": "17.2.3",
+    "prisma": "7.10.0"
+  }
+}

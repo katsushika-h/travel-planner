@@ -168,6 +168,8 @@ __turbopack_context__.s([
     ()=>isRecord,
     "readDate",
     ()=>readDate,
+    "readEventType",
+    ()=>readEventType,
     "readJsonBody",
     ()=>readJsonBody,
     "readPositiveInteger",
@@ -234,6 +236,11 @@ async function readJsonBody(request) {
         throw new Error("Request body must be a JSON object.");
     }
     return body;
+}
+function readEventType(value, field = "type") {
+    const type = readTrimmedString(value, field);
+    if (type.length > 20) throw new Error(`${field} must be 20 characters or fewer.`);
+    return type;
 }
 }),
 "[project]/lib/prisma.ts [app-route] (ecmascript)", ((__turbopack_context__) => {
