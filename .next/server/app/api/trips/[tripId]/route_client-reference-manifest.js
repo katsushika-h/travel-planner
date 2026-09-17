@@ -1,0 +1,1 @@
+globalThis.__RSC_MANIFEST=(globalThis.__RSC_MANIFEST||{});globalThis.__RSC_MANIFEST["/api/trips/[tripId]/route"]={"moduleLoading":{"prefix":"/_next/"},"ssrModuleMapping":{},"edgeSSRModuleMapping":{},"clientModules":{},"entryCSSFiles":{"/Users/users/Documents/projects/travel-planner/app/api/trips/[tripId]/route":[]},"rscModuleMapping":{},"edgeRscModuleMapping":{}};

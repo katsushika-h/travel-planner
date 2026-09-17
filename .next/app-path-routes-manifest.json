@@ -1,0 +1,10 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/_global-error/page": "/_global-error",
+  "/favicon.ico/route": "/favicon.ico",
+  "/api/travel-objects/[objectId]/route": "/api/travel-objects/[objectId]",
+  "/api/travel-objects/route": "/api/travel-objects",
+  "/api/trips/route": "/api/trips",
+  "/api/trips/[tripId]/route": "/api/trips/[tripId]",
+  "/page": "/"
+}

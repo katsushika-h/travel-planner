@@ -1,0 +1,3 @@
+{
+  "/api/travel-objects/[objectId]/route": "app/api/travel-objects/[objectId]/route.js"
+}
