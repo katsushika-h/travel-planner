@@ -1,0 +1,10 @@
+.git
+.gitignore
+.next
+node_modules
+.env
+.env.*
+deploy/.env
+npm-debug.log*
+notion.png
+

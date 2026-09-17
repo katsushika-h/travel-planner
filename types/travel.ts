@@ -42,9 +42,9 @@ export interface TravelObject {
   endDateTime: string;
   dayIndex: number;
   isAllDay: boolean;
-  location?: LocationData;
-  cost?: CostData;
-  notes?: string;
+  location?: LocationData | null;
+  cost?: CostData | null;
+  notes?: string | null;
   tags?: string[];
   createdAt: string;
   updatedAt: string;

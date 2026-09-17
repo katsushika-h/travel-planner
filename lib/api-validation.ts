@@ -76,3 +76,9 @@ export async function readJsonBody(request: Request): Promise<JsonRecord> {
 
   return body;
 }
+
+export function readEventType(value: unknown, field = "type") {
+  const type = readTrimmedString(value, field)!;
+  if (type.length > 20) throw new Error(`${field} must be 20 characters or fewer.`);
+  return type;
+}
