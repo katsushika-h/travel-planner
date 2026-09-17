@@ -56,6 +56,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../app/api/maps/resolve/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/maps/resolve">> = Specific
+  const handler = {} as typeof import("../../app/api/maps/resolve/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../app/api/travel-objects/[objectId]/route.ts
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/travel-objects/[objectId]">> = Specific

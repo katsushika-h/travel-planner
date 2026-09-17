@@ -1,1 +1,25 @@
-{}
+{
+  "[project]/components/inspector/MarkdownEditorClient.tsx [app-client] (ecmascript, next/dynamic entry)": {
+    "id": "[project]/components/inspector/MarkdownEditorClient.tsx [app-client] (ecmascript, next/dynamic entry)",
+    "files": [
+      "static/chunks/node_modules_@codemirror_0vgykuu._.js",
+      "static/chunks/node_modules_@mdxeditor_editor_dist_0hm8pss._.js",
+      "static/chunks/node_modules_lexical_dist_Lexical_dev_mjs_1eyhfub._.js",
+      "static/chunks/node_modules_@lexical_extension_dist_LexicalExtension_dev_mjs_1t2a92x._.js",
+      "static/chunks/node_modules_@lexical_html_dist_LexicalHtml_dev_mjs_0v3m2ja._.js",
+      "static/chunks/node_modules_micromark-core-commonmark_dev_lib_2079wuz._.js",
+      "static/chunks/node_modules_@codemirror_state_dist_index_1jmfu1r.js",
+      "static/chunks/node_modules_@codemirror_view_dist_index_093pcs9.js",
+      "static/chunks/node_modules_@radix-ui_014a2bo._.js",
+      "static/chunks/node_modules_downshift_dist_downshift_esm_1z71pew.js",
+      "static/chunks/node_modules_react-hook-form_dist_index_esm_mjs_0b0kr13._.js",
+      "static/chunks/node_modules_@radix-ui_react-icons_dist_react-icons_esm_1xn7byw.js",
+      "static/chunks/node_modules_@lexical_0et6o01._.js",
+      "static/chunks/node_modules_@codemirror_0y7zual._.js",
+      "static/chunks/node_modules_@radix-ui_1o5tmws._.js",
+      "static/chunks/node_modules_@floating-ui_1odtezq._.js",
+      "static/chunks/node_modules_1giz-d5._.js",
+      "static/chunks/components_inspector_MarkdownEditorClient_tsx_0gyo5ix._.js"
+    ]
+  }
+}

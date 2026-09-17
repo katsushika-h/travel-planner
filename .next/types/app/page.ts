@@ -1,4 +1,4 @@
-// File: /Users/users/Documents/projects/travel-planner/app/page.tsx
+// File: /home/zen/travel-planner/app/page.tsx
 import * as entry from '../../../app/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

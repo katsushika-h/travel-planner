@@ -1,3 +1,6 @@
 {
+  "/api/travel-objects/[objectId]/route": "app/api/travel-objects/[objectId]/route.js",
+  "/api/travel-objects/route": "app/api/travel-objects/route.js",
+  "/api/trips/route": "app/api/trips/route.js",
   "/page": "app/page.js"
 }

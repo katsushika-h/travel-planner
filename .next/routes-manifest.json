@@ -59,6 +59,12 @@
       "namedRegex": "^/_not\\-found(?:/)?$"
     },
     {
+      "page": "/api/maps/resolve",
+      "regex": "^/api/maps/resolve(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/maps/resolve(?:/)?$"
+    },
+    {
       "page": "/api/travel-objects",
       "regex": "^/api/travel\\-objects(?:/)?$",
       "routeKeys": {},

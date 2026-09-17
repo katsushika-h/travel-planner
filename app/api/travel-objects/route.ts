@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import {
   isRecord,
   readDate,
+  readEventType,
   readJsonBody,
   readPositiveInteger,
   readTags,
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 function readOptionalJson(value: unknown, field: string) {
   if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
   if (!isRecord(value)) throw new Error(`${field} must be a JSON object.`);
   return value as Prisma.InputJsonValue;
 }
@@ -38,9 +40,10 @@ export async function POST(request: Request) {
     const startDateTime = readDate(body.startDateTime, "startDateTime");
     const endDateTime = readDate(body.endDateTime, "endDateTime");
 
-    if (endDateTime < startDateTime) {
+    const isAllDay = body.isAllDay === true;
+    if (isAllDay ? endDateTime < startDateTime : endDateTime <= startDateTime) {
       return Response.json(
-        { error: "endDateTime must be on or after startDateTime." },
+        { error: isAllDay ? "endDateTime must be on or after startDateTime." : "endDateTime must be after startDateTime." },
         { status: 400 },
       );
     }
@@ -56,14 +59,14 @@ export async function POST(request: Request) {
       data: {
         tripId,
         title: readTrimmedString(body.title, "title")!,
-        type: readTrimmedString(body.type ?? "activity", "type")!,
+        type: readEventType(body.type ?? "unclassified", "type"),
         startDateTime,
         endDateTime,
         dayIndex: readPositiveInteger(body.dayIndex ?? 1, "dayIndex"),
-        isAllDay: body.isAllDay === true,
+        isAllDay,
         location: readOptionalJson(body.location, "location"),
         cost: readOptionalJson(body.cost, "cost"),
-        notes: readTrimmedString(body.notes, "notes", { optional: true }),
+        notes: body.notes === null ? null : readTrimmedString(body.notes, "notes", { optional: true }),
         tags: readTags(body.tags),
       },
     });
