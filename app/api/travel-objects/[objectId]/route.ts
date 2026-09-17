@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import {
   isRecord,
   readDate,
+  readEventType,
   readJsonBody,
   readPositiveInteger,
   readTags,
@@ -35,7 +36,7 @@ export async function PATCH(request: Request, { params }: Context) {
     const data: Record<string, unknown> = {};
 
     if (body.title !== undefined) data.title = readTrimmedString(body.title, "title");
-    if (body.type !== undefined) data.type = readTrimmedString(body.type, "type");
+    if (body.type !== undefined) data.type = readEventType(body.type, "type");
     if (body.startDateTime !== undefined) data.startDateTime = readDate(body.startDateTime, "startDateTime");
     if (body.endDateTime !== undefined) data.endDateTime = readDate(body.endDateTime, "endDateTime");
     if (body.dayIndex !== undefined) data.dayIndex = readPositiveInteger(body.dayIndex, "dayIndex");
@@ -63,9 +64,10 @@ export async function PATCH(request: Request, { params }: Context) {
     const startDateTime = (data.startDateTime as Date | undefined) ?? existing.startDateTime;
     const endDateTime = (data.endDateTime as Date | undefined) ?? existing.endDateTime;
 
-    if (endDateTime < startDateTime) {
+    const isAllDay = (data.isAllDay as boolean | undefined) ?? existing.isAllDay;
+    if (isAllDay ? endDateTime < startDateTime : endDateTime <= startDateTime) {
       return Response.json(
-        { error: "endDateTime must be on or after startDateTime." },
+        { error: isAllDay ? "endDateTime must be on or after startDateTime." : "endDateTime must be after startDateTime." },
         { status: 400 },
       );
     }

@@ -1,0 +1,124 @@
+"use client";
+
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { ChevronLeft, ChevronRight, Clock, GripVertical } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { dateParts, formatTripDate, monthGrid } from "@/lib/date-utils";
+import type { TravelObject, Trip } from "@/types/travel";
+
+type Mode = "month" | "week" | "day";
+const defaultColors: Record<string, string> = { unclassified: "#64748b", flight: "#0ea5e9", hotel: "#8b5cf6", food: "#f97316", commute: "#f59e0b", activity: "#10b981", sightseeing: "#f43f5e" };
+const palette = ["#14b8a6", "#3b82f6", "#a855f7", "#ec4899", "#f97316", "#84cc16", "#64748b"];
+function typeColor(type: string, colors: Record<string, string>) { return colors[type] ?? defaultColors[type] ?? palette[[...type].reduce((sum, char) => sum + char.charCodeAt(0), 0) % palette.length]; }
+function shiftDate(date: string, days: number) { const value = new Date(`${date}T00:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10); }
+function sundayOf(date: string) { const value = new Date(`${date}T00:00:00Z`); return shiftDate(date, -value.getUTCDay()); }
+
+function DayCell({ date, currentMonth, items, timezone, typeColors, reservedRows, onSelect, onCreateItem }: { date: string; currentMonth: string; items: TravelObject[]; timezone: string; typeColors: Record<string, string>; reservedRows: number; onSelect: (item: TravelObject) => void; onCreateItem: (date: string) => void }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
+  const [, , day] = date.split("-").map(Number);
+  const today = dateParts(new Date(), timezone).date;
+  return <div ref={setNodeRef} onDoubleClick={() => onCreateItem(date)} title="Double-click to add an item" className={`min-h-[116px] border-b border-r p-1.5 transition-colors sm:min-h-[132px] ${date.slice(0, 7) === currentMonth ? "bg-white dark:bg-neutral-900" : "bg-stone-50/70 dark:bg-neutral-950"} ${isOver ? "bg-emerald-50 ring-2 ring-inset ring-emerald-400 dark:bg-emerald-950" : ""}`}>
+    <div className={`mb-1 flex h-6 w-6 items-center justify-center text-xs ${date === today ? "rounded-full bg-emerald-700 font-semibold text-white" : "text-stone-500 dark:text-stone-400"}`}>{day}</div>
+    <div className="space-y-1" style={{ paddingTop: `${reservedRows * 22}px` }}>{items.map((item) => <EventChip key={item.id} item={item} timezone={timezone} color={typeColor(item.type, typeColors)} onSelect={onSelect} />)}</div>
+  </div>;
+}
+
+function EventChip({ item, timezone, color, onSelect }: { item: TravelObject; timezone: string; color: string; onSelect: (item: TravelObject) => void }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id, data: { item }, disabled: item.id.startsWith("draft:") });
+  const time = item.isAllDay ? "All day" : formatTripDate(item.startDateTime, timezone, { hour: "numeric", minute: "2-digit" });
+  const style: CSSProperties = { backgroundColor: `${color}20`, borderColor: `${color}70`, color, ...(transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : {}) };
+  return <button ref={setNodeRef} style={style} onClick={() => onSelect(item)} onDoubleClick={(event) => event.stopPropagation()} className={`group flex w-full items-start gap-1 rounded-md border px-1.5 py-1 text-left text-[11px] leading-tight shadow-sm hover:brightness-95 ${isDragging ? "z-20 opacity-40" : ""}`} {...attributes} {...listeners}>
+    <GripVertical size={11} className="mt-0.5 shrink-0 opacity-40 group-hover:opacity-100" /><span className="min-w-0 flex-1 truncate font-medium">{item.title}</span><span className="hidden shrink-0 text-[10px] opacity-75 sm:inline">{time}</span>
+  </button>;
+}
+
+function MultiDayBar({ item, weekStart, startColumn, dayCount, lane, startsHere, endsHere, color, onSelect }: { item: TravelObject; weekStart: string; startColumn: number; dayCount: number; lane: number; startsHere: boolean; endsHere: boolean; color: string; onSelect: (item: TravelObject) => void }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `${item.id}:${weekStart}`, data: { item }, disabled: item.id.startsWith("draft:") });
+  const style: CSSProperties = { left: `calc(${(startColumn / 7) * 100}% + 2px)`, width: `calc(${(dayCount / 7) * 100}% - 4px)`, top: `${29 + lane * 23}px`, backgroundColor: `${color}30`, borderColor: `${color}80`, color, ...(transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : {}) };
+  return <button ref={setNodeRef} style={style} onClick={() => onSelect(item)} onDoubleClick={(event) => event.stopPropagation()} title={item.title} className={`absolute z-10 flex h-5 items-center gap-1 border px-1.5 text-left text-[10px] font-medium shadow-sm hover:brightness-95 ${startsHere ? "rounded-l-md" : "border-l-0"} ${endsHere ? "rounded-r-md" : "border-r-0"} ${isDragging ? "opacity-40" : ""}`} {...attributes} {...listeners}><span className="truncate">{item.title}</span></button>;
+}
+
+function ScheduleEvent({ item, timezone, color, onSelect, onResize, onResizeStart }: { item: TravelObject; timezone: string; color: string; onSelect: (item: TravelObject) => void; onResize: (item: TravelObject, endDate: string, endTime: string) => void; onResizeStart: (item: TravelObject, startDate: string, startTime: string) => void }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id, data: { item }, disabled: item.id.startsWith("draft:") });
+  const start = dateParts(item.startDateTime, timezone); const end = dateParts(item.endDateTime, timezone); const [h, m] = start.time.split(":").map(Number);
+  const startAbsolute = Date.parse(`${start.date}T${start.time}:00Z`); const endAbsolute = Date.parse(`${end.date}T${end.time}:00Z`);
+  const [resize, setResize] = useState<{ y: number; delta: number; edge: "start" | "end" } | null>(null);
+  const deltaMinutes = resize?.delta ?? 0;
+  const topMinutes = h * 60 + m + (resize?.edge === "start" ? deltaMinutes : 0);
+  const duration = Math.max(15, (endAbsolute - startAbsolute) / 60_000 + (resize?.edge === "end" ? deltaMinutes : resize?.edge === "start" ? -deltaMinutes : 0));
+  const style: CSSProperties = { top: topMinutes / 60 * 52, height: Math.max(25, duration / 60 * 52), borderLeft: `3px solid ${color}`, backgroundColor: `${color}24`, color, ...(transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : {}) };
+  function updateResize(event: React.PointerEvent<HTMLDivElement>) { if (resize) setResize({ ...resize, delta: Math.round(((event.clientY - resize.y) / 52 * 60) / 15) * 15 }); }
+  function finishResize(event: React.PointerEvent<HTMLDivElement>) {
+    if (!resize) return; event.stopPropagation();
+    const change = Math.round(((event.clientY - resize.y) / 52 * 60) / 15) * 15;
+    if (resize.edge === "start") { const adjusted = new Date(Math.min(endAbsolute - 15 * 60_000, startAbsolute + change * 60_000)); onResizeStart(item, adjusted.toISOString().slice(0, 10), adjusted.toISOString().slice(11, 16)); }
+    else { const adjusted = new Date(Math.max(startAbsolute + 15 * 60_000, endAbsolute + change * 60_000)); onResize(item, adjusted.toISOString().slice(0, 10), adjusted.toISOString().slice(11, 16)); }
+    setResize(null);
+  }
+  function resizeHandle(edge: "start" | "end") { return <div role="separator" aria-label={edge === "start" ? "Resize event start time" : "Resize event end time"} onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId); setResize({ y: event.clientY, delta: 0, edge }); }} onPointerMove={updateResize} onPointerUp={finishResize} className={`absolute inset-x-0 h-2 cursor-ns-resize touch-none ${edge === "start" ? "top-0" : "bottom-0"}`} />; }
+  return <div ref={setNodeRef} {...attributes} {...listeners} role="button" tabIndex={0} onClick={(event) => { event.stopPropagation(); onSelect(item); }} onDoubleClick={(event) => event.stopPropagation()} className={`absolute z-[1] mx-1 w-[calc(100%-8px)] overflow-hidden rounded-md px-1.5 py-1 text-left text-[10px] leading-tight shadow-sm ${isDragging ? "opacity-40" : ""}`} style={style} title={`${item.title} · ${start.time}–${end.time}`}>{resizeHandle("start")}<span className="block truncate font-semibold">{item.title}</span><span className="block truncate opacity-80">{start.time}–{end.time}</span>{resizeHandle("end")}</div>;
+}
+
+function ScheduleStripItem({ item, date, timezone, color, onSelect }: { item: TravelObject; date: string; timezone: string; color: string; onSelect: (item: TravelObject) => void }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `${item.id}:${date}`, data: { item }, disabled: item.id.startsWith("draft:") });
+  const start = dateParts(item.startDateTime, timezone).date; const end = dateParts(item.endDateTime, timezone).date;
+  const style: CSSProperties = { backgroundColor: `${color}30`, color, ...(transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : {}) };
+  return <button ref={setNodeRef} {...attributes} {...listeners} onClick={() => onSelect(item)} title={item.title} style={style} className={`mr-1 max-w-[calc(100%-4px)] truncate rounded px-1.5 py-0.5 text-left text-[10px] ${date > start ? "rounded-l-none" : ""} ${date < end ? "rounded-r-none" : ""} ${isDragging ? "opacity-40" : ""}`}>{date === start ? item.title : "↳ " + item.title}</button>;
+}
+
+function ScheduleColumn({ date, items, topItems, topItemHeight, timezone, typeColors, width, onSelect, onCreateItem, onResize, onResizeStart }: { date: string; items: TravelObject[]; topItems: TravelObject[]; topItemHeight: number; timezone: string; typeColors: Record<string, string>; width: number; onSelect: (item: TravelObject) => void; onCreateItem: (date: string, time: string) => void; onResize: (item: TravelObject, endDate: string, endTime: string) => void; onResizeStart: (item: TravelObject, startDate: string, startTime: string) => void }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
+  return <div ref={setNodeRef} className={`relative shrink-0 border-r ${isOver ? "bg-emerald-50/70 dark:bg-emerald-950/30" : ""}`} style={{ width }}>
+    <div className="overflow-hidden border-b px-1 py-1" style={{ height: topItemHeight }}>{topItems.map((item) => <div key={item.id} className="h-[22px] overflow-hidden"><ScheduleStripItem item={item} date={date} timezone={timezone} color={typeColor(item.type, typeColors)} onSelect={onSelect} /></div>)}</div>
+    <div className="relative" style={{ height: 24 * 52 }} onDoubleClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); const minutes = Math.max(0, Math.min(23 * 60 + 45, Math.round(((event.clientY - rect.top) / 52 * 60) / 15) * 15)); onCreateItem(date, `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`); }}>{Array.from({ length: 24 }, (_, hour) => <div key={hour} className="absolute w-full border-b border-stone-100 dark:border-neutral-800" style={{ top: hour * 52, height: 52 }} />)}{items.map((item) => <ScheduleEvent key={item.id} item={item} timezone={timezone} color={typeColor(item.type, typeColors)} onSelect={onSelect} onResize={onResize} onResizeStart={onResizeStart} />)}</div>
+  </div>;
+}
+
+export function CalendarView({ trip, items, typeColors = {}, onSelect, onMove, onResize, onResizeStart, onCreateItem }: { trip: Trip; items: TravelObject[]; typeColors?: Record<string, string>; onSelect: (item: TravelObject) => void; onMove: (item: TravelObject, date: string, time?: string) => Promise<void>; onResize: (item: TravelObject, endDate: string, endTime: string) => Promise<void>; onResizeStart: (item: TravelObject, startDate: string, startTime: string) => Promise<void>; onCreateItem: (date: string, time?: string) => void }) {
+  const start = trip.startDate.slice(0, 10);
+  const [focusDate, setFocusDate] = useState(start);
+  const [mode, setMode] = useState<Mode>("month");
+  const month = useMemo(() => { const date = new Date(`${focusDate}T00:00:00Z`); return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)); }, [focusDate]);
+  const grid = useMemo(() => monthGrid(month), [month]);
+  const currentMonth = month.toISOString().slice(0, 7);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.defaultPrevented) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      const key = event.key.toLowerCase();
+      if (key === "m") setMode("month"); else if (key === "w") setMode("week"); else if (key === "d") setMode("day"); else return;
+      event.preventDefault();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+  const spans = items.map((item) => ({ item, start: dateParts(item.startDateTime, trip.timezone).date, end: dateParts(item.endDateTime, trip.timezone).date })).filter(({ item, start, end }) => end > start || item.isAllDay);
+  const byDay = new Map<string, TravelObject[]>();
+  for (const item of items) { const date = dateParts(item.startDateTime, trip.timezone).date; if (!spans.some((span) => span.item.id === item.id)) byDay.set(date, [...(byDay.get(date) ?? []), item]); }
+  const weeks = Array.from({ length: 6 }, (_, index) => grid.slice(index * 7, index * 7 + 7));
+  const weekSegments = weeks.map((days) => {
+    const segments = spans.filter(({ start, end }) => start <= days[6] && end >= days[0]).map(({ item, start, end }) => { const segmentStart = start < days[0] ? days[0] : start; const segmentEnd = end > days[6] ? days[6] : end; const startColumn = days.indexOf(segmentStart); const endColumn = days.indexOf(segmentEnd); return { item, start: segmentStart, end: segmentEnd, startColumn, dayCount: endColumn - startColumn + 1, startsHere: start >= days[0], endsHere: end <= days[6] }; }).sort((a, b) => a.startColumn - b.startColumn || b.dayCount - a.dayCount);
+    const laneEnds: string[] = []; const placed = segments.map((segment) => { let lane = laneEnds.findIndex((end) => end < segment.start); if (lane < 0) lane = laneEnds.length; laneEnds[lane] = segment.end; return { ...segment, lane }; }); return { days, segments: placed, laneCount: laneEnds.length };
+  });
+  const weekStart = sundayOf(focusDate); const weekDates = Array.from({ length: 7 }, (_, index) => shiftDate(weekStart, index)); const visibleDates = mode === "day" ? [focusDate] : weekDates;
+  const topItemsForDate = (date: string) => items.filter((item) => {
+    const first = dateParts(item.startDateTime, trip.timezone).date;
+    const last = dateParts(item.endDateTime, trip.timezone).date;
+    return (item.isAllDay || last > first) && first <= date && last >= date;
+  });
+  const topItemRows = Math.max(0, ...visibleDates.map((date) => topItemsForDate(date).length));
+  const topItemHeight = topItemRows * 22;
+  const scheduleItems = (date: string) => items.filter((item) => !item.isAllDay && dateParts(item.startDateTime, trip.timezone).date === date && dateParts(item.endDateTime, trip.timezone).date === date);
+  async function handleDragEnd(event: DragEndEvent) { const target = String(event.over?.id ?? ""); if (!target.startsWith("day:")) return; const item = (event.active.data.current as { item?: TravelObject } | undefined)?.item ?? items.find((candidate) => candidate.id === String(event.active.id)); const destination = target.slice(4); if (!item) return; const original = dateParts(item.startDateTime, trip.timezone); let nextDate = destination; let nextTime: string | undefined; if (mode !== "month") { const [hour, minute] = original.time.split(":").map(Number); const total = hour * 60 + minute + Math.round((event.delta.y / 52 * 60) / 15) * 15; const dayShift = Math.floor(total / 1440); const withinDay = ((total % 1440) + 1440) % 1440; nextDate = shiftDate(destination, dayShift); nextTime = `${String(Math.floor(withinDay / 60)).padStart(2, "0")}:${String(withinDay % 60).padStart(2, "0")}`; } if (original.date !== nextDate || nextTime && original.time !== nextTime) await onMove(item, nextDate, nextTime); }
+  function navigate(direction: number) { if (mode === "month") { const date = new Date(`${focusDate}T00:00:00Z`); date.setUTCMonth(date.getUTCMonth() + direction); setFocusDate(date.toISOString().slice(0, 10)); } else setFocusDate(shiftDate(focusDate, direction * (mode === "week" ? 7 : 1))); }
+  function goToTripStart() { setFocusDate(start); }
+  const title = mode === "month" ? new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(month) : mode === "day" ? formatTripDate(`${focusDate}T12:00:00Z`, trip.timezone, { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : `${formatTripDate(`${weekDates[0]}T12:00:00Z`, trip.timezone, { month: "short", day: "numeric" })} – ${formatTripDate(`${weekDates[6]}T12:00:00Z`, trip.timezone, { month: "short", day: "numeric", year: "numeric" })}`;
+  return <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-neutral-900">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"><div><p className="text-sm font-semibold">{title}</p><p className="mt-0.5 text-xs text-muted-foreground">Times shown in {trip.timezone}</p></div><div className="flex items-center gap-2"><div className="flex rounded-lg border p-0.5">{(["month", "week", "day"] as Mode[]).map((view) => <Button key={view} variant={mode === view ? "secondary" : "ghost"} size="sm" className="capitalize" onClick={() => setMode(view)}>{view}<kbd className="ml-1 rounded border px-1 text-[9px] font-normal opacity-60">{view === "month" ? "M" : view === "week" ? "W" : "D"}</kbd></Button>)}</div><Button variant="ghost" size="icon-sm" onClick={() => navigate(-1)} aria-label="Previous period"><ChevronLeft /></Button><Button variant="outline" size="sm" onClick={goToTripStart}>Trip start</Button><Button variant="ghost" size="icon-sm" onClick={() => navigate(1)} aria-label="Next period"><ChevronRight /></Button></div></div>
+    {mode === "month" ? <><div className="grid grid-cols-7 border-b bg-stone-50 text-center text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:bg-neutral-800 dark:text-stone-300 sm:text-xs">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <div key={day} className="py-2">{day}</div>)}</div><DndContext sensors={sensors} onDragEnd={(event) => { void handleDragEnd(event); }}><div className="min-h-0 flex-1 overflow-y-auto">{weekSegments.map(({ days, segments, laneCount }) => <div key={days[0]} className="relative grid grid-cols-7">{days.map((date) => <DayCell key={date} date={date} currentMonth={currentMonth} items={byDay.get(date) ?? []} timezone={trip.timezone} typeColors={typeColors} reservedRows={laneCount} onSelect={onSelect} onCreateItem={onCreateItem} />)}{segments.map((segment) => <MultiDayBar key={`${segment.item.id}:${days[0]}`} item={segment.item} weekStart={days[0]} startColumn={segment.startColumn} dayCount={segment.dayCount} lane={segment.lane} startsHere={segment.startsHere} endsHere={segment.endsHere} color={typeColor(segment.item.type, typeColors)} onSelect={onSelect} />)}</div>)}</div></DndContext></> : <DndContext sensors={sensors} onDragEnd={(event) => { void handleDragEnd(event); }}><div className="min-h-0 flex-1 overflow-auto"><div className={`relative min-h-full ${mode === "week" ? "min-w-[1050px]" : "min-w-[520px]"}`}><div className="flex border-b"><div className="w-12 shrink-0 border-r" />{visibleDates.map((date) => <div key={date} className="shrink-0" style={{ width: mode === "week" ? "calc((100% - 3rem) / 7)" : "calc(100% - 3rem)" }}><div className="h-14 border-r bg-white dark:bg-neutral-900"><p className="pt-1 text-center text-xs font-medium">{formatTripDate(`${date}T12:00:00Z`, trip.timezone, { weekday: "short", month: "short", day: "numeric" })}</p></div></div>)}</div><div className="flex"><div className="w-12 shrink-0"><div style={{ height: topItemHeight }} />{Array.from({ length: 24 }, (_, hour) => <div key={hour} className="relative h-[52px] border-b text-right text-[9px] text-muted-foreground"><span className="absolute -top-2 right-1">{String(hour).padStart(2, "0")}:00</span></div>)}</div>{visibleDates.map((date) => <ScheduleColumn key={date} date={date} topItems={topItemsForDate(date)} topItemHeight={topItemHeight} items={scheduleItems(date)} timezone={trip.timezone} typeColors={typeColors} width={mode === "week" ? 142 : 420} onSelect={onSelect} onCreateItem={onCreateItem} onResize={onResize} onResizeStart={onResizeStart} />)}</div></div></div></DndContext>}
+    <div className="flex items-center gap-2 border-t px-4 py-2 text-xs text-muted-foreground"><Clock size={13} /> Drag an item to another date to reschedule it. Double-click a date to add an item.</div>
+  </div>;
+}
