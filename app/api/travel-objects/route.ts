@@ -38,11 +38,13 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await readJsonBody(request);
-    const startDateTime = readDate(body.startDateTime, "startDateTime");
-    const endDateTime = readDate(body.endDateTime, "endDateTime");
-
     const isAllDay = body.isAllDay === true;
-    if (isAllDay ? endDateTime < startDateTime : endDateTime <= startDateTime) {
+    const unscheduled = body.startDateTime === null && body.endDateTime === null;
+    if (!unscheduled && (body.startDateTime == null || body.endDateTime == null)) throw new Error("startDateTime and endDateTime must both be set or both be null.");
+    const startDateTime = unscheduled ? null : readDate(body.startDateTime, "startDateTime");
+    const endDateTime = unscheduled ? null : readDate(body.endDateTime, "endDateTime");
+
+    if (startDateTime && endDateTime && (isAllDay ? endDateTime < startDateTime : endDateTime <= startDateTime)) {
       return Response.json(
         { error: isAllDay ? "endDateTime must be on or after startDateTime." : "endDateTime must be after startDateTime." },
         { status: 400 },
@@ -63,7 +65,7 @@ export async function POST(request: Request) {
         type: readEventType(body.type ?? "unclassified", "type"),
         startDateTime,
         endDateTime,
-        dayIndex: readPositiveInteger(body.dayIndex ?? 1, "dayIndex"),
+        dayIndex: unscheduled ? null : readPositiveInteger(body.dayIndex ?? 1, "dayIndex"),
         isAllDay,
         headerImage: body.headerImage === undefined ? null : readHeaderImage(body.headerImage),
         location: readOptionalJson(body.location, "location"),

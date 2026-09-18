@@ -1,0 +1,3 @@
+ALTER TABLE "TravelObject" ALTER COLUMN "startDateTime" DROP NOT NULL;
+ALTER TABLE "TravelObject" ALTER COLUMN "endDateTime" DROP NOT NULL;
+ALTER TABLE "TravelObject" ALTER COLUMN "dayIndex" DROP NOT NULL;

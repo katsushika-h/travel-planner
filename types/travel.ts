@@ -39,9 +39,9 @@ export interface TravelObject {
   tripId: string;
   title: string;
   type: EventType;
-  startDateTime: string;
-  endDateTime: string;
-  dayIndex: number;
+  startDateTime: string | null;
+  endDateTime: string | null;
+  dayIndex: number | null;
   isAllDay: boolean;
   headerImage?: string | null;
   location?: LocationData | null;

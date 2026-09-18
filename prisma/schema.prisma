@@ -23,9 +23,9 @@ model TravelObject {
   trip          Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
   title         String
   type          String   @default("activity")
-  startDateTime DateTime
-  endDateTime   DateTime
-  dayIndex      Int      @default(1)
+  startDateTime DateTime?
+  endDateTime   DateTime?
+  dayIndex      Int?
   isAllDay      Boolean  @default(false)
   headerImage   String?
   location      Json?

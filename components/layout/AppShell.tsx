@@ -57,6 +57,14 @@ export function AppShell() {
 
   async function openCreateItem(date?: string, time = "09:00", type = "unclassified", title = "(untitled event)") {
     if (!activeTrip) return;
+    if (!date) {
+      try {
+        const created = await api.createObject({ tripId: activeTrip.id, title, type, startDateTime: null, endDateTime: null, dayIndex: null, isAllDay: false, location: null, cost: null, notes: null, tags: [] });
+        setItems((current) => [...current, created]);
+        setSelectedItemId(created.id);
+      } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create itinerary item."); }
+      return;
+    }
     const startDate = date ?? activeTrip.startDate.slice(0, 10);
     const startDateTime = zonedDateTimeToUtc(startDate, time, activeTrip.timezone);
     const endDateTime = new Date(Date.parse(startDateTime) + 60 * 60_000).toISOString();
@@ -96,7 +104,7 @@ export function AppShell() {
 
   function sortByStartTime(objects: TravelObject[]) {
     return [...objects].sort((a, b) =>
-      Date.parse(a.startDateTime) - Date.parse(b.startDateTime) || a.createdAt.localeCompare(b.createdAt),
+      (a.startDateTime ? Date.parse(a.startDateTime) : Number.MAX_SAFE_INTEGER) - (b.startDateTime ? Date.parse(b.startDateTime) : Number.MAX_SAFE_INTEGER) || a.createdAt.localeCompare(b.createdAt),
     );
   }
 
@@ -137,6 +145,13 @@ export function AppShell() {
 
   async function moveItem(item: TravelObject, date: string, time?: string) {
     if (!activeTrip) return;
+    if (!item.startDateTime || !item.endDateTime) {
+      const startTime = time ?? "09:00";
+      const endWall = new Date(Date.parse(`${date}T${startTime}:00Z`) + 60 * 60_000);
+      const endDate = endWall.toISOString().slice(0, 10); const endTime = endWall.toISOString().slice(11, 16);
+      changeItem(item.id, { startDateTime: zonedDateTimeToUtc(date, startTime, activeTrip.timezone), endDateTime: zonedDateTimeToUtc(endDate, endTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
+      return;
+    }
     const start = dateParts(item.startDateTime, activeTrip.timezone);
     const end = dateParts(item.endDateTime, activeTrip.timezone);
     const wallStart = Date.parse(`${start.date}T${start.time}:00Z`);
@@ -165,6 +180,7 @@ export function AppShell() {
 
   const eventTypes = [...new Set(["unclassified", "flight", "hotel", "food", "commute", "activity", "sightseeing", ...savedEventTypes, ...items.map((item) => item.type)])];
   const boardItems = items;
+  const scheduledBoardItems = items.filter((item) => item.startDateTime && item.endDateTime);
   const tripLabel = useMemo(() => activeTrip ? `${activeTrip.title} · ${new Date(`${activeTrip.startDate.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, { month: "short", year: "numeric" })}` : "Select a trip", [activeTrip]);
   const selectTrip = (id: string) => { if (id !== activeTripId) setSelectedItemId(null); setActiveTripId(id); };
   const onTripCreated = (trip: Trip) => { setSelectedItemId(null); setTrips((current) => [...current, trip]); setActiveTripId(trip.id); };
@@ -200,7 +216,7 @@ export function AppShell() {
       <header className="flex min-h-[68px] items-center justify-between gap-3 border-b bg-[#fbfbf9] px-4 dark:bg-neutral-900 sm:px-7"><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-emerald-800 dark:text-emerald-300">Your journey</p><h1 className="truncate text-base font-semibold sm:text-lg">{activeTrip?.title ?? "Travel workspace"}</h1></div><div className="flex items-center gap-2">{activeTrip && <><Button onClick={() => openCreateItem()}><Plus /> Add item</Button></>}<Button variant="ghost" size="icon" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={toggleTheme}>{theme === "dark" ? <Sun /> : <Moon />}</Button><Button variant="ghost" size="icon" aria-label="Search" title="Search coming soon"><Search /></Button></div></header>
       {error && <div className="mx-5 mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>}
       {loadingTrips ? <div className="grid flex-1 place-items-center"><LoaderCircle className="animate-spin text-emerald-700" /></div> : !activeTrip ? <div className="grid flex-1 place-items-center p-6"><div className="max-w-md text-center"><div className="mx-auto grid size-14 place-items-center rounded-2xl bg-emerald-100 text-emerald-800"><Compass size={25} /></div><h2 className="mt-5 text-xl font-semibold">Make room for the good parts</h2><p className="mt-2 text-sm leading-relaxed text-stone-500">Create a trip to bring dates, stays, meals, and little discoveries into one clear plan.</p><div className="mt-5 flex justify-center"><CreateTripDialog onCreated={onTripCreated} /></div></div></div> : <div className="flex min-h-0 flex-1 gap-3 p-3 sm:p-5">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{itemsTripId !== activeTrip.id ? <div className="grid flex-1 place-items-center"><LoaderCircle className="animate-spin text-emerald-700" /></div> : activeTab === "calendar" ? <CalendarView trip={activeTrip} items={boardItems} typeColors={eventTypeColors} onSelect={(item) => setSelectedItemId(item.id)} onMove={moveItem} onResize={resizeItem} onResizeStart={resizeStartItem} onCreateItem={openCreateItem} /> : activeTab === "kanban" ? <KanbanView trip={activeTrip} items={boardItems} eventTypes={eventTypes} typeColors={eventTypeColors} onSetTypeColor={(type, color) => setEventTypeColor(activeTrip.id, type, color)} onAddType={(type) => addEventType(activeTrip.id, type)} onSelect={(item) => setSelectedItemId(item.id)} onMoveType={moveType} onAddItem={(type) => void openCreateItem(undefined, "09:00", type ?? "unclassified")} /> : <TripDaysView trip={activeTrip} items={boardItems} typeColors={eventTypeColors} onSelect={(item) => setSelectedItemId(item.id)} onMove={moveItem} onCreateItem={(date) => void openCreateItem(date)} />}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{itemsTripId !== activeTrip.id ? <div className="grid flex-1 place-items-center"><LoaderCircle className="animate-spin text-emerald-700" /></div> : activeTab === "calendar" ? <CalendarView trip={activeTrip} items={boardItems} typeColors={eventTypeColors} onSelect={(item) => setSelectedItemId(item.id)} onMove={moveItem} onResize={resizeItem} onResizeStart={resizeStartItem} onCreateItem={openCreateItem} /> : activeTab === "kanban" ? <KanbanView trip={activeTrip} items={scheduledBoardItems} eventTypes={eventTypes} typeColors={eventTypeColors} onSetTypeColor={(type, color) => setEventTypeColor(activeTrip.id, type, color)} onAddType={(type) => addEventType(activeTrip.id, type)} onSelect={(item) => setSelectedItemId(item.id)} onMoveType={moveType} onAddItem={(type) => void openCreateItem(undefined, "09:00", type ?? "unclassified")} /> : <TripDaysView trip={activeTrip} items={scheduledBoardItems} typeColors={eventTypeColors} onSelect={(item) => setSelectedItemId(item.id)} onMove={moveItem} onCreateItem={(date) => void openCreateItem(date)} />}</div>
         {selectedItem && <div className="z-20 min-h-0 w-[min(38vw,760px)] min-w-[400px] shrink-0 max-lg:absolute max-lg:inset-y-3 max-lg:right-3 max-lg:w-[min(92vw,600px)] max-lg:min-w-0"><ObjectInspectorPanel key={selectedItem.id} item={selectedItem} timeZone={activeTrip.timezone} defaultCurrency={activeTrip.defaultCurrency ?? "USD"} onClose={closeInspector} onChange={changeItem} onDelete={deleteItem} tripStartDate={activeTrip.startDate} eventTypes={eventTypes} typeColors={eventTypeColors} darkMode={theme === "dark"} /></div>}
       </div>}
     </section>
