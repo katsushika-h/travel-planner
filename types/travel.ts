@@ -30,6 +30,7 @@ export interface Trip {
   startDate: string;
   endDate: string;
   timezone: string;
+  defaultCurrency: string;
   createdAt: string;
 }
 
@@ -42,6 +43,7 @@ export interface TravelObject {
   endDateTime: string;
   dayIndex: number;
   isAllDay: boolean;
+  headerImage?: string | null;
   location?: LocationData | null;
   cost?: CostData | null;
   notes?: string | null;

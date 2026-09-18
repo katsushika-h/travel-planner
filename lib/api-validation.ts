@@ -82,3 +82,13 @@ export function readEventType(value: unknown, field = "type") {
   if (type.length > 20) throw new Error(`${field} must be 20 characters or fewer.`);
   return type;
 }
+
+export function readHeaderImage(value: unknown) {
+  if (value === null) return null;
+  const image = readTrimmedString(value, "headerImage")!;
+  try {
+    const url = new URL(image);
+    if (url.protocol === "https:" || url.protocol === "http:") return url.toString();
+  } catch { /* report the validation error below */ }
+  throw new Error("headerImage must be an http or https image URL.");
+}

@@ -24,6 +24,10 @@ export async function PATCH(request: Request, { params }: Context) {
     if (body.startDate !== undefined) data.startDate = readDate(body.startDate, "startDate", true);
     if (body.endDate !== undefined) data.endDate = readDate(body.endDate, "endDate", true);
     if (body.timezone !== undefined) data.timezone = readTimeZone(body.timezone);
+    if (body.defaultCurrency !== undefined) {
+      if (typeof body.defaultCurrency !== "string" || !/^[A-Z]{3}$/.test(body.defaultCurrency)) throw new Error("defaultCurrency must be a three-letter currency code.");
+      data.defaultCurrency = body.defaultCurrency;
+    }
 
     if (!isRecord(data) || Object.keys(data).length === 0) {
       return Response.json({ error: "Provide at least one field to update." }, { status: 400 });

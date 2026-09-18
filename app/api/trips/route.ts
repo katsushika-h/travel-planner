@@ -30,6 +30,7 @@ export async function POST(request: Request) {
         startDate,
         endDate,
         timezone: readTimeZone(body.timezone)!,
+        defaultCurrency: typeof body.defaultCurrency === "string" && /^[A-Z]{3}$/.test(body.defaultCurrency) ? body.defaultCurrency : "SGD",
       },
     });
 
