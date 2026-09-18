@@ -6,7 +6,7 @@
 ---
 
 ## 1. Executive Summary
-A bespoke, high-density travel planning web application designed to eliminate cluttered UI by providing a unified system for organizing trip itineraries across three synchronized views: **Calendar**, **Kanban**, and an **Interactive Map Visualizer**.
+A bespoke, high-density travel planning web application designed to eliminate cluttered UI by providing a unified system for organizing trip itineraries across three synchronized views: **Calendar**, **Kanban**, and an **Itinerary View**.
 
 **Proof-of-concept scope:** single user, running entirely on a local machine. No authentication, no multi-user collaboration, and no realtime sync are required for this phase. The app uses **Next.js (App Router, TypeScript)** for the frontend and **Postgres + Prisma** for persistent local data storage. A dynamic **iCal subscription feed** is planned as a fast-follow for syncing with external calendar platforms (Google Calendar, Apple Calendar, etc.) — see §8.2 for an important caveat on what "sync" actually means here.
 
