@@ -38,8 +38,8 @@ export async function PATCH(request: Request, { params }: Context) {
 
     if (body.title !== undefined) data.title = readTrimmedString(body.title, "title");
     if (body.type !== undefined) data.type = readEventType(body.type, "type");
-    if (body.startDateTime !== undefined) data.startDateTime = readDate(body.startDateTime, "startDateTime");
-    if (body.endDateTime !== undefined) data.endDateTime = readDate(body.endDateTime, "endDateTime");
+    if (body.startDateTime !== undefined) data.startDateTime = body.startDateTime === null ? null : readDate(body.startDateTime, "startDateTime");
+    if (body.endDateTime !== undefined) data.endDateTime = body.endDateTime === null ? null : readDate(body.endDateTime, "endDateTime");
     if (body.dayIndex !== undefined) data.dayIndex = readPositiveInteger(body.dayIndex, "dayIndex");
     if (body.isAllDay !== undefined) {
       if (typeof body.isAllDay !== "boolean") throw new Error("isAllDay must be a boolean.");
@@ -63,16 +63,20 @@ export async function PATCH(request: Request, { params }: Context) {
       return Response.json({ error: "Travel object not found." }, { status: 404 });
     }
 
-    const startDateTime = (data.startDateTime as Date | undefined) ?? existing.startDateTime;
-    const endDateTime = (data.endDateTime as Date | undefined) ?? existing.endDateTime;
+    const startDateTime = data.startDateTime !== undefined ? data.startDateTime as Date | null : existing.startDateTime;
+    const endDateTime = data.endDateTime !== undefined ? data.endDateTime as Date | null : existing.endDateTime;
 
     const isAllDay = (data.isAllDay as boolean | undefined) ?? existing.isAllDay;
-    if (isAllDay ? endDateTime < startDateTime : endDateTime <= startDateTime) {
+    if ((startDateTime === null) !== (endDateTime === null)) throw new Error("startDateTime and endDateTime must both be set or both be null.");
+    if (startDateTime && endDateTime && (isAllDay ? endDateTime < startDateTime : endDateTime <= startDateTime)) {
       return Response.json(
         { error: isAllDay ? "endDateTime must be on or after startDateTime." : "endDateTime must be after startDateTime." },
         { status: 400 },
       );
     }
+
+    if (startDateTime === null && endDateTime === null) data.dayIndex = null;
+    else if (existing.startDateTime === null && data.dayIndex === undefined) data.dayIndex = 1;
 
     const travelObject = await prisma.travelObject.update({
       where: { id: objectId },
