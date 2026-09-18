@@ -12,6 +12,7 @@ model Trip {
   startDate     DateTime
   endDate       DateTime
   timezone      String
+  defaultCurrency String @default("USD")
   createdAt     DateTime       @default(now())
   travelObjects TravelObject[]
 }
@@ -26,6 +27,7 @@ model TravelObject {
   endDateTime   DateTime
   dayIndex      Int      @default(1)
   isAllDay      Boolean  @default(false)
+  headerImage   String?
   location      Json?
   cost          Json?
   notes         String?

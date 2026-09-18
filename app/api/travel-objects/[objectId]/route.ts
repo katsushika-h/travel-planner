@@ -3,6 +3,7 @@ import {
   isRecord,
   readDate,
   readEventType,
+  readHeaderImage,
   readJsonBody,
   readPositiveInteger,
   readTags,
@@ -44,6 +45,7 @@ export async function PATCH(request: Request, { params }: Context) {
       if (typeof body.isAllDay !== "boolean") throw new Error("isAllDay must be a boolean.");
       data.isAllDay = body.isAllDay;
     }
+    if (body.headerImage !== undefined) data.headerImage = readHeaderImage(body.headerImage);
     if (body.location !== undefined) data.location = readOptionalJson(body.location, "location");
     if (body.cost !== undefined) data.cost = readOptionalJson(body.cost, "cost");
     if (body.notes !== undefined) {
