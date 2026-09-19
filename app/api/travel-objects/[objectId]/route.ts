@@ -40,7 +40,7 @@ export async function PATCH(request: Request, { params }: Context) {
     if (body.type !== undefined) data.type = readEventType(body.type, "type");
     if (body.startDateTime !== undefined) data.startDateTime = body.startDateTime === null ? null : readDate(body.startDateTime, "startDateTime");
     if (body.endDateTime !== undefined) data.endDateTime = body.endDateTime === null ? null : readDate(body.endDateTime, "endDateTime");
-    if (body.dayIndex !== undefined) data.dayIndex = readPositiveInteger(body.dayIndex, "dayIndex");
+    if (body.dayIndex !== undefined) data.dayIndex = body.dayIndex === null ? null : readPositiveInteger(body.dayIndex, "dayIndex");
     if (body.isAllDay !== undefined) {
       if (typeof body.isAllDay !== "boolean") throw new Error("isAllDay must be a boolean.");
       data.isAllDay = body.isAllDay;

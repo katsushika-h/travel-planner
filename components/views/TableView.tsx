@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Filter, RotateCcw } from "lucide-react";
 import type { TravelObject, Trip } from "@/types/travel";
 
-type SortKey = "title" | "type" | "duration" | "cost" | "tags";
+type SortKey = "startDate" | "title" | "type" | "duration" | "cost" | "tags";
 type SortDirection = "asc" | "desc";
 
 function durationMinutes(item: TravelObject) {
@@ -45,6 +45,7 @@ function compareNullable<T>(a: T | null, b: T | null, compare: (left: T, right: 
 }
 
 const columns: { key: SortKey; label: string }[] = [
+  { key: "startDate", label: "Start" },
   { key: "title", label: "Title" },
   { key: "type", label: "Type" },
   { key: "duration", label: "Length" },
@@ -52,13 +53,39 @@ const columns: { key: SortKey; label: string }[] = [
   { key: "tags", label: "Tags" },
 ];
 
-export function TableView({ trip, items, onSelect }: { trip: Trip; items: TravelObject[]; onSelect: (item: TravelObject) => void }) {
-  const [sortKey, setSortKey] = useState<SortKey>("title");
+const defaultTypeColors: Record<string, string> = { unclassified: "#64748b", flight: "#0ea5e9", hotel: "#8b5cf6", food: "#f97316", commute: "#f59e0b", activity: "#10b981", sightseeing: "#f43f5e" };
+const typePalette = ["#14b8a6", "#3b82f6", "#a855f7", "#ec4899", "#f97316", "#84cc16", "#64748b"];
+function typeColor(type: string, colors: Record<string, string>) {
+  return colors[type] ?? defaultTypeColors[type] ?? typePalette[[...type].reduce((sum, character) => sum + character.charCodeAt(0), 0) % typePalette.length];
+}
+
+export function TableView({ trip, items, typeColors, onSelect }: { trip: Trip; items: TravelObject[]; typeColors: Record<string, string>; onSelect: (item: TravelObject) => void }) {
+  const [sortKey, setSortKey] = useState<SortKey>("startDate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [filterOpen, setFilterOpen] = useState(false);
   const [titleQuery, setTitleQuery] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    function closeOnOutsidePointer(event: PointerEvent) {
+      if (event.target instanceof Node && !filterRef.current?.contains(event.target)) setFilterOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        setFilterOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [filterOpen]);
 
   const types = useMemo(() => [...new Set(items.map((item) => item.type))].sort((a, b) => a.localeCompare(b)), [items]);
   const tags = useMemo(() => [...new Set(items.flatMap((item) => item.tags ?? []))].sort((a, b) => a.localeCompare(b)), [items]);
@@ -74,6 +101,7 @@ export function TableView({ trip, items, onSelect }: { trip: Trip; items: Travel
     }).sort((a, b) => {
       let result = 0;
       switch (sortKey) {
+        case "startDate": result = compareNullable(a.startDateTime, b.startDateTime, (left, right) => Date.parse(left) - Date.parse(right)); break;
         case "title": result = a.title.localeCompare(b.title); break;
         case "type": result = a.type.localeCompare(b.type); break;
         case "duration": result = compareNullable(durationMinutes(a), durationMinutes(b), (left, right) => left - right); break;
@@ -83,6 +111,25 @@ export function TableView({ trip, items, onSelect }: { trip: Trip; items: Travel
       return result * (sortDirection === "asc" ? 1 : -1) || a.title.localeCompare(b.title);
     });
   }, [items, selectedTags, selectedTypes, sortDirection, sortKey, titleQuery]);
+
+  const costTotals = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const item of visibleItems) {
+      const amount = costAmount(item);
+      if (amount == null) continue;
+      const currency = (item.cost as { currency?: string } | null)?.currency || trip.defaultCurrency || "USD";
+      totals.set(currency, (totals.get(currency) ?? 0) + amount);
+    }
+    return [...totals.entries()];
+  }, [trip.defaultCurrency, visibleItems]);
+
+  function formatTotal(amount: number, currency: string) {
+    try {
+      return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
+    } catch {
+      return `${amount} ${currency}`;
+    }
+  }
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDirection((direction) => direction === "asc" ? "desc" : "asc");
@@ -102,7 +149,7 @@ export function TableView({ trip, items, onSelect }: { trip: Trip; items: Travel
   return <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-neutral-900" aria-label="Trip items table">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
       <div><h2 className="text-sm font-semibold">All trip items</h2><p className="mt-0.5 text-xs text-muted-foreground">{visibleItems.length} of {items.length} items · {trip.timezone}</p></div>
-      <div className="relative">
+      <div className="relative" ref={filterRef}>
         <button type="button" aria-expanded={filterOpen} aria-haspopup="dialog" onClick={() => setFilterOpen((open) => !open)} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-stone-50 dark:hover:bg-neutral-800 ${activeFilterCount ? "border-emerald-600 text-emerald-800 dark:text-emerald-200" : ""}`}>
           <Filter size={15} /> Filters {activeFilterCount > 0 && <span className="grid size-5 place-items-center rounded-full bg-emerald-700 text-[11px] text-white">{activeFilterCount}</span>}
         </button>
@@ -116,15 +163,17 @@ export function TableView({ trip, items, onSelect }: { trip: Trip; items: Travel
       </div>
     </header>
     <div className="min-h-0 flex-1 overflow-auto">
-      <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+      <table className="w-full min-w-[880px] border-collapse text-left text-sm">
         <thead className="sticky top-0 z-10 bg-stone-50 text-xs uppercase tracking-wide text-stone-500 dark:bg-neutral-950 dark:text-stone-400"><tr>{columns.map(({ key, label }) => <th key={key} scope="col" aria-sort={sortKey === key ? (sortDirection === "asc" ? "ascending" : "descending") : "none"} className="border-b px-4 py-3 font-semibold"><button type="button" onClick={() => toggleSort(key)} className="inline-flex items-center gap-1.5 hover:text-emerald-800 dark:hover:text-emerald-300">{label}{sortKey === key && (sortDirection === "asc" ? <ArrowUp size={13} /> : <ArrowDown size={13} />)}</button></th>)}</tr></thead>
         <tbody className="divide-y divide-stone-100 dark:divide-neutral-800">{visibleItems.map((item) => <tr key={item.id} className="transition-colors hover:bg-stone-50 dark:hover:bg-neutral-800/70">
+          <td className="whitespace-nowrap px-4 py-3 text-stone-600 dark:text-stone-300">{item.startDateTime ? new Intl.DateTimeFormat(undefined, { timeZone: trip.timezone, month: "short", day: "numeric", year: "numeric", ...(item.isAllDay ? {} : { hour: "numeric", minute: "2-digit" }) }).format(new Date(item.startDateTime)) : "Unscheduled"}</td>
           <td className="max-w-[320px] px-4 py-3"><button type="button" onClick={() => onSelect(item)} className="block max-w-full truncate text-left font-medium text-stone-900 hover:text-emerald-800 hover:underline dark:text-stone-100 dark:hover:text-emerald-300">{item.title || "Untitled item"}</button></td>
-          <td className="px-4 py-3"><span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs capitalize text-stone-700 dark:bg-neutral-800 dark:text-stone-200">{item.type}</span></td>
+          <td className="px-4 py-3"><span className="rounded-full px-2.5 py-1 text-xs capitalize" style={{ backgroundColor: `${typeColor(item.type, typeColors)}20`, color: typeColor(item.type, typeColors) }}>{item.type}</span></td>
           <td className="whitespace-nowrap px-4 py-3 text-stone-600 dark:text-stone-300">{formatDuration(durationMinutes(item))}</td>
           <td className="whitespace-nowrap px-4 py-3 text-stone-600 dark:text-stone-300">{formatCost(item, trip.defaultCurrency)}</td>
           <td className="px-4 py-3"><div className="flex max-w-[260px] flex-wrap gap-1.5">{item.tags?.length ? item.tags.map((tag) => <span key={tag} className="max-w-32 truncate rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">{tag}</span>) : <span className="text-stone-400">—</span>}</div></td>
         </tr>)}</tbody>
+        <tfoot className="sticky bottom-0 border-t bg-stone-50 text-sm dark:bg-neutral-950"><tr><td colSpan={4} className="px-4 py-3 text-right font-semibold text-stone-700 dark:text-stone-200">{activeFilterCount ? "Filtered total" : "Total"}</td><td className="whitespace-nowrap px-4 py-3 font-semibold text-stone-900 dark:text-stone-100">{costTotals.length ? costTotals.map(([currency, amount]) => formatTotal(amount, currency)).join(" · ") : "—"}</td><td /></tr></tfoot>
       </table>
       {visibleItems.length === 0 && <div className="grid min-h-48 place-items-center p-6 text-center"><div><p className="text-sm font-medium">No matching trip items</p><p className="mt-1 text-xs text-muted-foreground">Try changing or clearing your filters.</p></div></div>}
     </div>
