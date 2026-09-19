@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { closestCorners, DndContext, DragOverlay, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { CalendarDays, GripVertical, MapPin, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatTripDate } from "@/lib/date-utils";
@@ -13,13 +13,21 @@ const palette = ["#14b8a6", "#3b82f6", "#a855f7", "#ec4899", "#f97316", "#84cc16
 function typeColor(type: string, colors: Record<string, string>) { return colors[type] ?? defaultColors[type] ?? palette[[...type].reduce((sum, char) => sum + char.charCodeAt(0), 0) % palette.length]; }
 
 function Card({ item, timezone, color, onSelect }: { item: TravelObject; timezone: string; color: string; onSelect: (item: TravelObject) => void }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id, disabled: item.id.startsWith("draft:") });
-  const style = { ...(transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : {}), borderLeft: `4px solid ${color}` };
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: item.id, disabled: item.id.startsWith("draft:") });
+  const style = { borderLeft: `4px solid ${color}` };
   const location = item.location as { name?: string } | null;
-  return <button ref={setNodeRef} style={style} onClick={() => onSelect(item)} onDoubleClick={(event) => event.stopPropagation()} {...attributes} {...listeners} className={`w-full overflow-hidden rounded-xl border border-l-4 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md dark:bg-neutral-800 dark:hover:border-neutral-600 ${isDragging ? "z-20 opacity-40" : ""}`}>
+  return <button ref={setNodeRef} style={style} onClick={() => onSelect(item)} onDoubleClick={(event) => event.stopPropagation()} {...attributes} {...listeners} className={`w-full touch-none overflow-hidden rounded-xl border border-l-4 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md dark:bg-neutral-800 dark:hover:border-neutral-600 ${isDragging ? "opacity-40" : ""}`}>
     {item.headerImage && <img src={item.headerImage} alt="" className="h-28 w-full object-cover" />}
     <div className="flex items-start gap-2 p-3"><GripVertical size={14} className="mt-0.5 shrink-0 text-stone-300" /><div className="min-w-0 flex-1"><p className="font-medium leading-snug">{item.title}</p><p className="mt-2 flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400"><CalendarDays size={12} />{formatTripDate(item.startDateTime ?? "", timezone, { month: "short", day: "numeric", ...(item.isAllDay ? {} : { hour: "numeric", minute: "2-digit" }) })}</p>{location?.name && <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-stone-500 dark:text-stone-400"><MapPin size={12} />{location.name}</p>}{item.tags?.length ? <div className="mt-2 flex flex-wrap gap-1">{item.tags.map((tag) => <span key={tag} className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] text-stone-600 dark:bg-neutral-700 dark:text-stone-200">{tag}</span>)}</div> : null}</div></div>
   </button>;
+}
+
+function DragPreview({ item, timezone, color }: { item: TravelObject; timezone: string; color: string }) {
+  const location = item.location as { name?: string } | null;
+  return <div style={{ borderLeft: `4px solid ${color}` }} className="w-[270px] overflow-hidden rounded-xl border border-l-4 bg-white text-left shadow-xl dark:bg-neutral-800">
+    {item.headerImage && <img src={item.headerImage} alt="" className="h-28 w-full object-cover" />}
+    <div className="flex items-start gap-2 p-3"><GripVertical size={14} className="mt-0.5 shrink-0 text-stone-300" /><div className="min-w-0 flex-1"><p className="font-medium leading-snug">{item.title}</p><p className="mt-2 flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400"><CalendarDays size={12} />{formatTripDate(item.startDateTime ?? "", timezone, { month: "short", day: "numeric", ...(item.isAllDay ? {} : { hour: "numeric", minute: "2-digit" }) })}</p>{location?.name && <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-stone-500 dark:text-stone-400"><MapPin size={12} />{location.name}</p>}</div></div>
+  </div>;
 }
 
 function Column({ type, items, timezone, color, onColorChange, onSelect, onAddItem }: { type: string; items: TravelObject[]; timezone: string; color: string; onColorChange: (color: string) => void; onSelect: (item: TravelObject) => void; onAddItem: (type: string) => void }) {
@@ -33,8 +41,11 @@ function Column({ type, items, timezone, color, onColorChange, onSelect, onAddIt
 export function KanbanView({ trip, items, eventTypes, typeColors, onSetTypeColor, onAddType, onSelect, onMoveType, onAddItem }: { trip: Trip; items: TravelObject[]; eventTypes: string[]; typeColors: Record<string, string>; onSetTypeColor: (type: string, color: string) => void; onAddType: (type: string) => void; onSelect: (item: TravelObject) => void; onMoveType: (item: TravelObject, type: string) => Promise<void>; onAddItem: (type?: string) => void }) {
   const types = [...new Set([...defaultTypes, ...eventTypes, ...items.map((item) => item.type)])];
   const [newType, setNewType] = useState("");
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const [activeItem, setActiveItem] = useState<TravelObject | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  function handleDragStart(event: DragStartEvent) { setActiveItem(items.find((item) => item.id === String(event.active.id)) ?? null); }
   async function handleDragEnd(event: DragEndEvent) {
+    setActiveItem(null);
     const target = String(event.over?.id ?? "");
     if (!target.startsWith("type:")) return;
     const item = items.find((candidate) => candidate.id === String(event.active.id));
@@ -44,6 +55,6 @@ export function KanbanView({ trip, items, eventTypes, typeColors, onSetTypeColor
   function createType(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const type = newType.trim().replace(/\s+/g, " ").slice(0, 20); if (!type) return; onAddType(type); setNewType(""); }
   return <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-neutral-900">
     <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"><div><p className="text-sm font-semibold">By event type</p><p className="mt-0.5 text-xs text-muted-foreground">Drag cards between columns · timezone: {trip.timezone}</p></div><div className="flex items-center gap-2"><form onSubmit={createType} className="flex gap-1"><input aria-label="New event type" value={newType} maxLength={20} onChange={(event) => setNewType(event.target.value)} placeholder="New type" className="w-28 rounded-md border bg-background px-2 py-1.5 text-sm" /><Button type="submit" variant="outline" size="sm"><Plus /> Add type</Button></form><Button size="sm" onClick={() => onAddItem()}><Plus /> Add item</Button></div></div>
-    <DndContext sensors={sensors} onDragEnd={(event) => { void handleDragEnd(event); }}><div className="flex min-h-0 flex-1 items-start gap-3 overflow-auto p-4">{types.map((type) => { const color = typeColor(type, typeColors); return <Column key={type} type={type} color={color} onColorChange={(nextColor) => onSetTypeColor(type, nextColor)} items={items.filter((item) => item.type === type)} timezone={trip.timezone} onSelect={onSelect} onAddItem={onAddItem} />; })}</div></DndContext>
+    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragCancel={() => setActiveItem(null)} onDragEnd={(event) => { void handleDragEnd(event); }}><div className="flex min-h-0 flex-1 items-start gap-3 overflow-auto p-4">{types.map((type) => { const color = typeColor(type, typeColors); return <Column key={type} type={type} color={color} onColorChange={(nextColor) => onSetTypeColor(type, nextColor)} items={items.filter((item) => item.type === type)} timezone={trip.timezone} onSelect={onSelect} onAddItem={onAddItem} />; })}</div><DragOverlay dropAnimation={null}>{activeItem ? <DragPreview item={activeItem} timezone={trip.timezone} color={typeColor(activeItem.type, typeColors)} /> : null}</DragOverlay></DndContext>
   </div>;
 }
