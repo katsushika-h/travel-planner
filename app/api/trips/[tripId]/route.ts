@@ -20,7 +20,7 @@ export async function PATCH(request: Request, { params }: Context) {
     const body = await readJsonBody(request);
     const data: Record<string, unknown> = {};
 
-    if (body.title !== undefined) data.title = readTrimmedString(body.title, "title");
+    if (body.title !== undefined) data.title = readTrimmedString(body.title, "title", { maxLength: 50 });
     if (body.startDate !== undefined) data.startDate = readDate(body.startDate, "startDate", true);
     if (body.endDate !== undefined) data.endDate = readDate(body.endDate, "endDate", true);
     if (body.timezone !== undefined) data.timezone = readTimeZone(body.timezone);

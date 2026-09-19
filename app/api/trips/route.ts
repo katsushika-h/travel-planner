@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
     const trip = await prisma.trip.create({
       data: {
-        title: readTrimmedString(body.title, "title")!,
+        title: readTrimmedString(body.title, "title", { maxLength: 50 })!,
         startDate,
         endDate,
         timezone: readTimeZone(body.timezone)!,

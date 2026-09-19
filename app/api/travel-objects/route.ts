@@ -8,6 +8,8 @@ import {
   readPositiveInteger,
   readTags,
   readTrimmedString,
+  validateCost,
+  validateLocation,
 } from "@/lib/api-validation";
 import { prisma } from "@/lib/prisma";
 
@@ -52,6 +54,8 @@ export async function POST(request: Request) {
     }
 
     const tripId = readTrimmedString(body.tripId, "tripId")!;
+    validateCost(body.cost);
+    validateLocation(body.location);
     const trip = await prisma.trip.findUnique({ where: { id: tripId } });
 
     if (!trip) {
@@ -61,7 +65,7 @@ export async function POST(request: Request) {
     const travelObject = await prisma.travelObject.create({
       data: {
         tripId,
-        title: readTrimmedString(body.title, "title")!,
+        title: readTrimmedString(body.title, "title", { maxLength: 100 })!,
         type: readEventType(body.type ?? "unclassified", "type"),
         startDateTime,
         endDateTime,
@@ -70,7 +74,7 @@ export async function POST(request: Request) {
         headerImage: body.headerImage === undefined ? null : readHeaderImage(body.headerImage),
         location: readOptionalJson(body.location, "location"),
         cost: readOptionalJson(body.cost, "cost"),
-        notes: body.notes === null ? null : readTrimmedString(body.notes, "notes", { optional: true }),
+        notes: body.notes === null ? null : readTrimmedString(body.notes, "notes", { optional: true, maxBytes: 2500 }),
         tags: readTags(body.tags),
       },
     });

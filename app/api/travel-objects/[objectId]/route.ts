@@ -8,6 +8,8 @@ import {
   readPositiveInteger,
   readTags,
   readTrimmedString,
+  validateCost,
+  validateLocation,
 } from "@/lib/api-validation";
 import { prisma } from "@/lib/prisma";
 
@@ -36,7 +38,7 @@ export async function PATCH(request: Request, { params }: Context) {
     const body = await readJsonBody(request);
     const data: Record<string, unknown> = {};
 
-    if (body.title !== undefined) data.title = readTrimmedString(body.title, "title");
+    if (body.title !== undefined) data.title = readTrimmedString(body.title, "title", { maxLength: 100 });
     if (body.type !== undefined) data.type = readEventType(body.type, "type");
     if (body.startDateTime !== undefined) data.startDateTime = body.startDateTime === null ? null : readDate(body.startDateTime, "startDateTime");
     if (body.endDateTime !== undefined) data.endDateTime = body.endDateTime === null ? null : readDate(body.endDateTime, "endDateTime");
@@ -46,10 +48,10 @@ export async function PATCH(request: Request, { params }: Context) {
       data.isAllDay = body.isAllDay;
     }
     if (body.headerImage !== undefined) data.headerImage = readHeaderImage(body.headerImage);
-    if (body.location !== undefined) data.location = readOptionalJson(body.location, "location");
-    if (body.cost !== undefined) data.cost = readOptionalJson(body.cost, "cost");
+    if (body.location !== undefined) { validateLocation(body.location); data.location = readOptionalJson(body.location, "location"); }
+    if (body.cost !== undefined) { validateCost(body.cost); data.cost = readOptionalJson(body.cost, "cost"); }
     if (body.notes !== undefined) {
-      data.notes = body.notes === null ? null : readTrimmedString(body.notes, "notes");
+      data.notes = body.notes === null ? null : readTrimmedString(body.notes, "notes", { maxBytes: 2500 });
     }
     if (body.tags !== undefined) data.tags = readTags(body.tags);
 

@@ -43,7 +43,7 @@ export function EditTripDialog({ trip, onSaved }: { trip: Trip; onSaved: (trip: 
           <div><h2 id="edit-trip-title" className="text-lg font-semibold">Trip settings</h2><p className="text-sm text-muted-foreground">Changes apply to this trip and its itinerary.</p></div>
           <Button type="button" variant="ghost" size="icon-sm" onClick={() => setOpen(false)} aria-label="Close"><X /></Button>
         </div>
-        <label className="block text-sm font-medium">Trip name<input name="title" required defaultValue={trip.title} className="mt-1.5 w-full rounded-md border bg-background px-3 py-2" /></label>
+        <label className="block text-sm font-medium">Trip name<input name="title" required maxLength={50} defaultValue={trip.title} className="mt-1.5 w-full rounded-md border bg-background px-3 py-2" /></label>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <label className="text-sm font-medium">Start date<input name="startDate" type="date" defaultValue={trip.startDate.slice(0, 10)} required className="mt-1.5 w-full rounded-md border bg-background px-3 py-2" /></label>
           <label className="text-sm font-medium">End date<input name="endDate" type="date" defaultValue={trip.endDate.slice(0, 10)} required className="mt-1.5 w-full rounded-md border bg-background px-3 py-2" /></label>

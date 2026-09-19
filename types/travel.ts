@@ -24,6 +24,14 @@ export interface CostData {
   currency: string;
 }
 
+export interface TravelAttachment {
+  id: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  createdAt: string;
+}
+
 export interface Trip {
   id: string;
   title: string;

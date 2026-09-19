@@ -32,9 +32,23 @@ model TravelObject {
   cost          Json?
   notes         String?
   tags          String[] @default([])
+  attachments   TravelAttachment[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([tripId, startDateTime, endDateTime])
   @@index([tripId, type])
+}
+
+model TravelAttachment {
+  id             String   @id @default(uuid())
+  travelObjectId String
+  travelObject   TravelObject @relation(fields: [travelObjectId], references: [id], onDelete: Cascade)
+  fileName       String
+  contentType    String
+  size           Int
+  data           Bytes
+  createdAt      DateTime @default(now())
+
+  @@index([travelObjectId, createdAt])
 }

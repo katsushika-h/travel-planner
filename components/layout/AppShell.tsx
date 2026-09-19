@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, CalendarRange, ChevronDown, Compass, LoaderCircle, Moon, PanelLeftClose, PanelLeftOpen, Plus, Rows3, Search, Sparkles, Sun, TableProperties } from "lucide-react";
+import { CalendarDays, CalendarRange, ChevronDown, Compass, LoaderCircle, Moon, PanelLeftClose, PanelLeftOpen, Plus, Rows3, Search, Sun, TableProperties } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CreateTripDialog } from "@/components/trip/CreateTripDialog";
+import { DeleteTripButton } from "@/components/trip/DeleteTripButton";
 import { EditTripDialog } from "@/components/trip/EditTripDialog";
+import { ImportGoogleMapsCsvButton } from "@/components/trip/ImportGoogleMapsCsvButton";
 import { ObjectInspectorPanel } from "@/components/inspector/ObjectInspectorPanel";
 import { CalendarView } from "@/components/views/CalendarView";
 import { KanbanView } from "@/components/views/KanbanView";
@@ -43,6 +45,7 @@ export function AppShell() {
   const activeTripId = useTravelStore((state) => state.activeTripId);
   const activeTrip = trips.find((trip) => trip.id === activeTripId) ?? null;
   const activeTab = useTravelStore((state) => state.activeTab);
+  const setCalendarMode = useTravelStore((state) => state.setCalendarMode);
   const collapsed = useTravelStore((state) => state.sidebarCollapsed);
   const theme = useTravelStore((state) => state.theme);
   const setActiveTripId = useTravelStore((state) => state.setActiveTripId);
@@ -181,22 +184,32 @@ export function AppShell() {
 
   const eventTypes = [...new Set(["unclassified", "flight", "hotel", "food", "commute", "activity", "sightseeing", ...savedEventTypes, ...items.map((item) => item.type)])];
   const boardItems = items;
-  const scheduledBoardItems = items.filter((item) => item.startDateTime && item.endDateTime);
+  const scheduledBoardItems = items;
   const tripLabel = useMemo(() => activeTrip ? `${activeTrip.title} · ${new Date(`${activeTrip.startDate.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, { month: "short", year: "numeric" })}` : "Select a trip", [activeTrip]);
   const selectTrip = (id: string) => { if (id !== activeTripId) setSelectedItemId(null); setActiveTripId(id); };
   const onTripCreated = (trip: Trip) => { setSelectedItemId(null); setTrips((current) => [...current, trip]); setActiveTripId(trip.id); };
   const onTripSaved = (trip: Trip) => setTrips((current) => current.map((existing) => existing.id === trip.id ? trip : existing));
+  const onTripDeleted = () => {
+    const remaining = trips.filter((trip) => trip.id !== activeTripId);
+    setTrips(remaining);
+    setActiveTripId(remaining[0]?.id ?? null);
+    setItems([]);
+    setItemsTripId(null);
+    setSelectedItemId(null);
+  };
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.altKey || event.ctrlKey || event.metaKey || event.defaultPrevented) return;
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      const calendarMode = ({ q: "month", w: "week", e: "day" } as const)[event.key.toLowerCase() as "q" | "w" | "e"];
+      if (calendarMode) { setActiveTab("calendar"); setCalendarMode(calendarMode); event.preventDefault(); return; }
       const tab = ({ c: "calendar", k: "kanban", i: "days", t: "table" } as const)[event.key.toLowerCase() as "c" | "k" | "i" | "t"];
       if (tab) { setActiveTab(tab); event.preventDefault(); }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [setActiveTab]);
+  }, [setActiveTab, setCalendarMode]);
 
   return <main style={{ colorScheme: theme }} className={`flex h-dvh min-h-[620px] overflow-hidden ${theme === "dark" ? "dark bg-neutral-950 text-stone-100" : "bg-[#f7f7f4] text-stone-900"}`}>
     <aside className={`z-10 flex shrink-0 flex-col border-r bg-[#fbfbf9] transition-[width] duration-200 dark:bg-neutral-900 ${collapsed ? "w-[68px]" : "w-[230px]"}`}>
@@ -211,10 +224,10 @@ export function AppShell() {
         </div>
         <TripSelector trips={trips} activeTripId={activeTripId} collapsed={collapsed} onSelect={selectTrip} />
       </div>
-      <div className="mt-auto border-t p-3">{!collapsed && <div className="mb-3 rounded-lg bg-stone-100/80 p-3"><div className="flex items-center gap-2 text-xs font-medium"><Sparkles size={14} className="text-emerald-700" />Plan at your pace</div><p className="mt-1 text-[11px] leading-relaxed text-stone-500">Keep every stop and detail together in one calm workspace.</p></div>}<div className={`flex items-center gap-2 rounded-lg p-2 ${collapsed ? "justify-center" : ""}`}><div className="grid size-8 shrink-0 place-items-center rounded-full bg-orange-100 text-xs font-semibold text-orange-800">{activeTrip?.title.slice(0, 1).toUpperCase() ?? "T"}</div>{!collapsed && <span className="min-w-0 flex-1 truncate text-xs font-medium">{tripLabel}</span>}</div></div>
+      <div className="mt-auto border-t p-3"><div className={`flex items-center gap-1 rounded-lg p-2 ${collapsed ? "justify-center" : ""}`}><div className="grid size-8 shrink-0 place-items-center rounded-full bg-orange-100 text-xs font-semibold text-orange-800">{activeTrip?.title.slice(0, 1).toUpperCase() ?? "T"}</div>{!collapsed && <span className="min-w-0 flex-1 truncate text-xs font-medium">{tripLabel}</span>}{activeTrip && <DeleteTripButton trip={activeTrip} compact onDeleted={onTripDeleted} onError={setError} />}</div></div>
     </aside>
-    <section className="flex min-w-0 flex-1 flex-col">
-      <header className="flex min-h-[68px] items-center justify-between gap-3 border-b bg-[#fbfbf9] px-4 dark:bg-neutral-900 sm:px-7"><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-emerald-800 dark:text-emerald-300">Your journey</p><h1 className="truncate text-base font-semibold sm:text-lg">{activeTrip?.title ?? "Travel workspace"}</h1></div><div className="flex items-center gap-2">{activeTrip && <><Button type="button" onClick={(event) => { event.preventDefault(); void openCreateItem(); }}><Plus /> Add item</Button></>}<Button type="button" variant="ghost" size="icon" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={toggleTheme}>{theme === "dark" ? <Sun /> : <Moon />}</Button><Button type="button" variant="ghost" size="icon" aria-label="Search" title="Search coming soon"><Search /></Button></div></header>
+    <section className="relative flex min-w-0 flex-1 flex-col">
+      <header className="flex min-h-[68px] items-center justify-between gap-3 border-b bg-[#fbfbf9] px-4 dark:bg-neutral-900 sm:px-7"><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-emerald-800 dark:text-emerald-300">Your journey</p><h1 className="truncate text-base font-semibold sm:text-lg">{activeTrip?.title ?? "Travel workspace"}</h1></div><div className="flex items-center gap-2">{activeTrip && <><ImportGoogleMapsCsvButton trip={activeTrip} onImported={(imported) => setItems((current) => sortByStartTime([...current, ...imported]))} onError={setError} /><Button type="button" onClick={(event) => { event.preventDefault(); void openCreateItem(); }}><Plus /> Add item</Button></>}<Button type="button" variant="ghost" size="icon" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={toggleTheme}>{theme === "dark" ? <Sun /> : <Moon />}</Button><Button type="button" variant="ghost" size="icon" aria-label="Search" title="Search coming soon"><Search /></Button></div></header>
       {error && <div className="mx-5 mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>}
       {loadingTrips ? <div className="grid flex-1 place-items-center"><LoaderCircle className="animate-spin text-emerald-700" /></div> : !activeTrip ? <div className="grid flex-1 place-items-center p-6"><div className="max-w-md text-center"><div className="mx-auto grid size-14 place-items-center rounded-2xl bg-emerald-100 text-emerald-800"><Compass size={25} /></div><h2 className="mt-5 text-xl font-semibold">Make room for the good parts</h2><p className="mt-2 text-sm leading-relaxed text-stone-500">Create a trip to bring dates, stays, meals, and little discoveries into one clear plan.</p><div className="mt-5 flex justify-center"><CreateTripDialog onCreated={onTripCreated} /></div></div></div> : <div className="flex min-h-0 flex-1 gap-3 p-3 sm:p-5">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">{itemsTripId !== activeTrip.id ? <div className="grid flex-1 place-items-center"><LoaderCircle className="animate-spin text-emerald-700" /></div> : activeTab === "calendar" ? <CalendarView trip={activeTrip} items={boardItems} typeColors={eventTypeColors} onSelect={(item) => setSelectedItemId(item.id)} onMove={moveItem} onResize={resizeItem} onResizeStart={resizeStartItem} onCreateItem={openCreateItem} /> : activeTab === "kanban" ? <KanbanView trip={activeTrip} items={scheduledBoardItems} eventTypes={eventTypes} typeColors={eventTypeColors} onSetTypeColor={(type, color) => setEventTypeColor(activeTrip.id, type, color)} onAddType={(type) => addEventType(activeTrip.id, type)} onSelect={(item) => setSelectedItemId(item.id)} onMoveType={moveType} onAddItem={(type) => void openCreateItem(undefined, "09:00", type ?? "unclassified")} /> : activeTab === "days" ? <TripDaysView trip={activeTrip} items={scheduledBoardItems} typeColors={eventTypeColors} onSelect={(item) => setSelectedItemId(item.id)} onMove={moveItem} onCreateItem={(date) => void openCreateItem(date)} /> : <TableView trip={activeTrip} items={boardItems} typeColors={eventTypeColors} onSelect={(item) => setSelectedItemId(item.id)} />}</div>

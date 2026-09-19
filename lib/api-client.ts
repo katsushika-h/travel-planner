@@ -1,10 +1,20 @@
-import type { TravelObject, Trip } from "@/types/travel";
+import type { TravelAttachment, TravelObject, Trip } from "@/types/travel";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", ...init?.headers },
+    });
+  } catch (cause) {
+    if (cause instanceof TypeError) {
+      throw new Error("Unable to reach the trip service. Check your connection and try again.");
+    }
+    throw cause;
+  }
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;
     throw new Error(payload?.error ?? "Request failed.");
@@ -29,6 +39,22 @@ export const api = {
     }),
   deleteObject: (id: string) =>
     request<void>(`/api/travel-objects/${id}`, { method: "DELETE" }),
+  attachments: (objectId: string) =>
+    request<TravelAttachment[]>(`/api/travel-objects/${encodeURIComponent(objectId)}/attachments`),
+  uploadAttachment: async (objectId: string, file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    const response = await fetch(`/api/travel-objects/${encodeURIComponent(objectId)}/attachments`, { method: "POST", body, credentials: "same-origin" });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error ?? "Could not upload attachment.");
+    }
+    return response.json() as Promise<TravelAttachment>;
+  },
+  deleteAttachment: (objectId: string, attachmentId: string) =>
+    request<void>(`/api/travel-objects/${encodeURIComponent(objectId)}/attachments/${encodeURIComponent(attachmentId)}`, { method: "DELETE" }),
+  deleteTrip: (id: string) =>
+    request<void>(`/api/trips/${encodeURIComponent(id)}`, { method: "DELETE" }),
   resolveMapsUrl: (url: string) =>
     request<{ expandedUrl: string; name: string | null }>("/api/maps/resolve", { method: "POST", body: JSON.stringify({ url }) }),
 };
