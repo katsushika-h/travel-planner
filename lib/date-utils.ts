@@ -52,6 +52,21 @@ export function zonedDateTimeToUtc(date: string, time: string, timeZone: string)
   return new Date(utcMs).toISOString();
 }
 
+export function dateString(value: string | null | undefined) { return value?.slice(0, 10) ?? null; }
+
+export function isTimed(item: { date: string | null; startTime: string | null; endTime: string | null; isAllDay: boolean }) {
+  return Boolean(item.date && item.startTime && item.endTime && !item.isAllDay);
+}
+
+export function startDateTimeFor(item: { date: string | null; startTime: string | null; isAllDay: boolean }, timeZone: string) {
+  return item.date && (item.startTime || item.isAllDay) ? zonedDateTimeToUtc(item.date.slice(0, 10), item.startTime ?? "00:00", timeZone) : null;
+}
+
+export function endDateTimeFor(item: { date: string | null; endDate: string | null; endTime: string | null; isAllDay: boolean }, timeZone: string) {
+  const date = item.endDate?.slice(0, 10) ?? item.date?.slice(0, 10);
+  return date && (item.endTime || item.isAllDay) ? zonedDateTimeToUtc(date, item.endTime ?? "00:00", timeZone) : null;
+}
+
 export function monthGrid(month: Date) {
   const first = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), 1));
   const start = new Date(first);

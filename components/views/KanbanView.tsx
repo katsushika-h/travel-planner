@@ -17,10 +17,10 @@ function typeColor(type: string, colors: Record<string, string>) { return colors
 
 function Card({ item, timezone, color, selected, primary, onSelect }: { item: TravelObject; timezone: string; color: string; selected: boolean; primary: boolean; onSelect: (item: TravelObject, additive: boolean) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: item.id, disabled: item.id.startsWith("draft:") });
-  const { setNodeRef: setDropRef } = useDroppable({ id: `card:${item.id}` });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `card:${item.id}` });
   const location = item.location as { name?: string } | null;
   const dateLabel = item.startDateTime ? formatTripDate(item.startDateTime, timezone, { month: "short", day: "numeric", ...(item.isAllDay ? {} : { hour: "numeric", minute: "2-digit" }) }) : "Unscheduled";
-  return <div ref={setDropRef}><button ref={setNodeRef} data-travel-object-id={item.id} style={{ borderLeft: `4px solid ${color}` }} onClick={(event) => onSelect(item, event.shiftKey)} onDoubleClick={(event) => event.stopPropagation()} {...attributes} {...listeners} className={`w-full scroll-mx-4 touch-none overflow-hidden rounded-xl border border-l-4 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md dark:bg-neutral-800 dark:hover:border-neutral-600 ${selected ? primary ? "ring-2 ring-white ring-offset-2 ring-offset-emerald-600" : "ring-2 ring-emerald-600" : ""} ${isDragging ? "opacity-40" : ""}`}>
+  return <div ref={setDropRef} className={`relative ${isOver ? "before:absolute before:inset-x-1 before:-top-1 before:z-20 before:border-t-2 before:border-emerald-500" : ""}`}><button ref={setNodeRef} data-travel-object-id={item.id} style={{ borderLeft: `4px solid ${color}` }} onClick={(event) => onSelect(item, event.shiftKey)} onDoubleClick={(event) => event.stopPropagation()} {...attributes} {...listeners} className={`w-full scroll-mx-4 touch-none overflow-hidden rounded-xl border border-l-4 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md dark:bg-neutral-800 dark:hover:border-neutral-600 ${selected ? primary ? "ring-2 ring-white ring-offset-2 ring-offset-emerald-600" : "ring-2 ring-emerald-600" : ""} ${isDragging ? "opacity-40" : ""}`}>
     {item.headerImage && <img src={item.headerImage} alt="" className="h-28 w-full object-cover" />}
     <div className="flex items-start gap-2 p-3"><GripVertical size={14} className="mt-0.5 shrink-0 text-stone-300" /><div className="min-w-0 flex-1"><p className="font-medium leading-snug">{item.title}</p><p className="mt-2 flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400"><CalendarDays size={12} />{dateLabel}</p>{location?.name && <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-stone-500 dark:text-stone-400"><MapPin size={12} />{location.name}</p>}{item.tags?.length ? <div className="mt-2 flex flex-wrap gap-1">{item.tags.map((tag) => <span key={tag} className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] text-stone-600 dark:bg-neutral-700 dark:text-stone-200">{tag}</span>)}</div> : null}</div></div>
   </button></div>;
@@ -43,7 +43,7 @@ function Column({ type, items, timezone, color, selectedIds, primarySelectedId, 
   </section>;
 }
 
-export function KanbanView({ trip, items, eventTypes, typeColors, selectedIds, primarySelectedId, inspectedItemId, onSetTypeColor, onAddType, onSelect, onSelectForDrag, onMoveType }: { trip: Trip; items: TravelObject[]; eventTypes: string[]; typeColors: Record<string, string>; selectedIds: ReadonlySet<string>; primarySelectedId: string | null; inspectedItemId: string | null; onSetTypeColor: (type: string, color: string) => void; onAddType: (type: string) => void; onSelect: (item: TravelObject, additive?: boolean) => void; onSelectForDrag: (item: TravelObject) => void; onMoveType: (item: TravelObject, type: string) => Promise<void>; onAddItem?: (type?: string) => void }) {
+export function KanbanView({ trip, items, eventTypes, typeColors, selectedIds, primarySelectedId, inspectedItemId, onSetTypeColor, onAddType, onSelect, onSelectForDrag, onMoveType, onReorder, onAddItem }: { trip: Trip; items: TravelObject[]; eventTypes: string[]; typeColors: Record<string, string>; selectedIds: ReadonlySet<string>; primarySelectedId: string | null; inspectedItemId: string | null; onSetTypeColor: (type: string, color: string) => void; onAddType: (type: string) => void; onSelect: (item: TravelObject, additive?: boolean) => void; onSelectForDrag: (item: TravelObject) => void; onMoveType: (item: TravelObject, type: string) => Promise<void>; onReorder: (item: TravelObject, date: string, order: number, clearTime?: boolean) => Promise<void>; onAddItem?: (type?: string) => void }) {
   const types = [...new Set([...defaultTypes, ...eventTypes, ...items.map((item) => item.type)])];
   const [newType, setNewType] = useState("");
   const [activeItem, setActiveItem] = useState<TravelObject | null>(null);
@@ -51,7 +51,7 @@ export function KanbanView({ trip, items, eventTypes, typeColors, selectedIds, p
   const boardRef = useRef<HTMLDivElement>(null);
   const suppressClickRef = useRef(false);
   const removeEventType = useTravelStore((state) => state.removeEventType);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 3 } }));
   useEffect(() => {
     if (!inspectedItemId) return;
     let secondFrame = 0;
@@ -66,14 +66,12 @@ export function KanbanView({ trip, items, eventTypes, typeColors, selectedIds, p
     const item = items.find((candidate) => candidate.id === String(event.active.id));
     if (target.startsWith("card:")) {
       const targetItem = items.find((candidate) => candidate.id === target.slice(5));
-      if (item && targetItem && item.type !== targetItem.type) {
-        await onMoveType(item, targetItem.type);
-        return;
-      }
-      if (item && targetItem && item.id !== targetItem.id && item.dayIndex !== null && targetItem.dayIndex !== null) {
+      if (item && targetItem && item.type !== targetItem.type) await onMoveType(item, targetItem.type);
+      if (item && targetItem && item.id !== targetItem.id && item.dayIndex !== null && targetItem.dayIndex !== null && item.dayIndex === targetItem.dayIndex) {
         const ordered = items.filter((candidate) => candidate.dayIndex === targetItem.dayIndex && candidate.id !== item.id).sort((a, b) => (a.dayOrder ?? Number.MAX_SAFE_INTEGER) - (b.dayOrder ?? Number.MAX_SAFE_INTEGER) || a.createdAt.localeCompare(b.createdAt));
         const order = Math.max(0, ordered.findIndex((candidate) => candidate.id === targetItem.id));
-        await api.reorderObjects({ tripId: trip.id, objectId: item.id, dayIndex: targetItem.dayIndex, dayOrder: order });
+        const date = targetItem.date?.slice(0, 10) ?? (targetItem.startDateTime ? targetItem.startDateTime.slice(0, 10) : null);
+        if (date) await onReorder(item, date, order);
       }
       return;
     }

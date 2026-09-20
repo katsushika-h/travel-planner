@@ -5,14 +5,17 @@ import {
   readEventType,
   readHeaderImage,
   readJsonBody,
-  readPositiveInteger,
   readNonNegativeInteger,
+  readPlacementTime,
+  readTime,
   readTags,
   readTrimmedString,
   validateCost,
   validateLocation,
 } from "@/lib/api-validation";
 import { prisma } from "@/lib/prisma";
+import { withScheduleCompatibility } from "@/lib/travel-object-compat";
+import { dateParts } from "@/lib/date-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +29,10 @@ function readOptionalJson(value: unknown, field: string) {
 
 export async function GET(_request: Request, { params }: Context) {
   const { objectId } = await params;
-  const travelObject = await prisma.travelObject.findUnique({ where: { id: objectId } });
+  const travelObject = await prisma.travelObject.findUnique({ where: { id: objectId }, include: { trip: { select: { timezone: true, startDate: true } } } });
 
   return travelObject
-    ? Response.json(travelObject)
+    ? Response.json(withScheduleCompatibility(travelObject, travelObject.trip.timezone, travelObject.trip.startDate))
     : Response.json({ error: "Travel object not found." }, { status: 404 });
 }
 
@@ -41,9 +44,11 @@ export async function PATCH(request: Request, { params }: Context) {
 
     if (body.title !== undefined) data.title = readTrimmedString(body.title, "title", { maxLength: 100 });
     if (body.type !== undefined) data.type = readEventType(body.type, "type");
-    if (body.startDateTime !== undefined) data.startDateTime = body.startDateTime === null ? null : readDate(body.startDateTime, "startDateTime");
-    if (body.endDateTime !== undefined) data.endDateTime = body.endDateTime === null ? null : readDate(body.endDateTime, "endDateTime");
-    if (body.dayIndex !== undefined) data.dayIndex = body.dayIndex === null ? null : readPositiveInteger(body.dayIndex, "dayIndex");
+    if (body.date !== undefined) data.date = body.date === null ? null : readDate(body.date, "date", true);
+    if (body.endDate !== undefined) data.endDate = body.endDate === null ? null : readDate(body.endDate, "endDate", true);
+    if (body.startTime !== undefined) data.startTime = body.startTime === null ? null : readTime(body.startTime, "startTime");
+    if (body.endTime !== undefined) data.endTime = body.endTime === null ? null : readTime(body.endTime, "endTime");
+    if (body.placementTime !== undefined) data.placementTime = body.placementTime === null ? null : readPlacementTime(body.placementTime, "placementTime");
     if (body.dayOrder !== undefined) data.dayOrder = body.dayOrder === null ? null : readNonNegativeInteger(body.dayOrder, "dayOrder");
     if (body.isAllDay !== undefined) {
       if (typeof body.isAllDay !== "boolean") throw new Error("isAllDay must be a boolean.");
@@ -57,37 +62,78 @@ export async function PATCH(request: Request, { params }: Context) {
     }
     if (body.tags !== undefined) data.tags = readTags(body.tags);
 
-    if (Object.keys(data).length === 0) {
-      return Response.json({ error: "Provide at least one field to update." }, { status: 400 });
-    }
-
-    const existing = await prisma.travelObject.findUnique({ where: { id: objectId } });
+    const existing = await prisma.travelObject.findUnique({ where: { id: objectId }, include: { trip: { select: { timezone: true, startDate: true } } } });
 
     if (!existing) {
       return Response.json({ error: "Travel object not found." }, { status: 404 });
     }
 
-    const startDateTime = data.startDateTime !== undefined ? data.startDateTime as Date | null : existing.startDateTime;
-    const endDateTime = data.endDateTime !== undefined ? data.endDateTime as Date | null : existing.endDateTime;
-
-    const isAllDay = (data.isAllDay as boolean | undefined) ?? existing.isAllDay;
-    if ((startDateTime === null) !== (endDateTime === null)) throw new Error("startDateTime and endDateTime must both be set or both be null.");
-    if (startDateTime === null && endDateTime === null && isAllDay && (data.dayIndex as number | null | undefined) !== null && data.dayIndex !== undefined) throw new Error("Flexible items cannot be all-day items.");
-    if (startDateTime && endDateTime && (isAllDay ? endDateTime < startDateTime : endDateTime <= startDateTime)) {
-      return Response.json(
-        { error: isAllDay ? "endDateTime must be on or after startDateTime." : "endDateTime must be after startDateTime." },
-        { status: 400 },
-      );
+    // Accept the old request shape while clients are moved to the canonical
+    // date/endDate/startTime/endTime representation. These values are never
+    // persisted as duplicate timestamp columns.
+    const hasCanonicalScheduleField = ["date", "endDate", "startTime", "endTime", "placementTime", "isAllDay", "dayOrder"].some((field) => body[field] !== undefined);
+    const legacyStart = typeof body.startDateTime === "string" ? readDate(body.startDateTime, "startDateTime") : null;
+    const legacyEnd = typeof body.endDateTime === "string" ? readDate(body.endDateTime, "endDateTime") : null;
+    if (!hasCanonicalScheduleField && body.startDateTime === null && body.endDateTime === null) {
+      data.date = null;
+    } else if (!hasCanonicalScheduleField && legacyStart && legacyEnd) {
+      const start = dateParts(legacyStart, existing.trip.timezone);
+      const end = dateParts(legacyEnd, existing.trip.timezone);
+      data.date = readDate(start.date, "date", true);
+      data.endDate = readDate(end.date, "endDate", true);
+      data.startTime = existing.isAllDay ? null : start.time;
+      data.endTime = existing.isAllDay ? null : end.time;
+      data.placementTime = null;
+      data.isAllDay = existing.isAllDay;
     }
 
-    if (startDateTime === null && endDateTime === null && data.dayIndex === undefined) data.dayIndex = null;
+    if (Object.keys(data).length === 0) {
+      return Response.json({ error: "Provide at least one field to update." }, { status: 400 });
+    }
+
+    let isAllDay = (data.isAllDay as boolean | undefined) ?? existing.isAllDay;
+    const date = data.date !== undefined ? data.date as Date | null : existing.date;
+    const endDate = data.endDate !== undefined ? data.endDate as Date | null : existing.endDate;
+    const startTime = data.startTime !== undefined ? data.startTime as string | null : existing.startTime;
+    const endTime = data.endTime !== undefined ? data.endTime as string | null : existing.endTime;
+    const placementTime = data.placementTime !== undefined ? data.placementTime as string | null : existing.placementTime;
+    if (date === null) {
+      data.date = null;
+      data.endDate = null;
+      data.placementTime = null;
+      data.dayOrder = null;
+      data.isAllDay = false;
+      isAllDay = false;
+      if ((startTime === null) !== (endTime === null)) {
+        throw new Error("startTime and endTime must both be set or both be null.");
+      }
+    } else {
+      const finalEndDate = endDate ?? date;
+      if (finalEndDate < date) throw new Error("endDate must be on or after date.");
+      data.endDate = finalEndDate;
+      if (isAllDay) {
+        if (startTime || endTime) throw new Error("All-day items cannot have times.");
+        data.startTime = null;
+        data.endTime = null;
+        data.placementTime = null;
+      } else if ((startTime === null) !== (endTime === null)) {
+        throw new Error("startTime and endTime must both be set or both be null.");
+      } else if (startTime && endTime && finalEndDate.getTime() === date.getTime() && endTime <= startTime) {
+        throw new Error("endTime must be after startTime on the same date.");
+      } else if (startTime && endTime) {
+        if (data.placementTime !== undefined && placementTime) throw new Error("placementTime is only for flexible items without confirmed times.");
+        data.placementTime = null;
+      } else {
+        data.placementTime = placementTime ?? "09:00";
+      }
+    }
 
     const travelObject = await prisma.travelObject.update({
       where: { id: objectId },
       data,
     });
 
-    return Response.json(travelObject);
+    return Response.json(withScheduleCompatibility(travelObject, existing.trip.timezone, existing.trip.startDate));
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "Invalid travel object data." },

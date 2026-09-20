@@ -38,6 +38,21 @@ export function readDate(value: unknown, field: string, dateOnly = false) {
   return date;
 }
 
+export function readTime(value: unknown, field: string) {
+  if (typeof value !== "string" || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+    throw new Error(`${field} must be a 24-hour time in HH:MM format.`);
+  }
+  return value;
+}
+
+export function readPlacementTime(value: unknown, field: string) {
+  const time = readTime(value, field);
+  if (Number(time.slice(3, 5)) % 15 !== 0) {
+    throw new Error(`${field} must fall on a 15-minute interval.`);
+  }
+  return time;
+}
+
 export function readTimeZone(value: unknown) {
   const timezone = readTrimmedString(value, "timezone");
 

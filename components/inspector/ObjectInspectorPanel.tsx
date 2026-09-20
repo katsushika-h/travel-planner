@@ -5,13 +5,14 @@ import { ChevronDown, Download, ExternalLink, FileText, LoaderCircle, Paperclip,
 import { Button } from "@/components/ui/button";
 import { MarkdownEditor } from "@/components/inspector/MarkdownEditor";
 import { api } from "@/lib/api-client";
-import { dateParts, dayIndexForDate, zonedDateTimeToUtc } from "@/lib/date-utils";
+import { dateParts, dayIndexForDate } from "@/lib/date-utils";
 import type { TravelAttachment, TravelObject, LocationData } from "@/types/travel";
 
 const currencies = (Intl as typeof Intl & { supportedValuesOf?: (key: "currency") => string[] }).supportedValuesOf?.("currency") ?? ["AUD", "CAD", "CNY", "EUR", "GBP", "INR", "JPY", "SGD", "USD"];
 const inspectorDefaultColors: Record<string, string> = { unclassified: "#64748b", flight: "#0ea5e9", hotel: "#8b5cf6", food: "#f97316", commute: "#f59e0b", activity: "#10b981", sightseeing: "#f43f5e" };
 const inspectorPalette = ["#14b8a6", "#3b82f6", "#a855f7", "#ec4899", "#f97316", "#84cc16", "#64748b"];
 function inspectorTypeColor(type: string, colors: Record<string, string>) { return colors[type] ?? inspectorDefaultColors[type] ?? inspectorPalette[[...type].reduce((sum, char) => sum + char.charCodeAt(0), 0) % inspectorPalette.length]; }
+function oneHourAfter(time: string) { const value = new Date(`2000-01-01T${time}:00Z`); value.setUTCHours(value.getUTCHours() + 1); return value.toISOString().slice(11, 16); }
 function formatFileSize(bytes: number) { return bytes < 1024 * 1024 ? `${Math.max(1, Math.ceil(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`; }
 function truncateUtf8(value: string, maxBytes: number) { let result = ""; for (const character of value) { if (new TextEncoder().encode(result + character).byteLength > maxBytes) break; result += character; } return result; }
 const fieldClass = "min-w-0 w-full border-0 bg-transparent px-0 py-1 text-sm text-foreground outline-none focus:ring-0";
@@ -47,24 +48,24 @@ export function ObjectInspectorPanel({ item, timeZone, tripStartDate, defaultCur
   if (!currentItem) return null;
   const location = (item.location ?? null) as LocationData | null; const cost = item.cost as { amount?: number; currency?: string } | null;
   const fallbackDateTime = `${tripStartDate.slice(0, 10)}T00:00:00Z`;
-  const isScheduled = Boolean(item.startDateTime && item.endDateTime);
   const start = dateParts(item.startDateTime ?? fallbackDateTime, timeZone); const end = dateParts(item.endDateTime ?? fallbackDateTime, timeZone);
+  const dateValue = item.date?.slice(0, 10) ?? (item.startDateTime ? start.date : "");
+  const endDateValue = item.endDate?.slice(0, 10) ?? (item.endDateTime ? end.date : dateValue);
+  const startTimeValue = item.startTime ?? (item.startDateTime && !item.isAllDay ? start.time : "");
+  const endTimeValue = item.endTime ?? (item.endDateTime && !item.isAllDay ? end.time : "");
   const currencySuggestions = currencies.filter((code) => code.toLowerCase().includes(currencySearch.toLowerCase())).slice(0, 15);
-  function patchDateTime(which: "start" | "end", value: string) {
-    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return;
-    const [date, time] = value.split("T");
-    const iso = zonedDateTimeToUtc(date, time, timeZone);
-    if (which === "start") {
-      const currentEnd = currentItem!.endDateTime;
-      const nextEnd = currentItem!.isAllDay
-        ? currentEnd && Date.parse(currentEnd) >= Date.parse(iso) ? currentEnd : iso
-        : currentEnd && Date.parse(currentEnd) > Date.parse(iso) ? currentEnd : new Date(Date.parse(iso) + 3_600_000).toISOString();
-      onChange(currentItem!.id, { startDateTime: iso, endDateTime: nextEnd, dayIndex: Math.max(1, dayIndexForDate(date, tripStartDate)) });
-    } else if (!currentItem!.startDateTime) {
-      const startDateTime = currentItem!.isAllDay ? iso : new Date(Date.parse(iso) - 3_600_000).toISOString();
-      const startDate = dateParts(startDateTime, timeZone).date;
-      onChange(currentItem!.id, { startDateTime, endDateTime: iso, dayIndex: Math.max(1, dayIndexForDate(startDate, tripStartDate)) });
-    } else { onChange(currentItem!.id, { endDateTime: iso }); }
+  function patchDate(value: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+    onChange(currentItem!.id, { date: value, ...(endDateValue && endDateValue < value ? { endDate: value } : {}), dayIndex: Math.max(1, dayIndexForDate(value, tripStartDate)) });
+  }
+  function patchEndDate(value: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || dateValue && value < dateValue) return;
+    onChange(currentItem!.id, { endDate: value || dateValue });
+  }
+  function patchTime(which: "startTime" | "endTime", value: string) {
+    const patch: Partial<TravelObject> = { [which]: value || null, isAllDay: false };
+    if (which === "startTime" && value && (!endTimeValue || value >= endTimeValue)) patch.endTime = oneHourAfter(value);
+    onChange(currentItem!.id, patch);
   }
   function saveHeaderImage(value: string | null) {
     if (value === null) { setImageError(""); onChange(currentItem!.id, { headerImage: null }, true); return; }
@@ -95,8 +96,9 @@ export function ObjectInspectorPanel({ item, timeZone, tripStartDate, defaultCur
       <input value={titleDraft} maxLength={100} onChange={(e) => { setTitleDraft(e.target.value); if (e.target.value.trim()) onChange(item.id, { title: e.target.value }); }} onBlur={() => { if (!titleDraft.trim()) { setTitleDraft("(untitled event)"); onChange(item.id, { title: "(untitled event)" }); } }} aria-label="Title" className="mb-4 w-full border-0 bg-transparent px-0 py-1 text-3xl font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground focus:ring-0" />
       <div className="mb-6">
         <PropertyRow label="Type"><div className="relative"><button type="button" aria-expanded={typeOpen} onClick={() => setTypeOpen(!typeOpen)} className="flex w-full items-center gap-2 py-1 text-left text-sm"><span className="size-3 rounded-sm" style={{ backgroundColor: inspectorTypeColor(item.type, typeColors) }} />{item.type}<ChevronDown size={14} className="ml-auto" /></button>{typeOpen && <div role="listbox" className="absolute left-0 right-0 top-full z-30 max-h-56 overflow-y-auto rounded-md border bg-background p-1 shadow-xl">{eventTypes.map((type) => <button key={type} type="button" role="option" aria-selected={type === item.type} onClick={() => { onChange(item.id, { type }); setTypeOpen(false); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted"><span className="size-3 rounded-sm" style={{ backgroundColor: inspectorTypeColor(type, typeColors) }} />{type}</button>)}</div>}</div></PropertyRow>
-        <PropertyRow label="All day"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={item.isAllDay} onChange={(e) => onChange(item.id, { isAllDay: e.target.checked })} /> All day</label></PropertyRow>
-        <PropertyRow label="When"><div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2"><div className="grid grid-cols-2 gap-3"><label className="min-w-0 text-[10px] text-muted-foreground">Start<input aria-label={item.isAllDay ? "Start date" : "Start date and time"} type={item.isAllDay ? "date" : "datetime-local"} value={isScheduled ? item.isAllDay ? start.date : `${start.date}T${start.time}` : ""} onChange={(e) => patchDateTime("start", item.isAllDay && e.target.value ? `${e.target.value}T00:00` : e.target.value)} className={`${fieldClass} text-foreground`} /></label><label className="min-w-0 text-[10px] text-muted-foreground">End<input aria-label={item.isAllDay ? "End date" : "End date and time"} type={item.isAllDay ? "date" : "datetime-local"} value={isScheduled ? item.isAllDay ? end.date : `${end.date}T${end.time}` : ""} onChange={(e) => patchDateTime("end", item.isAllDay && e.target.value ? `${e.target.value}T00:00` : e.target.value)} className={`${fieldClass} text-foreground`} /></label></div><Button type="button" variant="ghost" size="icon-sm" disabled={!isScheduled} aria-label="Remove date" title="Remove date" onClick={() => onChange(item.id, { startDateTime: null, endDateTime: null, dayIndex: null }, true)}><Trash2 size={15} /></Button></div></PropertyRow>
+        <PropertyRow label="All day"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={item.isAllDay} onChange={(e) => onChange(item.id, e.target.checked ? { isAllDay: true, startTime: null, endTime: null, placementTime: null } : { isAllDay: false })} /> All day</label></PropertyRow>
+        <PropertyRow label="Dates"><div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2"><label className="min-w-0 text-[10px] text-muted-foreground">Start<input aria-label="Start date" type="date" value={dateValue} onChange={(e) => patchDate(e.target.value)} className={`${fieldClass} text-foreground`} /></label><label className="min-w-0 text-[10px] text-muted-foreground">End<input aria-label="End date" type="date" min={dateValue || undefined} value={endDateValue} onChange={(e) => patchEndDate(e.target.value)} className={`${fieldClass} text-foreground`} /></label><Button type="button" variant="ghost" size="icon-sm" disabled={!dateValue} aria-label="Remove date" title="Move to unscheduled while keeping saved times" onClick={() => onChange(item.id, { date: null, startDateTime: null, endDateTime: null, dayIndex: null, isAllDay: false }, true)}><Trash2 size={15} /></Button></div></PropertyRow>
+        <PropertyRow label="Time"><div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2"><label className="min-w-0 text-[10px] text-muted-foreground">Start<input aria-label="Start time" type="time" disabled={item.isAllDay} value={startTimeValue} onChange={(e) => patchTime("startTime", e.target.value)} className={`${fieldClass} text-foreground`} /></label><label className="min-w-0 text-[10px] text-muted-foreground">End<input aria-label="End time" type="time" disabled={item.isAllDay} value={endTimeValue} onChange={(e) => patchTime("endTime", e.target.value)} className={`${fieldClass} text-foreground`} /></label><Button type="button" variant="ghost" size="icon-sm" disabled={!startTimeValue && !endTimeValue} aria-label="Remove time" title="Make this a flexible item" onClick={() => onChange(item.id, { startTime: null, endTime: null, startDateTime: null, endDateTime: null, isAllDay: false }, true)}><Trash2 size={15} /></Button></div></PropertyRow>
         <PropertyRow label="Place"><input value={location?.name ?? ""} maxLength={300} onChange={(e) => onChange(currentItem!.id, { location: { ...location, name: e.target.value, googleMapsUrl: location?.googleMapsUrl } })} placeholder="Place name" className={fieldClass} /></PropertyRow>
         <PropertyRow label="Maps"><div>{Boolean(mapsUrl || location?.name) && <a href={safeMapsHref(mapsUrl, location?.name ?? item.title)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 pb-1 text-sm text-emerald-800 hover:underline dark:text-emerald-300">{location?.name || "Open in Google Maps"}<ExternalLink size={12} /></a>}<input type="url" value={mapsUrl} onChange={(e) => onChange(item.id, { location: { ...location, googleMapsUrl: e.target.value } })} onBlur={() => void resolveMap()} placeholder="Paste a Google Maps link" className={fieldClass} /><p className="text-[10px] text-muted-foreground">{resolvingMap ? "Looking up place…" : mapMessage}</p></div></PropertyRow>
       </div>

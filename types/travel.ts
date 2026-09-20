@@ -47,8 +47,17 @@ export interface TravelObject {
   tripId: string;
   title: string;
   type: EventType;
+  date: string | null;
+  endDate: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  /** A 15-minute Week-view placement for flexible items; never a committed event time. */
+  placementTime: string | null;
+  /** @deprecated Computed by the API from canonical date/time fields during the UI migration. */
   startDateTime: string | null;
+  /** @deprecated Computed by the API from canonical date/time fields during the UI migration. */
   endDateTime: string | null;
+  /** @deprecated Computed by the API from canonical `date` during the UI migration. */
   dayIndex: number | null;
   dayOrder: number | null;
   isAllDay: boolean;

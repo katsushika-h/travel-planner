@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, CalendarRange, ChevronDown, Compass, LoaderCircle, Map as MapIcon, Moon, PanelLeftClose, PanelLeftOpen, Plus, Rows3, Search, Sun, TableProperties } from "lucide-react";
+import { CalendarDays, CalendarRange, Compass, LoaderCircle, Map as MapIcon, Moon, PanelLeftClose, PanelLeftOpen, Plus, Rows3, Search, Sun, TableProperties } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CreateTripDialog } from "@/components/trip/CreateTripDialog";
@@ -23,15 +23,8 @@ const EMPTY_EVENT_TYPES: string[] = [];
 const EMPTY_EVENT_TYPE_COLORS: Record<string, string> = {};
 
 
-function TripSelector({ trips, activeTripId, collapsed, onSelect }: { trips: Trip[]; activeTripId: string | null; collapsed: boolean; onSelect: (id: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const activeTrip = trips.find((trip) => trip.id === activeTripId) ?? null;
-  return <div className="relative">
-    <button type="button" disabled={!trips.length} aria-haspopup="menu" aria-expanded={open} title={collapsed ? activeTrip?.title ?? "No trips yet" : undefined} onClick={() => setOpen((value) => !value)} className={`flex w-full items-center gap-2 rounded-lg border bg-white px-3 py-2 text-left text-sm shadow-sm hover:bg-stone-50 dark:bg-neutral-800 dark:hover:bg-neutral-700 disabled:cursor-default disabled:opacity-60 ${collapsed ? "justify-center px-0" : ""}`}>
-      {collapsed ? <span className="grid size-8 place-items-center rounded-md bg-emerald-100 font-semibold text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">{activeTrip?.title.slice(0, 1).toUpperCase() ?? "—"}</span> : <><span className="min-w-0 flex-1 truncate">{activeTrip?.title ?? "No trips yet"}</span><ChevronDown size={15} className="shrink-0 text-stone-400" /></>}
-    </button>
-    {open && <div role="menu" aria-label="Select active trip" className="absolute left-0 top-full z-50 mt-1 max-h-64 w-56 overflow-y-auto rounded-lg border bg-white p-1 shadow-xl dark:bg-neutral-800">{trips.map((trip) => <button key={trip.id} type="button" role="menuitemradio" aria-checked={trip.id === activeTripId} onClick={() => { onSelect(trip.id); setOpen(false); }} className={`w-full truncate rounded-md px-3 py-2 text-left text-sm hover:bg-stone-100 dark:hover:bg-neutral-700 ${trip.id === activeTripId ? "bg-emerald-50 font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100" : ""}`}>{trip.title}</button>)}</div>}
-  </div>;
+function TripList({ trips, activeTripId, collapsed, onSelect }: { trips: Trip[]; activeTripId: string | null; collapsed: boolean; onSelect: (id: string) => void }) {
+  return <nav aria-label="Your trips" className="max-h-52 space-y-1 overflow-y-auto pr-1">{trips.length ? trips.map((trip) => <button key={trip.id} type="button" title={collapsed ? trip.title : undefined} aria-current={trip.id === activeTripId ? "page" : undefined} onClick={() => onSelect(trip.id)} className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition ${trip.id === activeTripId ? "bg-emerald-50 font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100" : "text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-neutral-800"} ${collapsed ? "justify-center px-0" : ""}`}><span className={`grid size-7 shrink-0 place-items-center rounded-md text-xs font-semibold ${trip.id === activeTripId ? "bg-emerald-700 text-white" : "bg-stone-100 text-stone-500 dark:bg-neutral-800 dark:text-stone-300"}`}>{trip.title.slice(0, 1).toUpperCase()}</span>{!collapsed && <span className="min-w-0 flex-1 truncate">{trip.title}</span>}</button>) : <p className={`px-2 py-2 text-xs text-muted-foreground ${collapsed ? "sr-only" : ""}`}>No trips yet</p>}</nav>;
 }
 
 export function AppShell() {
@@ -64,7 +57,7 @@ export function AppShell() {
   const selectedItem = items.find((item) => item.id === inspectedItemId) ?? null;
   const activeTripKey = activeTrip?.id;
 
-  async function openCreateItem(date?: string, time?: string, type = "unclassified", title = "(untitled event)") {
+  async function openCreateItem(date?: string, time?: string, type = "unclassified", title = "(untitled event)", dayOrder?: number) {
     if (!activeTrip) return;
     if (!date) {
       try {
@@ -77,8 +70,9 @@ export function AppShell() {
     }
     if (!time) {
       try {
-        const created = await api.createObject({ tripId: activeTrip.id, title, type, startDateTime: null, endDateTime: null, dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)), dayOrder: null, isAllDay: false, location: null, cost: null, notes: null, tags: [] });
-        setItems((current) => [...current, created]);
+        const created = await api.createObject({ tripId: activeTrip.id, title, type, date, startTime: null, endTime: null, placementTime: "09:00", startDateTime: null, endDateTime: null, dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)), dayOrder: null, isAllDay: false, location: null, cost: null, notes: null, tags: [] });
+        if (dayOrder !== undefined) setItems(sortByStartTime(await api.reorderObjects({ tripId: activeTrip.id, objectId: created.id, date, dayOrder })));
+        else setItems((current) => [...current, created]);
         replaceSelection([created.id], created.id);
         setInspectedItemId(created.id);
       } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create itinerary item."); }
@@ -87,8 +81,9 @@ export function AppShell() {
     const startDate = date ?? activeTrip.startDate.slice(0, 10);
     const startDateTime = zonedDateTimeToUtc(startDate, time, activeTrip.timezone);
     const endDateTime = new Date(Date.parse(startDateTime) + 60 * 60_000).toISOString();
+    const endTime = dateParts(endDateTime, activeTrip.timezone).time;
     try {
-      const created = await api.createObject({ tripId: activeTrip.id, title, type, startDateTime, endDateTime, dayIndex: Math.max(1, dayIndexForDate(startDate, activeTrip.startDate)), dayOrder: null, isAllDay: false, location: null, cost: null, notes: null, tags: [] });
+      const created = await api.createObject({ tripId: activeTrip.id, title, type, date: startDate, startTime: time, endTime, placementTime: null, startDateTime, endDateTime, dayIndex: Math.max(1, dayIndexForDate(startDate, activeTrip.startDate)), dayOrder: null, isAllDay: false, location: null, cost: null, notes: null, tags: [] });
       setItems((current) => sortByStartTime([...current, created]));
       replaceSelection([created.id], created.id);
       setInspectedItemId(created.id);
@@ -167,11 +162,23 @@ export function AppShell() {
 
   async function moveItem(item: TravelObject, date: string, time?: string) {
     if (!activeTrip) return;
+    if (item.isAllDay) {
+      const sourceDate = item.date?.slice(0, 10) ?? date;
+      const sourceEndDate = item.endDate?.slice(0, 10) ?? sourceDate;
+      const durationDays = Math.max(0, Math.round((Date.parse(`${sourceEndDate}T00:00:00Z`) - Date.parse(`${sourceDate}T00:00:00Z`)) / 86_400_000));
+      const endDate = new Date(Date.parse(`${date}T00:00:00Z`) + durationDays * 86_400_000).toISOString().slice(0, 10);
+      changeItem(item.id, { date, endDate, startTime: null, endTime: null, placementTime: null, isAllDay: true, startDateTime: zonedDateTimeToUtc(date, "00:00", activeTrip.timezone), endDateTime: zonedDateTimeToUtc(endDate, "00:00", activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
+      return;
+    }
     if (!item.startDateTime || !item.endDateTime) {
-      const startTime = time ?? "09:00";
-      const endWall = new Date(Date.parse(`${date}T${startTime}:00Z`) + 60 * 60_000);
-      const endDate = endWall.toISOString().slice(0, 10); const endTime = endWall.toISOString().slice(11, 16);
-      changeItem(item.id, { startDateTime: zonedDateTimeToUtc(date, startTime, activeTrip.timezone), endDateTime: zonedDateTimeToUtc(endDate, endTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)), dayOrder: null }, true);
+      if (!time && !item.startTime && !item.endTime) {
+        changeItem(item.id, { date, endDate: date, startTime: null, endTime: null, placementTime: item.placementTime ?? "09:00", isAllDay: false, startDateTime: null, endDateTime: null, dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
+        return;
+      }
+      const restoredTime = time ?? item.startTime ?? "09:00";
+      const restoredEndTime = item.endTime ?? new Date(Date.parse(`${date}T${restoredTime}:00Z`) + 60 * 60_000).toISOString().slice(11, 16);
+      const restoredEndDate = item.endTime ? date : new Date(Date.parse(`${date}T${restoredTime}:00Z`) + 60 * 60_000).toISOString().slice(0, 10);
+      changeItem(item.id, { date, endDate: restoredEndDate, startTime: restoredTime, endTime: restoredEndTime, placementTime: null, startDateTime: zonedDateTimeToUtc(date, restoredTime, activeTrip.timezone), endDateTime: zonedDateTimeToUtc(restoredEndDate, restoredEndTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)), dayOrder: null }, true);
       return;
     }
     const start = dateParts(item.startDateTime, activeTrip.timezone);
@@ -183,17 +190,22 @@ export function AppShell() {
     const newStartWall = Date.parse(`${date}T${newStartTime}:00Z`);
     const newEndWall = new Date(newStartWall + duration * 60_000);
     const endDate = newEndWall.toISOString().slice(0, 10); const endTime = newEndWall.toISOString().slice(11, 16);
-    changeItem(item.id, { startDateTime: zonedDateTimeToUtc(date, newStartTime, activeTrip.timezone), endDateTime: zonedDateTimeToUtc(endDate, endTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)), dayOrder: null }, true);
+    changeItem(item.id, { date, endDate, startTime: newStartTime, endTime, placementTime: null, startDateTime: zonedDateTimeToUtc(date, newStartTime, activeTrip.timezone), endDateTime: zonedDateTimeToUtc(endDate, endTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)), dayOrder: null }, true);
+  }
+
+  async function placeFlexibleItem(item: TravelObject, date: string, placementTime: string) {
+    if (!activeTrip) return;
+    changeItem(item.id, { date, endDate: date, startTime: null, endTime: null, placementTime, isAllDay: false, startDateTime: null, endDateTime: null, dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
   }
 
   async function resizeItem(item: TravelObject, endDate: string, endTime: string) {
     if (!activeTrip) return;
-    changeItem(item.id, { endDateTime: zonedDateTimeToUtc(endDate, endTime, activeTrip.timezone) }, true);
+    changeItem(item.id, { endDate, endTime, endDateTime: zonedDateTimeToUtc(endDate, endTime, activeTrip.timezone) }, true);
   }
 
   async function resizeStartItem(item: TravelObject, startDate: string, startTime: string) {
     if (!activeTrip) return;
-    changeItem(item.id, { startDateTime: zonedDateTimeToUtc(startDate, startTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(startDate, activeTrip.startDate)), dayOrder: null }, true);
+    changeItem(item.id, { date: startDate, startTime, startDateTime: zonedDateTimeToUtc(startDate, startTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(startDate, activeTrip.startDate)), dayOrder: null }, true);
   }
 
   function replaceSelection(ids: Iterable<string>, primaryId: string | null = null) {
@@ -258,21 +270,24 @@ export function AppShell() {
 
   async function unscheduleSelectedItems(item: TravelObject) {
     const moving = selectedIds.has(item.id) ? items.filter((candidate) => selectedIds.has(candidate.id)) : [item];
-    for (const candidate of moving) changeItem(candidate.id, { startDateTime: null, endDateTime: null, dayIndex: null, dayOrder: null }, true);
+    for (const candidate of moving) changeItem(candidate.id, { date: null, endDate: null, placementTime: null, isAllDay: false, startDateTime: null, endDateTime: null, dayIndex: null, dayOrder: null }, true);
   }
 
-  async function reorderItem(item: TravelObject, date: string, order: number, clearTime = false) {
+  async function reorderItem(item: TravelObject, date: string, order: number, clearTime = false, placementTime?: string) {
     if (!activeTrip) return;
-    const dayIndex = Math.max(1, dayIndexForDate(date, activeTrip.startDate));
     try {
-      const updated = await api.reorderObjects({ tripId: activeTrip.id, objectId: item.id, dayIndex, dayOrder: order, clearTime });
+      const updated = await api.reorderObjects({ tripId: activeTrip.id, objectId: item.id, date, dayOrder: order, clearTime, placementTime });
       setItems(sortByStartTime(updated));
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not reorder itinerary."); }
   }
 
   async function moveType(item: TravelObject, type: string) {
     const moving = selectedIds.has(item.id) ? items.filter((candidate) => selectedIds.has(candidate.id)) : [item];
-    for (const candidate of moving) if (candidate.type !== type) changeItem(candidate.id, { type }, true);
+    try {
+      const changed = await Promise.all(moving.map((candidate) => candidate.type === type ? Promise.resolve(candidate) : api.updateObject(candidate.id, { type })));
+      const byId = new Map(changed.map((candidate) => [candidate.id, candidate]));
+      setItems((current) => sortByStartTime(current.map((candidate) => byId.get(candidate.id) ?? candidate)));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not change item type."); }
   }
 
   const eventTypes = [...new Set(["unclassified", "flight", "hotel", "food", "commute", "activity", "sightseeing", ...savedEventTypes, ...items.map((item) => item.type)])];
@@ -318,7 +333,7 @@ export function AppShell() {
           {!collapsed && <span>Your trips</span>}
           {!collapsed && <div className="flex items-center gap-1">{activeTrip && <EditTripDialog key={activeTrip.id} trip={activeTrip} onSaved={onTripSaved} />}<CreateTripDialog onCreated={onTripCreated} /></div>}
         </div>
-        <TripSelector trips={trips} activeTripId={activeTripId} collapsed={collapsed} onSelect={selectTrip} />
+        <TripList trips={trips} activeTripId={activeTripId} collapsed={collapsed} onSelect={selectTrip} />
       </div>
       <div className="mt-auto border-t p-3"><div className={`flex items-center gap-1 rounded-lg p-2 ${collapsed ? "justify-center" : ""}`}><div className="grid size-8 shrink-0 place-items-center rounded-full bg-orange-100 text-xs font-semibold text-orange-800">{activeTrip?.title.slice(0, 1).toUpperCase() ?? "T"}</div>{!collapsed && <span className="min-w-0 flex-1 truncate text-xs font-medium">{tripLabel}</span>}{activeTrip && <DeleteTripButton trip={activeTrip} compact onDeleted={onTripDeleted} onError={setError} />}</div></div>
     </aside>
@@ -326,7 +341,7 @@ export function AppShell() {
       <header className="flex min-h-[68px] items-center justify-between gap-3 border-b bg-[#fbfbf9] px-4 dark:bg-neutral-900 sm:px-7"><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-emerald-800 dark:text-emerald-300">Your journey</p><h1 className="truncate text-base font-semibold sm:text-lg">{activeTrip?.title ?? "Travel workspace"}</h1></div><div className="flex items-center gap-2">{activeTrip && <><ImportGoogleMapsCsvButton trip={activeTrip} eventTypes={eventTypes} onAddType={(type) => addEventType(activeTrip.id, type)} onImported={(imported) => setItems((current) => sortByStartTime([...current, ...imported]))} onError={setError} /><Button type="button" onClick={(event) => { event.preventDefault(); void openCreateItem(); }}><Plus /> Add item</Button></>}<Button type="button" variant="ghost" size="icon" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={toggleTheme}>{theme === "dark" ? <Sun /> : <Moon />}</Button><Button type="button" variant="ghost" size="icon" aria-label="Search" title="Search coming soon"><Search /></Button></div></header>
       {error && <div className="mx-5 mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>}
       {loadingTrips ? <div className="grid flex-1 place-items-center"><LoaderCircle className="animate-spin text-emerald-700" /></div> : !activeTrip ? <div className="grid flex-1 place-items-center p-6"><div className="max-w-md text-center"><div className="mx-auto grid size-14 place-items-center rounded-2xl bg-emerald-100 text-emerald-800"><Compass size={25} /></div><h2 className="mt-5 text-xl font-semibold">Make room for the good parts</h2><p className="mt-2 text-sm leading-relaxed text-stone-500">Create a trip to bring dates, stays, meals, and little discoveries into one clear plan.</p><div className="mt-5 flex justify-center"><CreateTripDialog onCreated={onTripCreated} /></div></div></div> : <div className="flex min-h-0 flex-1 gap-3 p-3 sm:p-5">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{itemsTripId !== activeTrip.id ? <div className="grid flex-1 place-items-center"><LoaderCircle className="animate-spin text-emerald-700" /></div> : activeTab === "calendar" ? <CalendarView trip={activeTrip} items={boardItems} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} onSelect={selectItem} onSelectForDrag={(item) => selectItem(item, false, false)} onMove={moveSelectedItems} onUnschedule={unscheduleSelectedItems} onResize={resizeItem} onResizeStart={resizeStartItem} onCreateItem={openCreateItem} /> : activeTab === "kanban" ? <KanbanView trip={activeTrip} items={scheduledBoardItems} eventTypes={eventTypes} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} inspectedItemId={inspectedItemId} onSetTypeColor={(type, color) => setEventTypeColor(activeTrip.id, type, color)} onAddType={(type) => addEventType(activeTrip.id, type)} onSelect={selectItem} onSelectForDrag={(item) => selectItem(item, false, false)} onMoveType={moveType} onAddItem={(type) => void openCreateItem(undefined, "09:00", type ?? "unclassified")} /> : activeTab === "days" ? <TripDaysView trip={activeTrip} items={scheduledBoardItems} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} inspectedItemId={inspectedItemId} onSelect={selectItem} onSelectForDrag={(item) => selectItem(item, false, false)} onMove={moveSelectedItemsToDay} onCreateItem={(date) => void openCreateItem(date)} /> : activeTab === "table" ? <TableView trip={activeTrip} items={boardItems} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} onSelect={(item, additive) => selectItem(item, additive, false)} onInspect={inspectItem} onSelectionChange={replaceSelection} onChangeItems={changeSelectedItems} /> : <MapView key={activeTrip.id} trip={activeTrip} items={boardItems} typeColors={eventTypeColors} onSelect={inspectItem} />}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{itemsTripId !== activeTrip.id ? <div className="grid flex-1 place-items-center"><LoaderCircle className="animate-spin text-emerald-700" /></div> : activeTab === "calendar" ? <CalendarView trip={activeTrip} items={boardItems} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} onSelect={selectItem} onSelectForDrag={(item) => selectItem(item, false, false)} onMove={moveSelectedItems} onPlaceFlexible={placeFlexibleItem} onUnschedule={unscheduleSelectedItems} onResize={resizeItem} onResizeStart={resizeStartItem} onFlexibleDrop={reorderItem} onCreateItem={openCreateItem} /> : activeTab === "kanban" ? <KanbanView trip={activeTrip} items={scheduledBoardItems} eventTypes={eventTypes} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} inspectedItemId={inspectedItemId} onSetTypeColor={(type, color) => setEventTypeColor(activeTrip.id, type, color)} onAddType={(type) => addEventType(activeTrip.id, type)} onSelect={selectItem} onSelectForDrag={(item) => selectItem(item, false, false)} onMoveType={moveType} onReorder={reorderItem} onAddItem={(type) => void openCreateItem(undefined, "09:00", type ?? "unclassified")} /> : activeTab === "days" ? <TripDaysView trip={activeTrip} items={scheduledBoardItems} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} inspectedItemId={inspectedItemId} onSelect={selectItem} onSelectForDrag={(item) => selectItem(item, false, false)} onMove={moveSelectedItemsToDay} onReorder={reorderItem} onCreateItem={(date) => void openCreateItem(date)} /> : activeTab === "table" ? <TableView trip={activeTrip} items={boardItems} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} onSelect={(item, additive) => selectItem(item, additive, false)} onInspect={inspectItem} onSelectionChange={replaceSelection} onChangeItems={changeSelectedItems} /> : <MapView key={activeTrip.id} trip={activeTrip} items={boardItems} typeColors={eventTypeColors} onSelect={inspectItem} />}</div>
         {selectedItem && <div className="z-20 min-h-0 w-[min(38vw,760px)] min-w-[400px] shrink-0 max-lg:absolute max-lg:inset-y-3 max-lg:right-3 max-lg:w-[min(92vw,600px)] max-lg:min-w-0"><ObjectInspectorPanel key={selectedItem.id} item={selectedItem} timeZone={activeTrip.timezone} defaultCurrency={activeTrip.defaultCurrency ?? "USD"} onClose={closeInspector} onChange={changeItem} onDelete={deleteItem} tripStartDate={activeTrip.startDate} eventTypes={eventTypes} typeColors={eventTypeColors} darkMode={theme === "dark"} /></div>}
       </div>}
       {pendingDeleteIds && <ConfirmDialog title={`Delete ${pendingDeleteIds.length === 1 ? "selected item" : `${pendingDeleteIds.length} selected items`}?`} description="This cannot be undone." items={items.filter((item) => pendingDeleteIds.includes(item.id)).map((item) => item.title)} onCancel={() => setPendingDeleteIds(null)} onConfirm={() => { void deleteSelectedItems(pendingDeleteIds); }} />}

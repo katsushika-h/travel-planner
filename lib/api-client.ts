@@ -30,14 +30,14 @@ export const api = {
     request<Trip>(`/api/trips/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }),
   objects: (tripId: string) =>
     request<TravelObject[]>(`/api/travel-objects?tripId=${encodeURIComponent(tripId)}`),
-  createObject: (data: Omit<TravelObject, "id" | "createdAt" | "updatedAt" | "dayOrder"> & { dayOrder?: number | null }) =>
+  createObject: (data: Omit<TravelObject, "id" | "createdAt" | "updatedAt" | "dayOrder" | "date" | "endDate" | "startTime" | "endTime" | "placementTime" | "startDateTime" | "endDateTime" | "dayIndex"> & Partial<Pick<TravelObject, "date" | "endDate" | "startTime" | "endTime" | "placementTime" | "startDateTime" | "endDateTime" | "dayIndex">> & { dayOrder?: number | null }) =>
     request<TravelObject>("/api/travel-objects", { method: "POST", body: JSON.stringify(data) }),
   updateObject: (id: string, data: Partial<TravelObject>) =>
     request<TravelObject>(`/api/travel-objects/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
-  reorderObjects: (data: { tripId: string; objectId: string; dayIndex: number; dayOrder: number; clearTime?: boolean }) =>
+  reorderObjects: (data: { tripId: string; objectId: string; date: string; dayOrder: number; clearTime?: boolean; placementTime?: string | null }) =>
     request<TravelObject[]>("/api/travel-objects/reorder", { method: "POST", body: JSON.stringify(data) }),
   deleteObject: (id: string) =>
     request<void>(`/api/travel-objects/${id}`, { method: "DELETE" }),
