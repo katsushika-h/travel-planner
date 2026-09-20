@@ -30,13 +30,15 @@ export const api = {
     request<Trip>(`/api/trips/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }),
   objects: (tripId: string) =>
     request<TravelObject[]>(`/api/travel-objects?tripId=${encodeURIComponent(tripId)}`),
-  createObject: (data: Omit<TravelObject, "id" | "createdAt" | "updatedAt">) =>
+  createObject: (data: Omit<TravelObject, "id" | "createdAt" | "updatedAt" | "dayOrder"> & { dayOrder?: number | null }) =>
     request<TravelObject>("/api/travel-objects", { method: "POST", body: JSON.stringify(data) }),
   updateObject: (id: string, data: Partial<TravelObject>) =>
     request<TravelObject>(`/api/travel-objects/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
+  reorderObjects: (data: { tripId: string; objectId: string; dayIndex: number; dayOrder: number; clearTime?: boolean }) =>
+    request<TravelObject[]>("/api/travel-objects/reorder", { method: "POST", body: JSON.stringify(data) }),
   deleteObject: (id: string) =>
     request<void>(`/api/travel-objects/${id}`, { method: "DELETE" }),
   attachments: (objectId: string) =>
@@ -56,5 +58,5 @@ export const api = {
   deleteTrip: (id: string) =>
     request<void>(`/api/trips/${encodeURIComponent(id)}`, { method: "DELETE" }),
   resolveMapsUrl: (url: string) =>
-    request<{ expandedUrl: string; name: string | null }>("/api/maps/resolve", { method: "POST", body: JSON.stringify({ url }) }),
+    request<{ expandedUrl: string; name: string | null; lat: number | null; lng: number | null; coordinateSource: "url" | "featureId" | null }>("/api/maps/resolve", { method: "POST", body: JSON.stringify({ url }) }),
 };

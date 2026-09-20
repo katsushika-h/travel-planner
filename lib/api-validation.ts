@@ -86,6 +86,13 @@ export function readPositiveInteger(value: unknown, field: string) {
   return value as number;
 }
 
+export function readNonNegativeInteger(value: unknown, field: string) {
+  if (!Number.isInteger(value) || (value as number) < 0) {
+    throw new Error(`${field} must be a non-negative integer.`);
+  }
+  return value as number;
+}
+
 export async function readJsonBody(request: Request): Promise<JsonRecord> {
   const body: unknown = await request.json().catch(() => null);
 

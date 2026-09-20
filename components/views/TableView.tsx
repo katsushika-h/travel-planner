@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Filter, RotateCcw } from "lucide-react";
+import { dateParts, dayIndexForDate, zonedDateTimeToUtc } from "@/lib/date-utils";
 import type { TravelObject, Trip } from "@/types/travel";
 
 type SortKey = "startDate" | "title" | "type" | "duration" | "cost" | "tags";
@@ -12,29 +13,9 @@ function durationMinutes(item: TravelObject) {
   return Math.max(0, Math.round((Date.parse(item.endDateTime) - Date.parse(item.startDateTime)) / 60_000));
 }
 
-function formatDuration(minutes: number | null) {
-  if (minutes == null) return "Unscheduled";
-  if (minutes === 0) return "0 min";
-  const days = Math.floor(minutes / 1440);
-  const hours = Math.floor((minutes % 1440) / 60);
-  const remainingMinutes = minutes % 60;
-  return [days ? `${days}d` : "", hours ? `${hours}h` : "", remainingMinutes ? `${remainingMinutes}m` : ""].filter(Boolean).join(" ");
-}
-
 function costAmount(item: TravelObject) {
   const cost = item.cost as { amount?: number; currency?: string } | null | undefined;
   return typeof cost?.amount === "number" && Number.isFinite(cost.amount) ? cost.amount : null;
-}
-
-function formatCost(item: TravelObject, defaultCurrency: string) {
-  const cost = item.cost as { amount?: number; currency?: string } | null | undefined;
-  if (costAmount(item) == null) return "—";
-  const currency = cost?.currency || defaultCurrency || "USD";
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(cost!.amount!);
-  } catch {
-    return `${cost!.amount} ${currency}`;
-  }
 }
 
 function compareNullable<T>(a: T | null, b: T | null, compare: (left: T, right: T) => number) {
@@ -59,7 +40,11 @@ function typeColor(type: string, colors: Record<string, string>) {
   return colors[type] ?? defaultTypeColors[type] ?? typePalette[[...type].reduce((sum, character) => sum + character.charCodeAt(0), 0) % typePalette.length];
 }
 
-export function TableView({ trip, items, typeColors, onSelect }: { trip: Trip; items: TravelObject[]; typeColors: Record<string, string>; onSelect: (item: TravelObject) => void }) {
+function InlineInput({ value, label, type = "text", min, step, onFocus, onCommit, className = "" }: { value: string; label: string; type?: "text" | "number" | "datetime-local"; min?: string; step?: string; onFocus: () => void; onCommit: (value: string) => void; className?: string }) {
+  return <input key={value} aria-label={label} type={type} min={min} step={step} defaultValue={value} onFocus={onFocus} onBlur={(event) => { if (event.currentTarget.value !== value) onCommit(event.currentTarget.value); }} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); else if (event.key === "Escape") { event.currentTarget.value = value; event.currentTarget.blur(); } }} className={`w-full rounded border border-transparent bg-transparent px-1.5 py-1 outline-none hover:border-stone-300 focus:border-emerald-600 focus:bg-background ${className}`} />;
+}
+
+export function TableView({ trip, items, typeColors, selectedIds, primarySelectedId, onSelect, onInspect, onSelectionChange, onChangeItems }: { trip: Trip; items: TravelObject[]; typeColors: Record<string, string>; selectedIds: ReadonlySet<string>; primarySelectedId: string | null; onSelect: (item: TravelObject, additive?: boolean) => void; onInspect: (item: TravelObject) => void; onSelectionChange: (ids: Iterable<string>, primaryId?: string | null) => void; onChangeItems: (ids: string[], patchForItem: (item: TravelObject) => Partial<TravelObject>, immediate?: boolean) => void }) {
   const [sortKey, setSortKey] = useState<SortKey>("startDate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -67,6 +52,7 @@ export function TableView({ trip, items, typeColors, onSelect }: { trip: Trip; i
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const filterRef = useRef<HTMLDivElement>(null);
+  const selectAllRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -123,6 +109,21 @@ export function TableView({ trip, items, typeColors, onSelect }: { trip: Trip; i
     return [...totals.entries()];
   }, [trip.defaultCurrency, visibleItems]);
 
+  const allVisibleSelected = visibleItems.length > 0 && visibleItems.every((item) => selectedIds.has(item.id));
+  const someVisibleSelected = visibleItems.some((item) => selectedIds.has(item.id));
+  useEffect(() => { if (selectAllRef.current) selectAllRef.current.indeterminate = someVisibleSelected && !allVisibleSelected; }, [allVisibleSelected, someVisibleSelected]);
+  useEffect(() => {
+    function selectAll(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "a" || event.defaultPrevented) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      event.preventDefault();
+      onSelectionChange(visibleItems.map((item) => item.id), visibleItems[0]?.id ?? null);
+    }
+    window.addEventListener("keydown", selectAll);
+    return () => window.removeEventListener("keydown", selectAll);
+  }, [onSelectionChange, visibleItems]);
+
   function formatTotal(amount: number, currency: string) {
     try {
       return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
@@ -146,6 +147,15 @@ export function TableView({ trip, items, typeColors, onSelect }: { trip: Trip; i
     setSelectedTags([]);
   }
 
+  function editIds(item: TravelObject) { return selectedIds.has(item.id) ? [...selectedIds] : [item.id]; }
+  function beginEdit(item: TravelObject) { if (!selectedIds.has(item.id)) onSelect(item); }
+  function localStart(item: TravelObject) { if (!item.startDateTime) return ""; const parts = dateParts(item.startDateTime, trip.timezone); return `${parts.date}T${parts.time}`; }
+  function toggleAllVisible() {
+    const visibleIds = new Set(visibleItems.map((item) => item.id));
+    const next = allVisibleSelected ? [...selectedIds].filter((id) => !visibleIds.has(id)) : [...new Set([...selectedIds, ...visibleIds])];
+    onSelectionChange(next, allVisibleSelected && primarySelectedId && visibleIds.has(primarySelectedId) ? next[0] ?? null : primarySelectedId ?? next[0] ?? null);
+  }
+
   return <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-neutral-900" aria-label="Trip items table">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
       <div><h2 className="text-sm font-semibold">All trip items</h2><p className="mt-0.5 text-xs text-muted-foreground">{visibleItems.length} of {items.length} items · {trip.timezone}</p></div>
@@ -163,17 +173,18 @@ export function TableView({ trip, items, typeColors, onSelect }: { trip: Trip; i
       </div>
     </header>
     <div className="min-h-0 flex-1 overflow-auto">
-      <table className="w-full min-w-[880px] border-collapse text-left text-sm">
-        <thead className="sticky top-0 z-10 bg-stone-50 text-xs uppercase tracking-wide text-stone-500 dark:bg-neutral-950 dark:text-stone-400"><tr>{columns.map(({ key, label }) => <th key={key} scope="col" aria-sort={sortKey === key ? (sortDirection === "asc" ? "ascending" : "descending") : "none"} className="border-b px-4 py-3 font-semibold"><button type="button" onClick={() => toggleSort(key)} className="inline-flex items-center gap-1.5 hover:text-emerald-800 dark:hover:text-emerald-300">{label}{sortKey === key && (sortDirection === "asc" ? <ArrowUp size={13} /> : <ArrowDown size={13} />)}</button></th>)}</tr></thead>
-        <tbody className="divide-y divide-stone-100 dark:divide-neutral-800">{visibleItems.map((item) => <tr key={item.id} className="transition-colors hover:bg-stone-50 dark:hover:bg-neutral-800/70">
-          <td className="whitespace-nowrap px-4 py-3 text-stone-600 dark:text-stone-300">{item.startDateTime ? new Intl.DateTimeFormat(undefined, { timeZone: trip.timezone, month: "short", day: "numeric", year: "numeric", ...(item.isAllDay ? {} : { hour: "numeric", minute: "2-digit" }) }).format(new Date(item.startDateTime)) : "Unscheduled"}</td>
-          <td className="max-w-[320px] px-4 py-3"><button type="button" onClick={() => onSelect(item)} className="block max-w-full truncate text-left font-medium text-stone-900 hover:text-emerald-800 hover:underline dark:text-stone-100 dark:hover:text-emerald-300">{item.title || "Untitled item"}</button></td>
-          <td className="px-4 py-3"><span className="rounded-full px-2.5 py-1 text-xs capitalize" style={{ backgroundColor: `${typeColor(item.type, typeColors)}20`, color: typeColor(item.type, typeColors) }}>{item.type}</span></td>
-          <td className="whitespace-nowrap px-4 py-3 text-stone-600 dark:text-stone-300">{formatDuration(durationMinutes(item))}</td>
-          <td className="whitespace-nowrap px-4 py-3 text-stone-600 dark:text-stone-300">{formatCost(item, trip.defaultCurrency)}</td>
-          <td className="px-4 py-3"><div className="flex max-w-[260px] flex-wrap gap-1.5">{item.tags?.length ? item.tags.map((tag) => <span key={tag} className="max-w-32 truncate rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">{tag}</span>) : <span className="text-stone-400">—</span>}</div></td>
+      <table className="w-full min-w-[1060px] border-collapse text-left text-sm">
+        <thead className="sticky top-0 z-10 bg-stone-50 text-xs uppercase tracking-wide text-stone-500 dark:bg-neutral-950 dark:text-stone-400"><tr><th scope="col" className="w-10 border-b px-3 py-3"><input ref={selectAllRef} type="checkbox" aria-label="Select all filtered rows" checked={allVisibleSelected} onChange={toggleAllVisible} className="accent-emerald-700" /></th>{columns.map(({ key, label }) => <th key={key} scope="col" aria-sort={sortKey === key ? (sortDirection === "asc" ? "ascending" : "descending") : "none"} className="border-b px-3 py-3 font-semibold"><button type="button" onClick={() => toggleSort(key)} className="inline-flex items-center gap-1.5 hover:text-emerald-800 dark:hover:text-emerald-300">{label}{sortKey === key && (sortDirection === "asc" ? <ArrowUp size={13} /> : <ArrowDown size={13} />)}</button></th>)}</tr></thead>
+        <tbody className="divide-y divide-stone-100 dark:divide-neutral-800">{visibleItems.map((item) => <tr key={item.id} className={`transition-colors hover:bg-stone-50 dark:hover:bg-neutral-800/70 ${selectedIds.has(item.id) ? primarySelectedId === item.id ? "bg-emerald-700/10 outline outline-2 -outline-offset-2 outline-white" : "bg-emerald-50 outline outline-2 -outline-offset-2 outline-emerald-600 dark:bg-emerald-950/30" : ""}`}>
+          <td className="px-3 py-2"><input type="checkbox" aria-label={`Select ${item.title}`} checked={selectedIds.has(item.id)} onChange={() => onSelect(item, true)} className="accent-emerald-700" /></td>
+          <td className="min-w-52 whitespace-nowrap px-2 py-2 text-stone-600 dark:text-stone-300"><InlineInput label={`Start date for ${item.title}`} type="datetime-local" value={localStart(item)} onFocus={() => beginEdit(item)} onCommit={(value) => onChangeItems(editIds(item), (candidate) => { if (!value) return { startDateTime: null, endDateTime: null, dayIndex: null }; const [date, time] = value.split("T"); const startDateTime = zonedDateTimeToUtc(date, time, trip.timezone); const duration = candidate.startDateTime && candidate.endDateTime ? Math.max(15 * 60_000, Date.parse(candidate.endDateTime) - Date.parse(candidate.startDateTime)) : 60 * 60_000; return { startDateTime, endDateTime: new Date(Date.parse(startDateTime) + duration).toISOString(), dayIndex: Math.max(1, dayIndexForDate(date, trip.startDate)) }; })} /></td>
+          <td className="min-w-52 max-w-[320px] px-2 py-2"><InlineInput label={`Title for ${item.title}`} value={item.title} onFocus={() => onInspect(item)} onCommit={(value) => onChangeItems(editIds(item), () => ({ title: value || "(untitled event)" }))} className="font-medium text-stone-900 dark:text-stone-100" /></td>
+          <td className="min-w-36 px-2 py-2"><div className="flex items-center gap-1"><span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: typeColor(item.type, typeColors) }} /><InlineInput label={`Type for ${item.title}`} value={item.type} onFocus={() => beginEdit(item)} onCommit={(value) => onChangeItems(editIds(item), () => ({ type: value.trim() || "unclassified" }))} className="capitalize" /></div></td>
+          <td className="min-w-28 whitespace-nowrap px-2 py-2 text-stone-600 dark:text-stone-300"><InlineInput label={`Length in minutes for ${item.title}`} type="number" min="0" step="15" value={durationMinutes(item)?.toString() ?? ""} onFocus={() => beginEdit(item)} onCommit={(value) => onChangeItems(editIds(item), (candidate) => ({ endDateTime: candidate.startDateTime && value !== "" ? new Date(Date.parse(candidate.startDateTime) + Math.max(0, Number(value) || 0) * 60_000).toISOString() : null }))} /></td>
+          <td className="min-w-28 whitespace-nowrap px-2 py-2 text-stone-600 dark:text-stone-300"><InlineInput label={`Cost for ${item.title}`} type="number" min="0" step="0.01" value={costAmount(item)?.toString() ?? ""} onFocus={() => beginEdit(item)} onCommit={(value) => onChangeItems(editIds(item), (candidate) => ({ cost: value === "" ? null : { ...((candidate.cost as object | null) ?? {}), amount: Math.max(0, Number(value) || 0), currency: (candidate.cost as { currency?: string } | null)?.currency || trip.defaultCurrency || "USD" } }))} /></td>
+          <td className="min-w-64 px-2 py-2"><InlineInput label={`Tags for ${item.title}`} value={(item.tags ?? []).join(", ")} onFocus={() => beginEdit(item)} onCommit={(value) => onChangeItems(editIds(item), () => ({ tags: [...new Set(value.split(",").map((tag) => tag.trim()).filter(Boolean))] }))} /></td>
         </tr>)}</tbody>
-        <tfoot className="sticky bottom-0 border-t bg-stone-50 text-sm dark:bg-neutral-950"><tr><td colSpan={4} className="px-4 py-3 text-right font-semibold text-stone-700 dark:text-stone-200">{activeFilterCount ? "Filtered total" : "Total"}</td><td className="whitespace-nowrap px-4 py-3 font-semibold text-stone-900 dark:text-stone-100">{costTotals.length ? costTotals.map(([currency, amount]) => formatTotal(amount, currency)).join(" · ") : "—"}</td><td /></tr></tfoot>
+        <tfoot className="sticky bottom-0 border-t bg-stone-50 text-sm dark:bg-neutral-950"><tr><td /><td colSpan={4} className="px-4 py-3 text-right font-semibold text-stone-700 dark:text-stone-200">{activeFilterCount ? "Filtered total" : "Total"}</td><td className="whitespace-nowrap px-4 py-3 font-semibold text-stone-900 dark:text-stone-100">{costTotals.length ? costTotals.map(([currency, amount]) => formatTotal(amount, currency)).join(" · ") : "—"}</td><td /></tr></tfoot>
       </table>
       {visibleItems.length === 0 && <div className="grid min-h-48 place-items-center p-6 text-center"><div><p className="text-sm font-medium">No matching trip items</p><p className="mt-1 text-xs text-muted-foreground">Try changing or clearing your filters.</p></div></div>}
     </div>

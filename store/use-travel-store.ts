@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type PlannerTab = "calendar" | "kanban" | "days" | "table";
+export type PlannerTab = "calendar" | "kanban" | "days" | "table" | "map";
 export type CalendarMode = "month" | "week" | "day";
 
 type TravelStore = {

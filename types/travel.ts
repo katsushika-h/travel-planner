@@ -50,6 +50,7 @@ export interface TravelObject {
   startDateTime: string | null;
   endDateTime: string | null;
   dayIndex: number | null;
+  dayOrder: number | null;
   isAllDay: boolean;
   headerImage?: string | null;
   location?: LocationData | null;

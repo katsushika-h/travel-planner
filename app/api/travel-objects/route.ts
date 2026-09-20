@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
   const travelObjects = await prisma.travelObject.findMany({
     where: { tripId },
-    orderBy: [{ startDateTime: "asc" }, { createdAt: "asc" }],
+    orderBy: [{ dayIndex: "asc" }, { dayOrder: "asc" }, { startDateTime: "asc" }, { createdAt: "asc" }],
   });
 
   return Response.json(travelObjects);
@@ -41,10 +41,11 @@ export async function POST(request: Request) {
   try {
     const body = await readJsonBody(request);
     const isAllDay = body.isAllDay === true;
-    const unscheduled = body.startDateTime === null && body.endDateTime === null;
-    if (!unscheduled && (body.startDateTime == null || body.endDateTime == null)) throw new Error("startDateTime and endDateTime must both be set or both be null.");
+    const unscheduled = body.startDateTime === null && body.endDateTime === null && body.dayIndex == null;
+    if ((body.startDateTime == null) !== (body.endDateTime == null)) throw new Error("startDateTime and endDateTime must both be set or both be null.");
     const startDateTime = unscheduled ? null : readDate(body.startDateTime, "startDateTime");
     const endDateTime = unscheduled ? null : readDate(body.endDateTime, "endDateTime");
+    if (startDateTime === null && endDateTime === null && isAllDay && body.dayIndex != null) throw new Error("Flexible items cannot be all-day items.");
 
     if (startDateTime && endDateTime && (isAllDay ? endDateTime < startDateTime : endDateTime <= startDateTime)) {
       return Response.json(
@@ -62,14 +63,18 @@ export async function POST(request: Request) {
       return Response.json({ error: "Trip not found." }, { status: 404 });
     }
 
-    const travelObject = await prisma.travelObject.create({
+    const dayIndex = unscheduled ? null : readPositiveInteger(body.dayIndex ?? 1, "dayIndex");
+    const travelObject = await prisma.$transaction(async (tx) => {
+      const dayOrder = dayIndex === null ? null : await tx.travelObject.count({ where: { tripId, dayIndex } });
+      return tx.travelObject.create({
       data: {
         tripId,
         title: readTrimmedString(body.title, "title", { maxLength: 100 })!,
         type: readEventType(body.type ?? "unclassified", "type"),
         startDateTime,
         endDateTime,
-        dayIndex: unscheduled ? null : readPositiveInteger(body.dayIndex ?? 1, "dayIndex"),
+        dayIndex,
+        dayOrder,
         isAllDay,
         headerImage: body.headerImage === undefined ? null : readHeaderImage(body.headerImage),
         location: readOptionalJson(body.location, "location"),
@@ -77,6 +82,7 @@ export async function POST(request: Request) {
         notes: body.notes === null ? null : readTrimmedString(body.notes, "notes", { optional: true, maxBytes: 2500 }),
         tags: readTags(body.tags),
       },
+      });
     });
 
     return Response.json(travelObject, { status: 201 });

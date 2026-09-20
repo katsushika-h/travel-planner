@@ -6,6 +6,7 @@ import {
   readHeaderImage,
   readJsonBody,
   readPositiveInteger,
+  readNonNegativeInteger,
   readTags,
   readTrimmedString,
   validateCost,
@@ -43,6 +44,7 @@ export async function PATCH(request: Request, { params }: Context) {
     if (body.startDateTime !== undefined) data.startDateTime = body.startDateTime === null ? null : readDate(body.startDateTime, "startDateTime");
     if (body.endDateTime !== undefined) data.endDateTime = body.endDateTime === null ? null : readDate(body.endDateTime, "endDateTime");
     if (body.dayIndex !== undefined) data.dayIndex = body.dayIndex === null ? null : readPositiveInteger(body.dayIndex, "dayIndex");
+    if (body.dayOrder !== undefined) data.dayOrder = body.dayOrder === null ? null : readNonNegativeInteger(body.dayOrder, "dayOrder");
     if (body.isAllDay !== undefined) {
       if (typeof body.isAllDay !== "boolean") throw new Error("isAllDay must be a boolean.");
       data.isAllDay = body.isAllDay;
@@ -70,6 +72,7 @@ export async function PATCH(request: Request, { params }: Context) {
 
     const isAllDay = (data.isAllDay as boolean | undefined) ?? existing.isAllDay;
     if ((startDateTime === null) !== (endDateTime === null)) throw new Error("startDateTime and endDateTime must both be set or both be null.");
+    if (startDateTime === null && endDateTime === null && isAllDay && (data.dayIndex as number | null | undefined) !== null && data.dayIndex !== undefined) throw new Error("Flexible items cannot be all-day items.");
     if (startDateTime && endDateTime && (isAllDay ? endDateTime < startDateTime : endDateTime <= startDateTime)) {
       return Response.json(
         { error: isAllDay ? "endDateTime must be on or after startDateTime." : "endDateTime must be after startDateTime." },
@@ -77,8 +80,7 @@ export async function PATCH(request: Request, { params }: Context) {
       );
     }
 
-    if (startDateTime === null && endDateTime === null) data.dayIndex = null;
-    else if (existing.startDateTime === null && data.dayIndex === undefined) data.dayIndex = 1;
+    if (startDateTime === null && endDateTime === null && data.dayIndex === undefined) data.dayIndex = null;
 
     const travelObject = await prisma.travelObject.update({
       where: { id: objectId },

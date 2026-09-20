@@ -26,6 +26,7 @@ model TravelObject {
   startDateTime DateTime?
   endDateTime   DateTime?
   dayIndex      Int?
+  dayOrder      Int?
   isAllDay      Boolean  @default(false)
   headerImage   String?
   location      Json?
@@ -37,6 +38,7 @@ model TravelObject {
   updatedAt     DateTime @updatedAt
 
   @@index([tripId, startDateTime, endDateTime])
+  @@index([tripId, dayIndex, dayOrder])
   @@index([tripId, type])
 }
 
