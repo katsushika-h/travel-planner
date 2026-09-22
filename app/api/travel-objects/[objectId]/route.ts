@@ -16,6 +16,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { withScheduleCompatibility } from "@/lib/travel-object-compat";
 import { dateParts } from "@/lib/date-utils";
+import { normalizeAfterScheduleChange } from "@/lib/schedule-order";
 
 export const dynamic = "force-dynamic";
 
@@ -128,9 +129,22 @@ export async function PATCH(request: Request, { params }: Context) {
       }
     }
 
-    const travelObject = await prisma.travelObject.update({
-      where: { id: objectId },
-      data,
+    const scheduleChanged = ["date", "endDate", "startTime", "endTime", "placementTime", "isAllDay", "dayOrder"].some((field) => body[field] !== undefined);
+    const travelObject = await prisma.$transaction(async (tx) => {
+      const updated = await tx.travelObject.update({
+        where: { id: objectId },
+        data,
+      });
+      if (!scheduleChanged) return updated;
+
+      const affectedDates = [existing.date, date].filter((value, index, values): value is Date => value !== null && values.findIndex((candidate) => candidate?.getTime() === value.getTime()) === index);
+      for (const affectedDate of affectedDates) {
+        const siblings = await tx.travelObject.findMany({ where: { tripId: existing.tripId, date: affectedDate } });
+        for (const { item: sibling, dayOrder } of normalizeAfterScheduleChange(siblings)) {
+          if (sibling.dayOrder !== dayOrder) await tx.travelObject.update({ where: { id: sibling.id }, data: { dayOrder } });
+        }
+      }
+      return tx.travelObject.findUniqueOrThrow({ where: { id: objectId } });
     });
 
     return Response.json(withScheduleCompatibility(travelObject, existing.trip.timezone, existing.trip.startDate));

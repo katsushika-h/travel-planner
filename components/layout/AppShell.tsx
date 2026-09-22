@@ -16,6 +16,7 @@ import { TableView } from "@/components/views/TableView";
 import { MapView } from "@/components/views/MapView";
 import { api } from "@/lib/api-client";
 import { dayIndexForDate, dateParts, zonedDateTimeToUtc } from "@/lib/date-utils";
+import { compareScheduleOrder } from "@/lib/schedule-order";
 import { useTravelStore } from "@/store/use-travel-store";
 import type { TravelObject, Trip } from "@/types/travel";
 
@@ -71,7 +72,7 @@ export function AppShell() {
     if (!time) {
       try {
         const created = await api.createObject({ tripId: activeTrip.id, title, type, date, startTime: null, endTime: null, placementTime: "09:00", startDateTime: null, endDateTime: null, dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)), dayOrder: null, isAllDay: false, location: null, cost: null, notes: null, tags: [] });
-        if (dayOrder !== undefined) setItems(sortByStartTime(await api.reorderObjects({ tripId: activeTrip.id, objectId: created.id, date, dayOrder })));
+        if (dayOrder !== undefined) setItems(sortBySchedule(await api.reorderObjects({ tripId: activeTrip.id, objectId: created.id, date, dayOrder })));
         else setItems((current) => [...current, created]);
         replaceSelection([created.id], created.id);
         setInspectedItemId(created.id);
@@ -84,7 +85,7 @@ export function AppShell() {
     const endTime = dateParts(endDateTime, activeTrip.timezone).time;
     try {
       const created = await api.createObject({ tripId: activeTrip.id, title, type, date: startDate, startTime: time, endTime, placementTime: null, startDateTime, endDateTime, dayIndex: Math.max(1, dayIndexForDate(startDate, activeTrip.startDate)), dayOrder: null, isAllDay: false, location: null, cost: null, notes: null, tags: [] });
-      setItems((current) => sortByStartTime([...current, created]));
+      setItems((current) => sortBySchedule([...current, created]));
       replaceSelection([created.id], created.id);
       setInspectedItemId(created.id);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create itinerary item."); }
@@ -117,33 +118,37 @@ export function AppShell() {
     return () => { cancelled = true; };
   }, [activeTripKey]);
 
-  function sortByStartTime(objects: TravelObject[]) {
-    return [...objects].sort((a, b) =>
-      (a.dayIndex ?? Number.MAX_SAFE_INTEGER) - (b.dayIndex ?? Number.MAX_SAFE_INTEGER) || (a.dayOrder ?? Number.MAX_SAFE_INTEGER) - (b.dayOrder ?? Number.MAX_SAFE_INTEGER) || (a.startDateTime ? Date.parse(a.startDateTime) : Number.MAX_SAFE_INTEGER) - (b.startDateTime ? Date.parse(b.startDateTime) : Number.MAX_SAFE_INTEGER) || a.createdAt.localeCompare(b.createdAt),
-    );
+  function sortBySchedule(objects: TravelObject[]) {
+    return [...objects].sort((a, b) => (a.date ?? "9999-12-31").localeCompare(b.date ?? "9999-12-31") || compareScheduleOrder(a, b));
   }
 
   async function flushItemSave(id: string) {
     if (savingIds.current.has(id)) return;
     savingIds.current.add(id);
+    let scheduleChanged = false;
     try {
       while (saveQueues.current.has(id)) {
         const patch = saveQueues.current.get(id)!;
         saveQueues.current.delete(id);
+        scheduleChanged ||= ["date", "endDate", "startTime", "endTime", "isAllDay"].some((field) => field in patch);
         try {
           const updated = await api.updateObject(id, patch);
           const newer = saveQueues.current.get(id) ?? {};
-          setItems((current) => sortByStartTime(current.map((item) => item.id === id ? { ...updated, ...newer } : item)));
+          setItems((current) => sortBySchedule(current.map((item) => item.id === id ? { ...updated, ...newer } : item)));
         } catch (cause) {
           setError(cause instanceof Error ? cause.message : "Could not save item changes.");
           break;
         }
       }
+      if (scheduleChanged && activeTripKey) {
+        const refreshed = await api.objects(activeTripKey);
+        setItems(sortBySchedule(refreshed));
+      }
     } finally { savingIds.current.delete(id); }
   }
 
   function changeItem(id: string, patch: Partial<TravelObject>, immediate = false) {
-    setItems((current) => sortByStartTime(current.map((item) => item.id === id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item)));
+    setItems((current) => sortBySchedule(current.map((item) => item.id === id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item)));
     saveQueues.current.set(id, { ...(saveQueues.current.get(id) ?? {}), ...patch });
     const oldTimer = saveTimers.current.get(id);
     if (oldTimer) clearTimeout(oldTimer);
@@ -167,18 +172,18 @@ export function AppShell() {
       const sourceEndDate = item.endDate?.slice(0, 10) ?? sourceDate;
       const durationDays = Math.max(0, Math.round((Date.parse(`${sourceEndDate}T00:00:00Z`) - Date.parse(`${sourceDate}T00:00:00Z`)) / 86_400_000));
       const endDate = new Date(Date.parse(`${date}T00:00:00Z`) + durationDays * 86_400_000).toISOString().slice(0, 10);
-      changeItem(item.id, { date, endDate, startTime: null, endTime: null, placementTime: null, isAllDay: true, startDateTime: zonedDateTimeToUtc(date, "00:00", activeTrip.timezone), endDateTime: zonedDateTimeToUtc(endDate, "00:00", activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
+      changeItem(item.id, { date, endDate, startTime: null, endTime: null, placementTime: null, isAllDay: true, dayOrder: null, startDateTime: zonedDateTimeToUtc(date, "00:00", activeTrip.timezone), endDateTime: zonedDateTimeToUtc(endDate, "00:00", activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
       return;
     }
     if (!item.startDateTime || !item.endDateTime) {
       if (!time && !item.startTime && !item.endTime) {
-        changeItem(item.id, { date, endDate: date, startTime: null, endTime: null, placementTime: item.placementTime ?? "09:00", isAllDay: false, startDateTime: null, endDateTime: null, dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
+        changeItem(item.id, { date, endDate: date, startTime: null, endTime: null, placementTime: item.placementTime ?? "09:00", isAllDay: false, dayOrder: null, startDateTime: null, endDateTime: null, dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
         return;
       }
       const restoredTime = time ?? item.startTime ?? "09:00";
       const restoredEndTime = item.endTime ?? new Date(Date.parse(`${date}T${restoredTime}:00Z`) + 60 * 60_000).toISOString().slice(11, 16);
       const restoredEndDate = item.endTime ? date : new Date(Date.parse(`${date}T${restoredTime}:00Z`) + 60 * 60_000).toISOString().slice(0, 10);
-      changeItem(item.id, { date, endDate: restoredEndDate, startTime: restoredTime, endTime: restoredEndTime, placementTime: null, startDateTime: zonedDateTimeToUtc(date, restoredTime, activeTrip.timezone), endDateTime: zonedDateTimeToUtc(restoredEndDate, restoredEndTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)), dayOrder: null }, true);
+      changeItem(item.id, { date, endDate: restoredEndDate, startTime: restoredTime, endTime: restoredEndTime, placementTime: null, startDateTime: zonedDateTimeToUtc(date, restoredTime, activeTrip.timezone), endDateTime: zonedDateTimeToUtc(restoredEndDate, restoredEndTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
       return;
     }
     const start = dateParts(item.startDateTime, activeTrip.timezone);
@@ -190,7 +195,15 @@ export function AppShell() {
     const newStartWall = Date.parse(`${date}T${newStartTime}:00Z`);
     const newEndWall = new Date(newStartWall + duration * 60_000);
     const endDate = newEndWall.toISOString().slice(0, 10); const endTime = newEndWall.toISOString().slice(11, 16);
-    changeItem(item.id, { date, endDate, startTime: newStartTime, endTime, placementTime: null, startDateTime: zonedDateTimeToUtc(date, newStartTime, activeTrip.timezone), endDateTime: zonedDateTimeToUtc(endDate, endTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)), dayOrder: null }, true);
+    changeItem(item.id, { date, endDate, startTime: newStartTime, endTime, placementTime: null, startDateTime: zonedDateTimeToUtc(date, newStartTime, activeTrip.timezone), endDateTime: zonedDateTimeToUtc(endDate, endTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
+  }
+
+  function resizeItem(item: TravelObject, edge: "start" | "end", time: string) {
+    if (!activeTrip || !item.date || !item.startTime || !item.endTime) return;
+    const date = item.date.slice(0, 10);
+    const startTime = edge === "start" ? time : item.startTime;
+    const endTime = edge === "end" ? time : item.endTime;
+    changeItem(item.id, { date, endDate: item.endDate?.slice(0, 10) ?? date, startTime, endTime, placementTime: null, isAllDay: false, startDateTime: zonedDateTimeToUtc(date, startTime, activeTrip.timezone), endDateTime: zonedDateTimeToUtc(item.endDate?.slice(0, 10) ?? date, endTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
   }
 
   function replaceSelection(ids: Iterable<string>, primaryId: string | null = null) {
@@ -262,7 +275,7 @@ export function AppShell() {
     if (!activeTrip) return;
     try {
       const updated = await api.reorderObjects({ tripId: activeTrip.id, objectId: item.id, date, dayOrder: order, clearTime, placementTime });
-      setItems(sortByStartTime(updated));
+      setItems(sortBySchedule(updated));
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not reorder itinerary."); }
   }
 
@@ -271,7 +284,7 @@ export function AppShell() {
     try {
       const changed = await Promise.all(moving.map((candidate) => candidate.type === type ? Promise.resolve(candidate) : api.updateObject(candidate.id, { type })));
       const byId = new Map(changed.map((candidate) => [candidate.id, candidate]));
-      setItems((current) => sortByStartTime(current.map((candidate) => byId.get(candidate.id) ?? candidate)));
+      setItems((current) => sortBySchedule(current.map((candidate) => byId.get(candidate.id) ?? candidate)));
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not change item type."); }
   }
 
@@ -322,7 +335,7 @@ export function AppShell() {
       </div>
       <div className={`mt-auto border-t p-3 ${collapsed ? "px-2" : ""}`}>
         <div className="mb-2 space-y-1 border-b pb-2">
-          {activeTrip && <ImportGoogleMapsCsvButton compact={collapsed} trip={activeTrip} eventTypes={eventTypes} onAddType={(type) => addEventType(activeTrip.id, type)} onImported={(imported) => setItems((current) => sortByStartTime([...current, ...imported]))} onError={setError} />}
+          {activeTrip && <ImportGoogleMapsCsvButton compact={collapsed} trip={activeTrip} eventTypes={eventTypes} onAddType={(type) => addEventType(activeTrip.id, type)} onImported={(imported) => setItems((current) => sortBySchedule([...current, ...imported]))} onError={setError} />}
           <Button type="button" variant="ghost" size={collapsed ? "icon" : "sm"} className={collapsed ? "mx-auto flex" : "w-full justify-start"} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={collapsed ? theme === "dark" ? "Switch to light mode" : "Switch to dark mode" : undefined} onClick={toggleTheme}>{theme === "dark" ? <Sun /> : <Moon />}{!collapsed && (theme === "dark" ? "Light mode" : "Dark mode")}</Button>
         </div>
         <div className={`flex items-center gap-1 rounded-lg p-2 ${collapsed ? "justify-center" : ""}`}><div className="grid size-8 shrink-0 place-items-center rounded-full bg-orange-100 text-xs font-semibold text-orange-800">{activeTrip?.title.slice(0, 1).toUpperCase() ?? "T"}</div>{!collapsed && <span className="min-w-0 flex-1 truncate text-xs font-medium">{tripLabel}</span>}{activeTrip && <DeleteTripButton trip={activeTrip} compact onDeleted={onTripDeleted} onError={setError} />}</div>
@@ -331,8 +344,8 @@ export function AppShell() {
     <section className="relative flex min-w-0 flex-1 flex-col">
       {error && <div className="mx-5 mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>}
       {loadingTrips ? <div className="grid flex-1 place-items-center"><LoaderCircle className="animate-spin text-emerald-700" /></div> : !activeTrip ? <div className="grid flex-1 place-items-center p-6"><div className="max-w-md text-center"><div className="mx-auto grid size-14 place-items-center rounded-2xl bg-emerald-100 text-emerald-800"><Compass size={25} /></div><h2 className="mt-5 text-xl font-semibold">Make room for the good parts</h2><p className="mt-2 text-sm leading-relaxed text-stone-500">Create a trip to bring dates, stays, meals, and little discoveries into one clear plan.</p><div className="mt-5 flex justify-center"><CreateTripDialog onCreated={onTripCreated} /></div></div></div> : <div className="flex min-h-0 flex-1 gap-3 p-3 sm:p-5">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{itemsTripId !== activeTrip.id ? <div className="grid flex-1 place-items-center"><LoaderCircle className="animate-spin text-emerald-700" /></div> : activeTab === "calendar" ? <CalendarView trip={activeTrip} items={boardItems} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} onSelect={selectItem} onSelectForDrag={(item) => selectItem(item, false, false)} onMove={moveSelectedItems} onUnschedule={unscheduleSelectedItems} onFlexibleDrop={reorderItem} onCreateItem={openCreateItem} /> : activeTab === "kanban" ? <KanbanView trip={activeTrip} items={scheduledBoardItems} eventTypes={eventTypes} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} inspectedItemId={inspectedItemId} onSetTypeColor={(type, color) => setEventTypeColor(activeTrip.id, type, color)} onAddType={(type) => addEventType(activeTrip.id, type)} onSelect={selectItem} onSelectForDrag={(item) => selectItem(item, false, false)} onMoveType={moveType} onReorder={reorderItem} onAddItem={(type) => void openCreateItem(undefined, "09:00", type ?? "unclassified")} /> : activeTab === "days" ? <TripDaysView trip={activeTrip} items={scheduledBoardItems} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} inspectedItemId={inspectedItemId} onSelect={selectItem} onSelectForDrag={(item) => selectItem(item, false, false)} onMove={moveSelectedItemsToDay} onReorder={reorderItem} onCreateItem={(date) => void openCreateItem(date)} /> : activeTab === "table" ? <TableView trip={activeTrip} items={boardItems} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} onSelect={(item, additive) => selectItem(item, additive, false)} onInspect={inspectItem} onSelectionChange={replaceSelection} onChangeItems={changeSelectedItems} /> : <MapView key={activeTrip.id} trip={activeTrip} items={boardItems} typeColors={eventTypeColors} onSelect={inspectItem} />}</div>
-        {selectedItem && <div className={`z-20 min-h-0 ${activeTab === "calendar" ? "absolute inset-y-3 right-3 w-[min(92vw,600px)]" : "w-[min(38vw,760px)] min-w-[400px] shrink-0 max-lg:absolute max-lg:inset-y-3 max-lg:right-3 max-lg:w-[min(92vw,600px)] max-lg:min-w-0"}`}><ObjectInspectorPanel key={selectedItem.id} item={selectedItem} timeZone={activeTrip.timezone} defaultCurrency={activeTrip.defaultCurrency ?? "USD"} onClose={closeInspector} onChange={changeItem} onDelete={deleteItem} tripStartDate={activeTrip.startDate} eventTypes={eventTypes} typeColors={eventTypeColors} darkMode={theme === "dark"} /></div>}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{itemsTripId !== activeTrip.id ? <div className="grid flex-1 place-items-center"><LoaderCircle className="animate-spin text-emerald-700" /></div> : activeTab === "calendar" ? <CalendarView trip={activeTrip} items={boardItems} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} onSelect={selectItem} onInspect={inspectItem} onSelectForDrag={(item) => selectItem(item, false, false)} onMove={moveSelectedItems} onResize={resizeItem} onUnschedule={unscheduleSelectedItems} onFlexibleDrop={reorderItem} onCreateItem={openCreateItem} /> : activeTab === "kanban" ? <KanbanView trip={activeTrip} items={scheduledBoardItems} eventTypes={eventTypes} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} inspectedItemId={inspectedItemId} onSetTypeColor={(type, color) => setEventTypeColor(activeTrip.id, type, color)} onAddType={(type) => addEventType(activeTrip.id, type)} onSelect={selectItem} onSelectForDrag={(item) => selectItem(item, false, false)} onMoveType={moveType} onReorder={reorderItem} onAddItem={(type) => void openCreateItem(undefined, "09:00", type ?? "unclassified")} /> : activeTab === "days" ? <TripDaysView trip={activeTrip} items={scheduledBoardItems} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} inspectedItemId={inspectedItemId} onSelect={selectItem} onSelectForDrag={(item) => selectItem(item, false, false)} onMove={moveSelectedItemsToDay} onReorder={reorderItem} onCreateItem={(date) => void openCreateItem(date)} /> : activeTab === "table" ? <TableView trip={activeTrip} items={boardItems} typeColors={eventTypeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} onSelect={(item, additive) => selectItem(item, additive, false)} onInspect={inspectItem} onSelectionChange={replaceSelection} onChangeItems={changeSelectedItems} /> : <MapView key={activeTrip.id} trip={activeTrip} items={boardItems} typeColors={eventTypeColors} onSelect={inspectItem} />}</div>
+        {selectedItem && <div className={`z-[100] min-h-0 ${activeTab === "calendar" ? "absolute inset-y-3 right-3 w-[min(92vw,600px)]" : "w-[min(38vw,760px)] min-w-[400px] shrink-0 max-lg:absolute max-lg:inset-y-3 max-lg:right-3 max-lg:w-[min(92vw,600px)] max-lg:min-w-0"}`}><ObjectInspectorPanel key={selectedItem.id} item={selectedItem} timeZone={activeTrip.timezone} defaultCurrency={activeTrip.defaultCurrency ?? "USD"} onClose={closeInspector} onChange={changeItem} onDelete={deleteItem} tripStartDate={activeTrip.startDate} eventTypes={eventTypes} typeColors={eventTypeColors} darkMode={theme === "dark"} /></div>}
       </div>}
       {pendingDeleteIds && <ConfirmDialog title={`Delete ${pendingDeleteIds.length === 1 ? "selected item" : `${pendingDeleteIds.length} selected items`}?`} description="This cannot be undone." items={items.filter((item) => pendingDeleteIds.includes(item.id)).map((item) => item.title)} onCancel={() => setPendingDeleteIds(null)} onConfirm={() => { void deleteSelectedItems(pendingDeleteIds); }} />}
     </section>

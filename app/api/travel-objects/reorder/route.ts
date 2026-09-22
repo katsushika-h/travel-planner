@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { readDate, readJsonBody, readNonNegativeInteger, readPlacementTime, readTrimmedString } from "@/lib/api-validation";
 import { prisma } from "@/lib/prisma";
 import { withScheduleCompatibility } from "@/lib/travel-object-compat";
+import { normalizeDayOrder } from "@/lib/schedule-order";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,9 @@ export async function POST(request: Request) {
       const siblings = await tx.travelObject.findMany({ where: { tripId, date, id: { not: objectId } } });
       siblings.sort((a, b) => (a.dayOrder ?? Number.MAX_SAFE_INTEGER) - (b.dayOrder ?? Number.MAX_SAFE_INTEGER) || a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
       const ordered = [...siblings];
-      ordered.splice(Math.min(requestedOrder, siblings.length), 0, item);
+      const sourceOrder = sourceDate?.getTime() === date.getTime() ? item.dayOrder : null;
+      const insertionOrder = sourceOrder != null && sourceOrder < requestedOrder ? requestedOrder - 1 : requestedOrder;
+      ordered.splice(Math.min(Math.max(insertionOrder, 0), siblings.length), 0, item);
       for (const [index, sibling] of ordered.entries()) {
         await tx.travelObject.update({
           where: { id: sibling.id },
@@ -42,11 +45,15 @@ export async function POST(request: Request) {
           },
         });
       }
+      const destinationItems = await tx.travelObject.findMany({ where: { tripId, date } });
+      for (const { item: destinationItem, dayOrder: normalizedOrder } of normalizeDayOrder(destinationItems)) {
+        if (destinationItem.dayOrder !== normalizedOrder) await tx.travelObject.update({ where: { id: destinationItem.id }, data: { dayOrder: normalizedOrder } });
+      }
       if (sourceDate !== null && sourceDate.getTime() !== date.getTime()) {
         const remaining = await tx.travelObject.findMany({ where: { tripId, date: sourceDate, id: { not: objectId } }, orderBy: [{ dayOrder: "asc" }, { createdAt: "asc" }] });
         for (const [index, sibling] of remaining.entries()) await tx.travelObject.update({ where: { id: sibling.id }, data: { dayOrder: index } });
       }
-      return tx.travelObject.findMany({ where: { tripId }, orderBy: [{ date: "asc" }, { dayOrder: "asc" }, { placementTime: "asc" }, { startTime: "asc" }, { createdAt: "asc" }] });
+      return tx.travelObject.findMany({ where: { tripId }, orderBy: [{ date: "asc" }, { dayOrder: "asc" }, { createdAt: "asc" }] });
     });
     return Response.json(result.map((item) => withScheduleCompatibility(item, trip.timezone, trip.startDate)));
   } catch (error) {

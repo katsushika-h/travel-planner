@@ -15,6 +15,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { withScheduleCompatibility } from "@/lib/travel-object-compat";
 import { dateParts } from "@/lib/date-utils";
+import { normalizeDayOrder } from "@/lib/schedule-order";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
 
   const [trip, travelObjects] = await Promise.all([prisma.trip.findUnique({ where: { id: tripId }, select: { timezone: true, startDate: true } }), prisma.travelObject.findMany({
     where: { tripId },
-    orderBy: [{ date: "asc" }, { dayOrder: "asc" }, { startTime: "asc" }, { createdAt: "asc" }],
+    orderBy: [{ date: "asc" }, { dayOrder: "asc" }, { createdAt: "asc" }],
   })]);
 
   if (!trip) return Response.json({ error: "Trip not found." }, { status: 404 });
@@ -71,8 +72,7 @@ export async function POST(request: Request) {
     if (placementTime && (isAllDay || startTime || endTime)) throw new Error("placementTime is only for flexible items without confirmed times.");
     if (!isAllDay && date && startTime && endTime && endDate!.getTime() === date.getTime() && endTime <= startTime) throw new Error("endTime must be after startTime on the same date.");
     const travelObject = await prisma.$transaction(async (tx) => {
-      const dayOrder = date === null ? null : await tx.travelObject.count({ where: { tripId, date } });
-      return tx.travelObject.create({
+      const created = await tx.travelObject.create({
       data: {
         tripId,
         title: readTrimmedString(body.title, "title", { maxLength: 100 })!,
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
         startTime,
         endTime,
         placementTime: date !== null && !isAllDay && startTime === null && endTime === null ? placementTime ?? "09:00" : null,
-        dayOrder,
+        dayOrder: null,
         isAllDay,
         headerImage: body.headerImage === undefined ? null : readHeaderImage(body.headerImage),
         location: readOptionalJson(body.location, "location"),
@@ -91,6 +91,13 @@ export async function POST(request: Request) {
         tags: readTags(body.tags),
       },
       });
+      if (date !== null) {
+        const siblings = await tx.travelObject.findMany({ where: { tripId, date } });
+        for (const { item, dayOrder: normalizedOrder } of normalizeDayOrder(siblings)) {
+          if (item.dayOrder !== normalizedOrder) await tx.travelObject.update({ where: { id: item.id }, data: { dayOrder: normalizedOrder } });
+        }
+      }
+      return tx.travelObject.findUniqueOrThrow({ where: { id: created.id } });
     });
 
     return Response.json(withScheduleCompatibility(travelObject, trip.timezone, trip.startDate), { status: 201 });

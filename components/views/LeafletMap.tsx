@@ -74,6 +74,7 @@ export function LeafletMap({ trip, items, typeColors, onSelect, markerNumbers, s
   const callbacksRef = useRef({ onSelect, onHover, onUserMove });
   const lastFitRef = useRef("");
   const programmaticMoveRef = useRef(false);
+  const lastSelectedItemRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => { callbacksRef.current = { onSelect, onHover, onUserMove }; }, [onHover, onSelect, onUserMove]);
 
@@ -129,6 +130,8 @@ export function LeafletMap({ trip, items, typeColors, onSelect, markerNumbers, s
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    if (lastSelectedItemRef.current === selectedItemId) return;
+    lastSelectedItemRef.current = selectedItemId;
     if (!selectedItemId) { map.closePopup(); return; }
     const selected = items.find((item) => item.id === selectedItemId && hasCoordinates(item));
     if (!selected) return;

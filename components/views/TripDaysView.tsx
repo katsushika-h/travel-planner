@@ -4,6 +4,7 @@ import { closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, 
 import { useEffect, useRef, useState } from "react";
 import { Plus, MapPin, GripVertical } from "lucide-react";
 import { formatTripDate, dateParts } from "@/lib/date-utils";
+import { compareScheduleOrder } from "@/lib/schedule-order";
 import type { TravelObject, Trip } from "@/types/travel";
 
 const defaultTypeColors: Record<string, string> = { unclassified: "#64748b", flight: "#0ea5e9", hotel: "#8b5cf6", food: "#f97316", commute: "#f59e0b", activity: "#10b981", sightseeing: "#f43f5e" };
@@ -53,7 +54,7 @@ export function TripDaysView({ trip, items, typeColors, selectedIds, primarySele
       return first <= date && last >= date;
     }
     return item.dayIndex === days.indexOf(date) + 1;
-  }).sort((a, b) => Number(b.isAllDay) - Number(a.isAllDay) || (a.dayOrder ?? Number.MAX_SAFE_INTEGER) - (b.dayOrder ?? Number.MAX_SAFE_INTEGER) || (a.startDateTime ? Date.parse(a.startDateTime) : Number.MAX_SAFE_INTEGER) - (b.startDateTime ? Date.parse(b.startDateTime) : Number.MAX_SAFE_INTEGER) || a.createdAt.localeCompare(b.createdAt));
+  }).sort(compareScheduleOrder);
   async function persistReorder(item: TravelObject, date: string, order: number, clearTime: boolean) { await onReorder(item, date, order, clearTime); }
   const onDragEnd = (event: DragEndEvent) => { const target = String(event.over?.id ?? ""); if (!target.startsWith("trip-day:")) return; const item = (event.active.data.current as { item?: TravelObject } | undefined)?.item; const [, date, rawOrder] = target.split(":"); if (!item || !date) return; const destinationDay = days.indexOf(date) + 1; const targetItems = orderedForDate(date).filter((candidate) => candidate.id !== item.id); const order = Math.min(Number.isFinite(Number(rawOrder)) ? Number(rawOrder) : targetItems.length, targetItems.length); const isAnchor = (candidate: TravelObject | undefined) => Boolean(candidate?.startDateTime && candidate.endDateTime && !candidate.isAllDay); const betweenAnchors = isAnchor(targetItems[order - 1]) && isAnchor(targetItems[order]); if (betweenAnchors) { void persistReorder(item, date, order, true); return; } if (item.startDateTime && item.endDateTime && item.dayIndex !== destinationDay) { void onMove(item, date); return; } void persistReorder(item, date, order, false); };
   const selectFromClick = (item: TravelObject, additive = false) => { if (!suppressClickRef.current) onSelect(item, additive); };

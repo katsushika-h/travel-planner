@@ -25,6 +25,9 @@ function truncateUtf8(value: string, maxBytes: number) { let result = ""; for (c
 function normalizeCategory(value: string) { return value.trim().replace(/\s+/g, " ").slice(0, 20); }
 function normalizeHeader(value: string) { return value.replace(/^\uFEFF/, "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " "); }
 function findColumn(header: string[] | undefined, names: string[]) { return header?.findIndex((cell) => names.includes(cell)) ?? -1; }
+function findTitleColumn(header: string[] | undefined) {
+  return findColumn(header, ["title", "place", "place name", "location", "location name", "name"]);
+}
 
 async function mapWithConcurrency<T, R>(values: T[], concurrency: number, worker: (value: T) => Promise<R>) {
   const results = new Array<R>(values.length);
@@ -131,7 +134,7 @@ export function ImportGoogleMapsCsvButton({ trip, eventTypes, onAddType, onImpor
     try {
       const rows = parseCsv(await file.text());
       const header = rows.shift()?.map(normalizeHeader);
-      const titleIndex = header?.indexOf("title") ?? -1; const noteIndex = header?.indexOf("note") ?? -1; const urlIndex = header?.indexOf("url") ?? -1;
+      const titleIndex = findTitleColumn(header); const noteIndex = header?.indexOf("note") ?? -1; const urlIndex = header?.indexOf("url") ?? -1;
       const categoryIndex = header?.findIndex((cell) => ["type", "category", "categories", "type category", "type/category"].includes(cell)) ?? -1;
       const scheduleColumns: ScheduleColumns = {
         date: findColumn(header, ["date", "start date"]),
@@ -141,7 +144,7 @@ export function ImportGoogleMapsCsvButton({ trip, eventTypes, onAddType, onImpor
         endTime: findColumn(header, ["end time"]),
         endDateTime: findColumn(header, ["end datetime", "end date time", "end date/time"]),
       };
-      if (titleIndex < 0 || noteIndex < 0 || urlIndex < 0) throw new Error("This CSV needs Title, Note, and URL columns from a Google Maps export.");
+      if (titleIndex < 0 || noteIndex < 0 || urlIndex < 0) throw new Error("This CSV needs a Title or Place column, plus Note and URL columns from a Google Maps export.");
       const knownTypes = new Map(eventTypes.map((type) => [type.toLocaleLowerCase(), type]));
       const records = rows.map((row) => { const category = categoryIndex >= 0 ? normalizeCategory(row[categoryIndex] ?? "") : ""; return { title: row[titleIndex]?.trim() ?? "", notes: row[noteIndex]?.trim() ?? "", url: row[urlIndex]?.trim() ?? "", type: (knownTypes.get(category.toLocaleLowerCase()) ?? category) || "unclassified", schedule: scheduleFromRow(row, scheduleColumns, trip) }; }).filter((record) => record.title && record.url);
       if (!records.length) throw new Error("No Google Maps places were found in this CSV.");

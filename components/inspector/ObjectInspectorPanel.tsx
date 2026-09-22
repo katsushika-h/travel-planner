@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { ChevronDown, Download, ExternalLink, FileText, LoaderCircle, Paperclip, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MarkdownEditor } from "@/components/inspector/MarkdownEditor";
@@ -86,7 +86,20 @@ export function ObjectInspectorPanel({ item, timeZone, tripStartDate, defaultCur
   async function uploadAttachments(files: Iterable<File>) { const selected = [...files]; if (!selected.length) return; setUploading(true); setAttachmentError(""); try { const uploaded = await Promise.all(selected.map((file) => api.uploadAttachment(currentItem!.id, file))); setAttachments((current) => [...uploaded, ...current]); } catch (error) { setAttachmentError(error instanceof Error ? error.message : "Could not upload attachment."); } finally { setUploading(false); if (inputRef.current) inputRef.current.value = ""; } }
   async function removeAttachment(attachment: TravelAttachment) { setAttachmentError(""); try { await api.deleteAttachment(currentItem!.id, attachment.id); setAttachments((current) => current.filter((entry) => entry.id !== attachment.id)); } catch (error) { setAttachmentError(error instanceof Error ? error.message : "Could not remove attachment."); } }
   const mapsUrl = location?.googleMapsUrl ?? "";
-  return <aside onInputCapture={(event) => { const target = event.target; if (target instanceof HTMLInputElement && target.type === "number") { let remainingDigits = 10; let decimalSeen = false; target.value = [...target.value].filter((character) => { if (/\d/.test(character)) { remainingDigits -= 1; return remainingDigits >= 0; } if (character === "." && !decimalSeen) { decimalSeen = true; return true; } return false; }).join(""); } }} className="flex h-full min-h-0 flex-col bg-background">
+  function focusNextEntryField(event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab") return;
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLElement && target.isContentEditable)) return;
+    const fields = [...event.currentTarget.querySelectorAll<HTMLElement>('input:not([type="hidden"]):not([type="file"]):not([disabled]), textarea:not([disabled]), [contenteditable="true"]')];
+    const currentIndex = fields.indexOf(target);
+    if (currentIndex < 0) return;
+    const nextIndex = event.shiftKey ? currentIndex - 1 : currentIndex + 1;
+    const next = fields[nextIndex];
+    if (!next) return;
+    event.preventDefault();
+    next.focus();
+  }
+  return <aside onKeyDown={focusNextEntryField} onInputCapture={(event) => { const target = event.target; if (target instanceof HTMLInputElement && target.type === "number") { let remainingDigits = 10; let decimalSeen = false; target.value = [...target.value].filter((character) => { if (/\d/.test(character)) { remainingDigits -= 1; return remainingDigits >= 0; } if (character === "." && !decimalSeen) { decimalSeen = true; return true; } return false; }).join(""); } }} className="flex h-full min-h-0 flex-col bg-background">
     <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b bg-background/95 px-5 py-3 backdrop-blur"><span className="text-xs text-muted-foreground">Autosave is on</span><Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close inspector"><X /></Button></header>
     {item.headerImage && <section aria-label="Header image" className="group relative h-48 shrink-0 overflow-hidden bg-muted"><img src={item.headerImage} alt="" className="size-full object-cover" /><div className="absolute inset-x-3 top-3 flex justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"><input type="url" defaultValue={item.headerImage} key={item.id + item.headerImage} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} onBlur={(event) => { const value = event.target.value.trim(); if (value) saveHeaderImage(value); }} placeholder="Change image URL" aria-label="Header image URL" className="w-64 rounded-md border bg-background/95 px-2 py-1 text-sm shadow-sm outline-none" /><Button type="button" variant="secondary" size="sm" onClick={() => saveHeaderImage(null)}>Remove</Button></div></section>}
     <div className="group relative min-h-0 flex-1 overflow-y-auto px-6 py-5 sm:px-8">
