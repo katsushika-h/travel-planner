@@ -29,20 +29,25 @@ Preserve unrelated working-tree changes. Inspect `git status` before editing and
 
 - `app/` contains the Next.js App Router pages and API route handlers.
 - `components/layout/AppShell.tsx` coordinates workspace tabs, active trips, selection, and editing.
-- `components/views/` contains Calendar, Kanban, Itinerary (`TripDaysView`), and Table views.
+- `components/views/` contains Calendar (month/week/day modes), Kanban, Itinerary (`TripDaysView`), Table, and Leaflet Map views.
 - `components/inspector/` contains the travel-object inspector and Markdown notes editor.
 - `components/trip/` contains trip/item dialogs and trip-level actions.
 - `lib/api-client.ts` is the browser API client; `lib/api-validation.ts` validates route input.
 - `store/use-travel-store.ts` contains client-side UI state such as selected items and custom type colors.
 - `prisma/schema.prisma` defines the PostgreSQL schema; `prisma/migrations/` contains applied migrations.
-- `types/travel.ts` defines shared client types. `TravelObject.location` is JSON and may contain place data, Google Maps URLs, and optional coordinates.
+- `types/travel.ts` defines shared client types. `TravelObject.location` is JSON and may contain place data, Google Maps URLs, and optional coordinates. Travel objects can also have `TravelAttachment` records.
 - `docker-compose.nas.yml` runs PostgreSQL, the one-shot Prisma migrator, and the app container.
 - `Dockerfile` builds both the app and migrator stages. The production image uses the webpack build.
 
 ### Important behavior
 
-- Travel objects may be scheduled or unscheduled. `startDateTime`, `endDateTime`, and `dayIndex` are nullable.
-- Calendar, Kanban, and Itinerary views focus on scheduled objects; the Table view can show unscheduled objects.
+- Travel objects use `date`, `endDate`, `startTime`, `endTime`, `placementTime`, and `dayOrder` as the canonical schedule fields. The legacy `startDateTime`, `endDateTime`, and `dayIndex` values are compatibility fields computed by the API during the UI migration.
+- Objects may be unscheduled, confirmed at a fixed time, all-day, or placed flexibly on a date. `placementTime` is a 15-minute visual placement for flexible items and is not a confirmed event time.
+- Calendar supports month, week, and day modes. Kanban and Itinerary focus on scheduled objects; the Table view can show unscheduled objects.
+- `dayOrder` is used for flexible item ordering, but ordering still needs review after the weekend schedule refactor.
+- The Map view uses Leaflet and OpenStreetMap tiles. Map coordinates are extracted from supported Google Maps URLs; links without coordinates remain saved but cannot be plotted.
+- Attachments are currently stored as `Bytes` in PostgreSQL through the `TravelAttachment` model. Revisit object storage if attachment volume grows.
+- The repository currently contains a large number of tracked `.next` build artifacts. Avoid adding further generated build output to source changes; consider cleaning this up in a separate deliberate repository-maintenance change.
 - API routes currently use trip/object IDs directly; authentication and per-user trip ownership are future features, not assumptions to add silently.
 - Google Maps support currently handles pasted links and stores location data; do not introduce Google API billing unless explicitly requested.
 - OSM maps must include visible attribution and follow the applicable tile/geocoding usage policies.

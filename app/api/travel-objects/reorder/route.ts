@@ -21,6 +21,9 @@ export async function POST(request: Request) {
       const item = await tx.travelObject.findFirst({ where: { id: objectId, tripId } });
       if (!item) throw new Error("Travel object not found.");
       const sourceDate = item.date;
+      const sourceEndDate = item.endDate ?? sourceDate;
+      const durationDays = sourceDate && sourceEndDate ? Math.max(0, Math.round((sourceEndDate.getTime() - sourceDate.getTime()) / 86_400_000)) : 0;
+      const destinationEndDate = new Date(date.getTime() + durationDays * 86_400_000);
       const siblings = await tx.travelObject.findMany({ where: { tripId, date, id: { not: objectId } } });
       siblings.sort((a, b) => (a.dayOrder ?? Number.MAX_SAFE_INTEGER) - (b.dayOrder ?? Number.MAX_SAFE_INTEGER) || a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
       const ordered = [...siblings];
@@ -32,7 +35,7 @@ export async function POST(request: Request) {
             dayOrder: index,
             ...(sibling.id === objectId ? {
               date,
-              ...(sourceDate === null || (!item.startTime && !item.endTime) || clearTime ? { endDate: date } : {}),
+              endDate: clearTime || (!item.startTime && !item.endTime) ? date : destinationEndDate,
               ...(clearTime ? { startTime: null, endTime: null, isAllDay: false, placementTime: placementTime ?? item.startTime ?? item.placementTime ?? "09:00" } : {}),
               ...(!clearTime && !item.startTime && !item.endTime ? { placementTime: placementTime ?? item.placementTime ?? "09:00" } : {}),
             } : {}),

@@ -83,3 +83,51 @@ See [FEATURES.md](./FEATURES.md). Current ideas are:
 3. Decide whether unscheduled items should appear in the Table view by default or have a dedicated schedule-status filter.
 4. Mark the implemented unscheduled-items feature complete in `FEATURES.md`.
 5. Add the undo stack before making broader editing changes.
+
+## Weekend update (2026-09-19 through 2026-09-21)
+
+### Features added
+
+- Added travel-document attachments to itinerary items, including upload/list/download/delete API routes and a Prisma `TravelAttachment` model.
+- Added Google Maps saved-list CSV import with category/type mapping. CSV categories that do not already exist are added as custom event types.
+- Added Google Maps coordinate extraction, including coordinates found in common URL forms and legacy Google Maps feature IDs.
+- Added a Leaflet/OpenStreetMap Map workspace view with colored markers, item popups, and day filters.
+- Added trip map support to the workspace navigation and persisted calendar mode state.
+
+### Schedule refactor
+
+- Replaced the prior schedule source of truth with separate `date`, `endDate`, `startTime`, and `endTime` fields.
+- Added `dayOrder` for itinerary ordering and `placementTime` for flexible items that have a date but no confirmed time.
+- Added database migrations and a schedule-shape check constraint to distinguish unscheduled, all-day, fixed-time, and flexible items.
+- Added compatibility conversion so API responses still expose legacy timestamp fields while the UI migration is in progress.
+- Expanded Calendar behavior toward month, week, and full-width day views, including drag/drop, fixed-time anchors, flexible item placement, and resizing.
+- Added reorder API support and updated the Itinerary view to persist day ordering.
+- The latest schedule commit explicitly notes that `dayOrder` is still somewhat incorrect and should be tested before treating this area as finished.
+
+### Other weekend changes
+
+- Added trip and travel-object deletion confirmation flows.
+- Added custom event-type removal support and calendar mode state to Zustand.
+- Expanded the feature backlog with CSV categorizing, suggested-time planning, user accounts, and a revised unscheduled panel concept.
+- Added design/reference images and a `day-view.md` specification for the new day and week behavior.
+
+### Weekend validation
+
+- `npm run lint` passed with 7 warnings: one unused `timezone` parameter in `CalendarView.tsx` and six existing `<img>` optimization warnings.
+- `npx tsc --noEmit` passed.
+- `npx next build --webpack` passed, including the new attachment, reorder, and map routes.
+
+### Current risks and follow-up
+
+- The schedule migration is a large schema change across six migrations. Test upgrades against a database containing real pre-refactor data before deployment.
+- Verify `dayOrder` and flexible-item placement across Calendar week/day and Itinerary views; the latest commit identifies this as unfinished.
+- Attachments are stored directly in PostgreSQL as bytes. This is acceptable for a lightweight POC but may increase database size and backup time.
+- Confirm OpenStreetMap tile usage and attribution remain compliant before public or high-volume hosting.
+- Rebuild and push both Docker images for `linux/amd64` after schedule or schema changes; the migrator must be rebuilt whenever migration files change.
+
+### Review findings
+
+- The weekend commits include hundreds of tracked `.next` build artifacts and generated cache changes. This creates noisy diffs and should be cleaned up separately with an explicit repository-maintenance change.
+- Attachment routes enforce a 20 MB limit and extension allowlist, but there is still no authentication or trip ownership boundary. That is consistent with the single-user POC and must be addressed before exposing the app to multiple users.
+- The attachment model stores binary data in PostgreSQL. This keeps deployment simple but makes database growth and backups scale with every uploaded file.
+- `CalendarView.tsx` has one unused `timezone` parameter in addition to existing image optimization warnings; these are lint warnings, not build blockers.

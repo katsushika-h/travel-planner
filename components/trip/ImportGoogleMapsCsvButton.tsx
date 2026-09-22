@@ -120,7 +120,7 @@ function scheduleFromRow(row: string[], columns: ScheduleColumns, trip: Trip) {
   return { startDateTime: start.iso, endDateTime, dayIndex: Math.max(1, dayIndexForDate(start.date, trip.startDate)), isAllDay, invalid: false };
 }
 
-export function ImportGoogleMapsCsvButton({ trip, eventTypes, onAddType, onImported, onError }: { trip: Trip; eventTypes: string[]; onAddType: (type: string) => void; onImported: (items: TravelObject[]) => void; onError: (message: string) => void }) {
+export function ImportGoogleMapsCsvButton({ trip, eventTypes, onAddType, onImported, onError, compact = false }: { trip: Trip; eventTypes: string[]; onAddType: (type: string) => void; onImported: (items: TravelObject[]) => void; onError: (message: string) => void; compact?: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<{ complete: number; total: number } | null>(null);
@@ -171,5 +171,6 @@ export function ImportGoogleMapsCsvButton({ trip, eventTypes, onAddType, onImpor
     finally { setImporting(false); setImportProgress(null); if (inputRef.current) inputRef.current.value = ""; }
   }
 
-  return <><input ref={inputRef} type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => void importFile(event.target.files?.[0])} /><Button type="button" variant="outline" disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? <LoaderCircle className="animate-spin" /> : <FileUp />}{importProgress ? `Resolving ${importProgress.complete}/${importProgress.total}` : "Import Maps CSV"}</Button></>;
+  const label = importProgress ? `Resolving ${importProgress.complete}/${importProgress.total}` : "Import Maps CSV";
+  return <><input ref={inputRef} type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => void importFile(event.target.files?.[0])} /><Button type="button" variant="ghost" size={compact ? "icon" : "sm"} className={compact ? "mx-auto" : "w-full justify-start"} aria-label={label} title={compact ? label : undefined} disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? <LoaderCircle className="animate-spin" /> : <FileUp />}{!compact && label}</Button></>;
 }
