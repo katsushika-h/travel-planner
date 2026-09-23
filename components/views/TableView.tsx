@@ -3,15 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Filter, RotateCcw } from "lucide-react";
 import { dateParts, dayIndexForDate, zonedDateTimeToUtc } from "@/lib/date-utils";
+import { elapsedDurationMinutes } from "@/lib/schedule-domain";
 import type { TravelObject, Trip } from "@/types/travel";
 
 type SortKey = "startDate" | "title" | "type" | "duration" | "cost" | "tags";
 type SortDirection = "asc" | "desc";
-
-function durationMinutes(item: TravelObject) {
-  if (!item.startDateTime || !item.endDateTime) return null;
-  return Math.max(0, Math.round((Date.parse(item.endDateTime) - Date.parse(item.startDateTime)) / 60_000));
-}
 
 function costAmount(item: TravelObject) {
   const cost = item.cost as { amount?: number; currency?: string } | null | undefined;
@@ -90,13 +86,13 @@ export function TableView({ trip, items, typeColors, selectedIds, primarySelecte
         case "startDate": result = compareNullable(a.startDateTime, b.startDateTime, (left, right) => Date.parse(left) - Date.parse(right)); break;
         case "title": result = a.title.localeCompare(b.title); break;
         case "type": result = a.type.localeCompare(b.type); break;
-        case "duration": result = compareNullable(durationMinutes(a), durationMinutes(b), (left, right) => left - right); break;
+        case "duration": result = compareNullable(elapsedDurationMinutes(a, trip.timezone), elapsedDurationMinutes(b, trip.timezone), (left, right) => left - right); break;
         case "cost": result = compareNullable(costAmount(a), costAmount(b), (left, right) => left - right); break;
         case "tags": result = (a.tags ?? []).join(", ").localeCompare((b.tags ?? []).join(", ")); break;
       }
       return result * (sortDirection === "asc" ? 1 : -1) || a.title.localeCompare(b.title);
     });
-  }, [items, selectedTags, selectedTypes, sortDirection, sortKey, titleQuery]);
+  }, [items, selectedTags, selectedTypes, sortDirection, sortKey, titleQuery, trip.timezone]);
 
   const costTotals = useMemo(() => {
     const totals = new Map<string, number>();
@@ -180,7 +176,7 @@ export function TableView({ trip, items, typeColors, selectedIds, primarySelecte
           <td className="min-w-52 whitespace-nowrap px-2 py-2 text-stone-600 dark:text-stone-300"><InlineInput label={`Start date for ${item.title}`} type="datetime-local" value={localStart(item)} onFocus={() => beginEdit(item)} onCommit={(value) => onChangeItems(editIds(item), (candidate) => { if (!value) return { startDateTime: null, endDateTime: null, dayIndex: null }; const [date, time] = value.split("T"); const startDateTime = zonedDateTimeToUtc(date, time, trip.timezone); const duration = candidate.startDateTime && candidate.endDateTime ? Math.max(15 * 60_000, Date.parse(candidate.endDateTime) - Date.parse(candidate.startDateTime)) : 60 * 60_000; return { startDateTime, endDateTime: new Date(Date.parse(startDateTime) + duration).toISOString(), dayIndex: Math.max(1, dayIndexForDate(date, trip.startDate)) }; })} /></td>
           <td className="min-w-52 max-w-[320px] px-2 py-2"><InlineInput label={`Title for ${item.title}`} value={item.title} onFocus={() => onInspect(item)} onCommit={(value) => onChangeItems(editIds(item), () => ({ title: value || "(untitled event)" }))} className="font-medium text-stone-900 dark:text-stone-100" /></td>
           <td className="min-w-36 px-2 py-2"><div className="flex items-center gap-1"><span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: typeColor(item.type, typeColors) }} /><InlineInput label={`Type for ${item.title}`} value={item.type} onFocus={() => beginEdit(item)} onCommit={(value) => onChangeItems(editIds(item), () => ({ type: value.trim() || "unclassified" }))} className="capitalize" /></div></td>
-          <td className="min-w-28 whitespace-nowrap px-2 py-2 text-stone-600 dark:text-stone-300"><InlineInput label={`Length in minutes for ${item.title}`} type="number" min="0" step="15" value={durationMinutes(item)?.toString() ?? ""} onFocus={() => beginEdit(item)} onCommit={(value) => onChangeItems(editIds(item), (candidate) => ({ endDateTime: candidate.startDateTime && value !== "" ? new Date(Date.parse(candidate.startDateTime) + Math.max(0, Number(value) || 0) * 60_000).toISOString() : null }))} /></td>
+          <td className="min-w-28 whitespace-nowrap px-2 py-2 text-stone-600 dark:text-stone-300"><InlineInput label={`Length in minutes for ${item.title}`} type="number" min="0" step="15" value={elapsedDurationMinutes(item, trip.timezone)?.toString() ?? ""} onFocus={() => beginEdit(item)} onCommit={(value) => onChangeItems(editIds(item), (candidate) => ({ endDateTime: candidate.startDateTime && value !== "" ? new Date(Date.parse(candidate.startDateTime) + Math.max(0, Number(value) || 0) * 60_000).toISOString() : null }))} /></td>
           <td className="min-w-28 whitespace-nowrap px-2 py-2 text-stone-600 dark:text-stone-300"><InlineInput label={`Cost for ${item.title}`} type="number" min="0" step="0.01" value={costAmount(item)?.toString() ?? ""} onFocus={() => beginEdit(item)} onCommit={(value) => onChangeItems(editIds(item), (candidate) => ({ cost: value === "" ? null : { ...((candidate.cost as object | null) ?? {}), amount: Math.max(0, Number(value) || 0), currency: (candidate.cost as { currency?: string } | null)?.currency || trip.defaultCurrency || "USD" } }))} /></td>
           <td className="min-w-64 px-2 py-2"><InlineInput label={`Tags for ${item.title}`} value={(item.tags ?? []).join(", ")} onFocus={() => beginEdit(item)} onCommit={(value) => onChangeItems(editIds(item), () => ({ tags: [...new Set(value.split(",").map((tag) => tag.trim()).filter(Boolean))] }))} /></td>
         </tr>)}</tbody>

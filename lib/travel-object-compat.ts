@@ -1,4 +1,4 @@
-import { dayIndexForDate, endDateTimeFor, startDateTimeFor } from "@/lib/date-utils";
+import { dayIndexForDate, endDateTimeFor, startDateTimeFor } from "./date-utils.ts";
 
 type CanonicalObject = {
   date: Date | string | null;

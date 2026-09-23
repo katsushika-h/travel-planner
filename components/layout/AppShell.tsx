@@ -15,7 +15,8 @@ import { TripDaysView } from "@/components/views/TripDaysView";
 import { TableView } from "@/components/views/TableView";
 import { MapView } from "@/components/views/MapView";
 import { api } from "@/lib/api-client";
-import { dayIndexForDate, dateParts, zonedDateTimeToUtc } from "@/lib/date-utils";
+import { dayIndexForDate, dateParts, endDateTimeFor, startDateTimeFor, zonedDateTimeToUtc } from "@/lib/date-utils";
+import { moveAllDayRange, moveFixedTimeRange, placeUnfixedItem, scheduleKind } from "@/lib/schedule-domain";
 import { compareScheduleOrder } from "@/lib/schedule-order";
 import { useTravelStore } from "@/store/use-travel-store";
 import type { TravelObject, Trip } from "@/types/travel";
@@ -167,35 +168,24 @@ export function AppShell() {
 
   async function moveItem(item: TravelObject, date: string, time?: string) {
     if (!activeTrip) return;
-    if (item.isAllDay) {
+    const kind = scheduleKind(item);
+    if (kind === "all-day") {
       const sourceDate = item.date?.slice(0, 10) ?? date;
       const sourceEndDate = item.endDate?.slice(0, 10) ?? sourceDate;
-      const durationDays = Math.max(0, Math.round((Date.parse(`${sourceEndDate}T00:00:00Z`) - Date.parse(`${sourceDate}T00:00:00Z`)) / 86_400_000));
-      const endDate = new Date(Date.parse(`${date}T00:00:00Z`) + durationDays * 86_400_000).toISOString().slice(0, 10);
-      changeItem(item.id, { date, endDate, startTime: null, endTime: null, placementTime: null, isAllDay: true, dayOrder: null, startDateTime: zonedDateTimeToUtc(date, "00:00", activeTrip.timezone), endDateTime: zonedDateTimeToUtc(endDate, "00:00", activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
+      const moved = moveAllDayRange(sourceDate, sourceEndDate, date);
+      const schedule = { ...moved, startTime: null, endTime: null, isAllDay: true };
+      changeItem(item.id, { ...schedule, placementTime: null, dayOrder: null, startDateTime: startDateTimeFor(schedule, activeTrip.timezone), endDateTime: endDateTimeFor(schedule, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
       return;
     }
-    if (!item.startDateTime || !item.endDateTime) {
-      if (!time && !item.startTime && !item.endTime) {
-        changeItem(item.id, { date, endDate: date, startTime: null, endTime: null, placementTime: item.placementTime ?? "09:00", isAllDay: false, dayOrder: null, startDateTime: null, endDateTime: null, dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
-        return;
-      }
-      const restoredTime = time ?? item.startTime ?? "09:00";
-      const restoredEndTime = item.endTime ?? new Date(Date.parse(`${date}T${restoredTime}:00Z`) + 60 * 60_000).toISOString().slice(11, 16);
-      const restoredEndDate = item.endTime ? date : new Date(Date.parse(`${date}T${restoredTime}:00Z`) + 60 * 60_000).toISOString().slice(0, 10);
-      changeItem(item.id, { date, endDate: restoredEndDate, startTime: restoredTime, endTime: restoredEndTime, placementTime: null, startDateTime: zonedDateTimeToUtc(date, restoredTime, activeTrip.timezone), endDateTime: zonedDateTimeToUtc(restoredEndDate, restoredEndTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
+    if (kind !== "fixed") {
+      const { kind: placedKind, ...schedule } = placeUnfixedItem(item, date, time);
+      changeItem(item.id, { ...schedule, ...(placedKind === "flexible" ? { dayOrder: null } : {}), startDateTime: startDateTimeFor(schedule, activeTrip.timezone), endDateTime: endDateTimeFor(schedule, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
       return;
     }
-    const start = dateParts(item.startDateTime, activeTrip.timezone);
-    const end = dateParts(item.endDateTime, activeTrip.timezone);
-    const wallStart = Date.parse(`${start.date}T${start.time}:00Z`);
-    const wallEnd = Date.parse(`${end.date}T${end.time}:00Z`);
-    const duration = Math.max(15, Math.round((wallEnd - wallStart) / 60_000));
-    const newStartTime = time ?? start.time;
-    const newStartWall = Date.parse(`${date}T${newStartTime}:00Z`);
-    const newEndWall = new Date(newStartWall + duration * 60_000);
-    const endDate = newEndWall.toISOString().slice(0, 10); const endTime = newEndWall.toISOString().slice(11, 16);
-    changeItem(item.id, { date, endDate, startTime: newStartTime, endTime, placementTime: null, startDateTime: zonedDateTimeToUtc(date, newStartTime, activeTrip.timezone), endDateTime: zonedDateTimeToUtc(endDate, endTime, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
+    if (!item.date || !item.startTime || !item.endTime) return;
+    const moved = moveFixedTimeRange(item.date.slice(0, 10), item.endDate?.slice(0, 10) ?? item.date.slice(0, 10), item.startTime, item.endTime, date, time);
+    const schedule = { ...moved, isAllDay: false };
+    changeItem(item.id, { ...schedule, placementTime: null, startDateTime: startDateTimeFor(schedule, activeTrip.timezone), endDateTime: endDateTimeFor(schedule, activeTrip.timezone), dayIndex: Math.max(1, dayIndexForDate(date, activeTrip.startDate)) }, true);
   }
 
   function resizeItem(item: TravelObject, edge: "start" | "end", time: string) {

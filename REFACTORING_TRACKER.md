@@ -41,7 +41,7 @@ Baseline captured on 2026-09-22:
 
 ### Dead-code candidates
 
-- `components/trip/CreateItemDialog.tsx` appears to have no source import or runtime reference. Confirm reachability before deleting it.
+- `components/trip/CreateItemDialog.tsx` had no source import or runtime reference and was removed in Pass 1.
 - `lib/utils.ts` is referenced by `components.json`; do not delete it solely because application code does not import it.
 - `components/inspector/MarkdownEditor.tsx` is a deliberate dynamic-import boundary for `MarkdownEditorClient.tsx`, not dead code.
 
@@ -77,7 +77,7 @@ Validation: Run lint, TypeScript, webpack build, and the parity checklist. Recor
 
 ### Pass 1 — Verified dead-code cleanup
 
-Status: **Not started**
+Status: **Complete — `CreateItemDialog` removed; other candidates require separate reachability checks**
 
 Current behavior: Unreferenced modules do not affect the runtime, but stale files make ownership and future changes less clear.
 
@@ -89,7 +89,7 @@ Likely first target: `components/trip/CreateItemDialog.tsx`.
 
 ### Pass 2 — Pure schedule-domain helpers
 
-Status: **Not started**
+Status: **In progress — move, placement, classification, and duration helpers extracted; other schedule decisions still inline**
 
 Current behavior: Date conversion, duration calculations, schedule-shape decisions, and legacy fallbacks are repeated across multiple components and routes.
 
@@ -239,3 +239,39 @@ Each agent must append an entry. Use the following format:
 - Results: The compatibility fields remain supported during intermediate passes and are now required to be removed in a later, explicitly validated API-contract change.
 - Risks or follow-up: Before removal, search the entire repository and complete the schedule parity matrix and API fixture updates.
 - Next recommended pass: `Pass 1 — Verified dead-code cleanup` or `Pass 2 — Pure schedule-domain helpers`.
+
+### 2026-09-23 — Verified dead-code cleanup
+
+- Pass: `Pass 1 — Verified dead-code cleanup`
+- Intent/current behavior: Item creation is handled by `AppShell.openCreateItem`; `CreateItemDialog` has no imports or runtime references in application source.
+- Files changed: `components/trip/CreateItemDialog.tsx` (removed), `REFACTORING_TRACKER.md`.
+- Structural improvement: Remove the unused dialog and its private helpers without changing the active creation flow.
+- Behavior preserved: Active item creation still uses `AppShell.openCreateItem`; no route, UI call site, schema, or API shape changed.
+- Validation run: `npm run check`; `npx next build --webpack` in an isolated temporary copy; final `rg` reference search; `git diff --check`.
+- Results: Lint and TypeScript passed (six existing image warnings); webpack build passed; no application references to `CreateItemDialog` remain; diff check passed.
+- Risks or follow-up: Runtime UI parity was not manually exercised. Other dead-code candidates need independent reachability checks. Generated `.next` artifacts stayed outside this pass.
+- Next recommended pass: `Pass 2 — Pure schedule-domain helpers`.
+
+### 2026-09-23 — Schedule-domain helper extraction
+
+- Pass: `Pass 2 — Pure schedule-domain helpers`
+- Intent/current behavior: `AppShell` shifts all-day and fixed-time ranges using date arithmetic; `TableView` computes elapsed duration from compatibility timestamps. Fixed-time moves preserve wall-clock duration across timezone transitions.
+- Files changed: `lib/schedule-domain.ts`, `lib/travel-object-compat.ts`, `components/layout/AppShell.tsx`, `components/views/TableView.tsx`, `tests/schedule-domain.test.mjs`, `package.json`, `tsconfig.json`, `AGENTS.md`, `REFACTORING_TRACKER.md`.
+- Structural improvement: Pure helpers now accept and return canonical date/time fields for all-day and fixed-time moves and derive elapsed duration from canonical fields. `AppShell` projects legacy timestamps only for UI compatibility. The existing compatibility serializer is directly testable, and `npm run check` includes the focused Node tests.
+- Behavior preserved: Existing move formulas and table duration calculation were transferred while moving their inputs to canonical fields. Tests cover unscheduled, flexible, all-day, fixed-time, multi-day, DST, invalid local input, and canonical-to-compatibility serialization.
+- Validation run: `npm run check`; `npx next build --webpack` in an isolated temporary copy; `git diff --check`.
+- Results: Lint and TypeScript passed; six schedule tests passed; webpack build passed; diff check passed. Lint retains six existing image warnings. Node emits a module-type warning while running the TypeScript test imports.
+- Risks or follow-up: Runtime UI parity was not manually exercised. Some `AppShell` branches and Table edits still read or write compatibility fields; migrate those consumers in later passes before removing the API fields. No API or database changes were made. Generated `.next` artifacts stayed outside this pass.
+- Next recommended pass: Continue Pass 2 with pure schedule-shape and fallback helpers, then validate remaining consumers before Pass 3.
+
+### 2026-09-23 — Canonical placement and schedule shapes
+
+- Pass: `Pass 2 — Pure schedule-domain helpers`
+- Intent/current behavior: `AppShell.moveItem` decides whether a dropped item is all-day, flexible, or fixed and restores saved times for undated items. A restored default hour can cross midnight.
+- Files changed: `lib/schedule-domain.ts`, `components/layout/AppShell.tsx`, `tests/schedule-domain.test.mjs`, `REFACTORING_TRACKER.md`.
+- Structural improvement: `scheduleKind` and `placeUnfixedItem` now classify canonical schedule shapes and calculate undated/flexible placement outside `AppShell`.
+- Behavior preserved: Saved times, flexible placement, default one-hour end across midnight, and trip-timezone compatibility projection remain the same. No API, schema, or persisted-format change.
+- Validation run: `npm run check`; `npx next build --webpack` in an isolated temporary copy; `git diff --check`.
+- Results: Lint and TypeScript passed; eight schedule tests passed; webpack build passed; diff check passed. Lint retains six existing image warnings.
+- Risks or follow-up: Runtime UI parity was not manually exercised. Other schedule decisions and compatibility-field consumers remain; API response fields stay until the dedicated migration.
+- Next recommended pass: Continue Pass 2 with remaining duration and schedule edits, then proceed to Pass 3.

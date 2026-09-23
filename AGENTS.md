@@ -1,65 +1,35 @@
-# Project notes
+# Travel Planner agent guide
 
-## Docker deployment architecture
+Travel Planner is a single-user itinerary app built with Next.js 16, React 19, TypeScript, Tailwind CSS, Zustand, Prisma, and PostgreSQL. The current workspace has Calendar, Kanban, Itinerary, Table, and Map views. Treat current code as the source of truth; `README.md` is an older product specification, and `HANDOFF_REPORT.md` records historical work.
 
-The deployment target is **Linux AMD64**. Whenever building and pushing Docker images for deployment, explicitly target `linux/amd64` (for example, with `docker buildx build --platform linux/amd64 ... --push`). Do not rely on the build machine's native platform. Apply this to both the app and migrator images when rebuilding them.
+## Start a task
 
-After building the app image, push it with:
+- Inspect `git status` and preserve unrelated changes. Never reset or discard them without an explicit request.
+- Read this file, then search only relevant implementation, tests, and documentation. Check applicable records in `docs/decisions/` and overlapping work in `docs/work/` before substantial changes.
+- Read `docs/architecture.md` only when architectural context is needed. Read `FEATURES.md` for backlog work, `README.md` for original product intent, and `HANDOFF_REPORT.md` for historical context only when relevant.
+- Prefer the smallest coherent change. Preserve behavior unless the task changes it; reuse existing patterns, avoid unrelated edits and one-use abstractions, and avoid unnecessary API, schema, or persisted-format changes. Add or update behavioral tests when behavior changes and a practical test seam exists.
 
-```sh
-docker push hokusaik/travel-planner-app:latest
-```
+## Code map
 
-## Project quick start
+- `app/`: pages and API route handlers.
+- `components/layout/AppShell.tsx`: active trip, items, selection, editing, and workspace view coordination.
+- `components/views/`, `components/inspector/`, `components/trip/`: workspace views, item editing, and trip/item actions.
+- `lib/api-client.ts`, `lib/api-validation.ts`, `lib/date-utils.ts`, `lib/schedule-domain.ts`, `lib/schedule-order.ts`, `lib/travel-object-compat.ts`: request flow and schedule logic.
+- `store/use-travel-store.ts`: persisted client UI preferences; `types/travel.ts`: shared browser types.
+- `prisma/schema.prisma`, `prisma/migrations/`: persisted model and migrations.
+- `Dockerfile`, `docker-compose.nas.yml`: app, migrator, and PostgreSQL deployment.
 
-This repository is a single-user travel-planning application built with Next.js 16, React 19, TypeScript, Tailwind CSS, Zustand, Prisma, and PostgreSQL.
+## Important invariants
 
-### Read first
+- `date`, `endDate`, `startTime`, `endTime`, `placementTime`, and `dayOrder` are the persisted schedule fields. The API computes legacy `startDateTime`, `endDateTime`, and `dayIndex` for UI compatibility. `placementTime` is a 15-minute visual position for flexible items, not a confirmed booking time. `dayOrder` behavior still needs review across Calendar and Itinerary.
+- The app has no authentication or per-user trip ownership. Do not assume either exists when changing routes.
+- Map coordinates are extracted from supported Google Maps URLs. Preserve URLs without coordinates; they cannot be plotted. Do not introduce Google API billing unless requested. Keep visible OpenStreetMap attribution and comply with tile/geocoding usage policies.
+- Attachments are stored as PostgreSQL `Bytes`. The repository tracks some `.next` artifacts despite `.gitignore`; avoid including generated output in source changes.
 
-For a new task, read these files in this order:
+## Commands and deployment
 
-1. `HANDOFF_REPORT.md` — current project state, recent work, known gaps, and suggested next steps.
-2. `README.md` — product scope and architecture background.
-3. `FEATURES.md` — planned feature ideas.
-4. The relevant files listed below before making changes.
+Run `npm ci` to install, `npm run dev` for local development, and `npm run check` for canonical lint, type checking, and Node schedule-domain tests. For production build verification, run `npx next build --webpack`; the Dockerfile uses webpack. Run the narrowest relevant check while iterating, then `npm run check` before completing substantial changes when practical. Report only checks actually run.
 
-Preserve unrelated working-tree changes. Inspect `git status` before editing and never reset or discard changes without an explicit request.
+Do not rebuild or push Docker images unless deployment is requested. The target is **Linux AMD64**: explicitly use `--platform linux/amd64` for both app and migrator images. Rebuild the migrator when migrations change. After building the app image for deployment, push it with `docker push hokusaik/travel-planner-app:latest`.
 
-### Current architecture
-
-- `app/` contains the Next.js App Router pages and API route handlers.
-- `components/layout/AppShell.tsx` coordinates workspace tabs, active trips, selection, and editing.
-- `components/views/` contains Calendar (month/week/day modes), Kanban, Itinerary (`TripDaysView`), Table, and Leaflet Map views.
-- `components/inspector/` contains the travel-object inspector and Markdown notes editor.
-- `components/trip/` contains trip/item dialogs and trip-level actions.
-- `lib/api-client.ts` is the browser API client; `lib/api-validation.ts` validates route input.
-- `store/use-travel-store.ts` contains client-side UI state such as selected items and custom type colors.
-- `prisma/schema.prisma` defines the PostgreSQL schema; `prisma/migrations/` contains applied migrations.
-- `types/travel.ts` defines shared client types. `TravelObject.location` is JSON and may contain place data, Google Maps URLs, and optional coordinates. Travel objects can also have `TravelAttachment` records.
-- `docker-compose.nas.yml` runs PostgreSQL, the one-shot Prisma migrator, and the app container.
-- `Dockerfile` builds both the app and migrator stages. The production image uses the webpack build.
-
-### Important behavior
-
-- Travel objects use `date`, `endDate`, `startTime`, `endTime`, `placementTime`, and `dayOrder` as the canonical schedule fields. The legacy `startDateTime`, `endDateTime`, and `dayIndex` values are compatibility fields computed by the API during the UI migration.
-- Objects may be unscheduled, confirmed at a fixed time, all-day, or placed flexibly on a date. `placementTime` is a 15-minute visual placement for flexible items and is not a confirmed event time.
-- Calendar supports month, week, and day modes. Kanban and Itinerary focus on scheduled objects; the Table view can show unscheduled objects.
-- `dayOrder` is used for flexible item ordering, but ordering still needs review after the weekend schedule refactor.
-- The Map view uses Leaflet and OpenStreetMap tiles. Map coordinates are extracted from supported Google Maps URLs; links without coordinates remain saved but cannot be plotted.
-- Attachments are currently stored as `Bytes` in PostgreSQL through the `TravelAttachment` model. Revisit object storage if attachment volume grows.
-- The repository currently contains a large number of tracked `.next` build artifacts. Avoid adding further generated build output to source changes; consider cleaning this up in a separate deliberate repository-maintenance change.
-- API routes currently use trip/object IDs directly; authentication and per-user trip ownership are future features, not assumptions to add silently.
-- Google Maps support currently handles pasted links and stores location data; do not introduce Google API billing unless explicitly requested.
-- OSM maps must include visible attribution and follow the applicable tile/geocoding usage policies.
-
-### Validation
-
-For code changes, prefer these checks when applicable:
-
-```sh
-npm run lint
-npx tsc --noEmit
-npx next build --webpack
-```
-
-Do not rebuild or push Docker images unless requested. When deployment is requested, build both app and migrator images explicitly for `linux/amd64`.
+For substantial multi-step work, create or update one concise handoff in `docs/work/` with status, goal, scope, executable checklist, current state, remaining work, findings, verification, and next step. Update `docs/architecture.md` only for architectural changes and add a concise ADR in `docs/decisions/` only for a durable decision. Mark finished work complete and remove transient notes.
