@@ -69,3 +69,15 @@ export interface TravelObject {
   createdAt: string;
   updatedAt: string;
 }
+
+type TravelObjectWriteFields = Pick<TravelObject,
+  "title" | "type" | "date" | "endDate" | "startTime" | "endTime" | "placementTime" |
+  "startDateTime" | "endDateTime" | "dayIndex" | "dayOrder" | "isAllDay" |
+  "headerImage" | "location" | "cost" | "notes" | "tags"
+>;
+
+/** Client request shape; legacy schedule inputs remain until the API contract migration. */
+export type CreateTravelObjectInput = Pick<TravelObject, "tripId" | "title" | "type" | "isAllDay"> & Partial<TravelObjectWriteFields>;
+
+/** Excludes server-owned response fields while retaining transitional request compatibility. */
+export type UpdateTravelObjectInput = Partial<TravelObjectWriteFields>;

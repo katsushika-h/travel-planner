@@ -1,6 +1,8 @@
 
 # Custom Travel Planner — Architecture & Specification Document (v3)
 
+> **Current implementation (2026-09-24):** This document preserves the original POC plan; its view list, file layout, and timestamp-based schema are historical. The app now has Calendar (Month, Week, Day), Kanban, Itinerary, Table, and Map views. It persists `date`, `endDate`, `startTime`, `endTime`, `placementTime`, and `dayOrder`; legacy `startDateTime`, `endDateTime`, and `dayIndex` are derived API compatibility fields. See [architecture](docs/architecture.md), [schedule decision](docs/decisions/0001-canonical-schedule-fields.md), [refactoring tracker](REFACTORING_TRACKER.md), and [current handoff](docs/work/schedule-refactor.md) for current boundaries and remaining work. Run `npm run check` for lint, types, and unit tests.
+
 > **v3 changelog:** Scoped down to a single-user, local-machine proof of concept. Replaced Supabase with plain Postgres + Prisma. Removed Realtime as a requirement. Added trip-level timezone as a first-class requirement. Corrected the iCal "real-time sync" claim. Added a concrete file structure and a step-by-step build order.
 
 ---

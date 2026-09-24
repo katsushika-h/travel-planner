@@ -6,7 +6,7 @@ import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { ExternalLink, GripVertical, List, LocateFixed, Map as MapIcon, MapPin, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatTripDate } from "@/lib/date-utils";
-import { compareScheduleOrder } from "@/lib/schedule-order";
+import { compareDayDisplayOrder, compareScheduleOrder } from "@/lib/schedule-order";
 import type { LocationData, TravelObject, Trip } from "@/types/travel";
 
 const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.LeafletMap), {
@@ -41,7 +41,7 @@ function itemAppearsOnDate(item: TravelObject, date: string) {
   return Boolean(first && first <= date && last && last >= date);
 }
 
-const itinerarySort = compareScheduleOrder;
+const itinerarySort = compareDayDisplayOrder;
 
 function hasCoordinates(item: TravelObject) {
   return Number.isFinite(item.location?.lat) && Number.isFinite(item.location?.lng);
@@ -66,8 +66,8 @@ function DayItemDrop({ date, order, children }: { date: string; order: number; c
   return <div ref={setNodeRef} className={isOver ? "rounded-xl ring-2 ring-inset ring-emerald-500" : ""}>{children}</div>;
 }
 
-const JourneyCard = memo(function JourneyCard({ item, number, color, selected, primary, highlighted, onSelect, onInspect, onHover }: { item: TravelObject; number: number; color: string; selected: boolean; primary: boolean; highlighted: boolean; onSelect: (item: TravelObject, additive?: boolean) => void; onInspect: (item: TravelObject) => void; onHover: (itemId: string | null) => void }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `agenda:${item.id}`, data: { item } });
+const JourneyCard = memo(function JourneyCard({ item, date, number, color, selected, primary, highlighted, onSelect, onInspect, onHover }: { item: TravelObject; date: string; number: number; color: string; selected: boolean; primary: boolean; highlighted: boolean; onSelect: (item: TravelObject, additive?: boolean) => void; onInspect: (item: TravelObject) => void; onHover: (itemId: string | null) => void }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `agenda:${date}:${item.id}`, data: { item, draggedDate: date } });
   const location = item.location?.name ?? item.location?.address;
   const fixed = Boolean(item.startTime && item.endTime && !item.isAllDay);
   const cost = item.cost?.amount != null ? `${item.cost.currency} ${item.cost.amount.toLocaleString()}` : null;
@@ -93,12 +93,13 @@ const JourneyCard = memo(function JourneyCard({ item, number, color, selected, p
 function DateSection({ date, dayNumber, items, trip, typeColors, selectedIds, primarySelectedId, highlightedItemId, sectionRef, onSelect, onInspect, onHover, onCreate, onFocusDay }: { date: string; dayNumber: number; items: TravelObject[]; trip: Trip; typeColors: Record<string, string>; selectedIds: ReadonlySet<string>; primarySelectedId: string | null; highlightedItemId: string | null; sectionRef: (node: HTMLElement | null) => void; onSelect: (item: TravelObject, additive?: boolean) => void; onInspect: (item: TravelObject) => void; onHover: (itemId: string | null) => void; onCreate: (date: string, order: number) => void; onFocusDay: () => void }) {
   const { setNodeRef: setSectionDropRef, isOver } = useDroppable({ id: `day-section:${date}:${items.length}` });
   const fixedCount = items.filter((item) => item.startTime && item.endTime && !item.isAllDay).length;
+  const insertionOrder = new Map([...items].sort(compareScheduleOrder).map((item, index) => [item.id, index]));
   return <section ref={(node) => { sectionRef(node); setSectionDropRef(node); }} data-date={date} aria-labelledby={`day-heading-${date}`} className={`min-h-[42vh] scroll-mt-0 pb-8 ${isOver ? "bg-emerald-50/50 dark:bg-emerald-950/20" : ""}`}>
     <header className={`sticky top-0 z-20 border-y bg-stone-50/95 backdrop-blur dark:bg-neutral-950/95 ${isOver ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950" : ""}`}>
       <button type="button" onClick={onFocusDay} aria-label={`Show all ${items.length} ${items.length === 1 ? "place" : "places"} for ${formatTripDate(`${date}T12:00:00Z`, trip.timezone, { weekday: "long", month: "long", day: "numeric" })} on the map`} className="flex w-full items-end justify-between gap-3 px-4 py-3 text-left hover:bg-stone-100/70 dark:hover:bg-neutral-900/70"><div><p className="text-[10px] font-semibold uppercase tracking-[.14em] text-emerald-700 dark:text-emerald-300">Day {dayNumber}</p><h2 id={`day-heading-${date}`} className="mt-0.5 text-base font-semibold">{formatTripDate(`${date}T12:00:00Z`, trip.timezone, { weekday: "long", month: "long", day: "numeric" })}</h2></div><p className="shrink-0 text-right text-[10px] leading-relaxed text-muted-foreground">{items.length} {items.length === 1 ? "place" : "places"}<br />{fixedCount} fixed {fixedCount === 1 ? "time" : "times"}</p></button>
     </header>
     <div className="px-3 pt-3 sm:px-4">
-      {items.length ? items.map((item, index) => <div key={item.id}><DropGap date={date} order={index} onCreate={onCreate} /><DayItemDrop date={date} order={index}><JourneyCard item={item} number={index + 1} color={typeColor(item.type, typeColors)} selected={selectedIds.has(item.id)} primary={primarySelectedId === item.id} highlighted={highlightedItemId === item.id} onSelect={onSelect} onInspect={onInspect} onHover={onHover} /></DayItemDrop></div>) : <div className={`grid min-h-40 place-items-center rounded-xl border border-dashed px-4 text-center ${isOver ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30" : ""}`}><div><p className="text-sm font-medium">Nothing planned</p><p className="mt-1 text-xs text-muted-foreground">Drop an idea on this date or add an item.</p><Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => onCreate(date, 0)}><Plus size={14} /> Add item</Button></div></div>}
+      {items.length ? items.map((item, index) => <div key={item.id}><DropGap date={date} order={insertionOrder.get(item.id) ?? index} onCreate={onCreate} /><DayItemDrop date={date} order={insertionOrder.get(item.id) ?? index}><JourneyCard item={item} date={date} number={index + 1} color={typeColor(item.type, typeColors)} selected={selectedIds.has(item.id)} primary={primarySelectedId === item.id} highlighted={highlightedItemId === item.id} onSelect={onSelect} onInspect={onInspect} onHover={onHover} /></DayItemDrop></div>) : <div className={`grid min-h-40 place-items-center rounded-xl border border-dashed px-4 text-center ${isOver ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30" : ""}`}><div><p className="text-sm font-medium">Nothing planned</p><p className="mt-1 text-xs text-muted-foreground">Drop an idea on this date or add an item.</p><Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => onCreate(date, 0)}><Plus size={14} /> Add item</Button></div></div>}
       {items.length > 0 && <DropGap date={date} order={items.length} onCreate={onCreate} />}
     </div>
   </section>;

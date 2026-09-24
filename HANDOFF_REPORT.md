@@ -1,5 +1,7 @@
 # Travel Planner Handoff Report
 
+> **Historical snapshot:** This report records the 2026-09-18 through 2026-09-21 work and is not the current implementation guide. For current architecture and ongoing schedule refactoring, use [architecture](docs/architecture.md), [refactoring tracker](REFACTORING_TRACKER.md), and [schedule refactor handoff](docs/work/schedule-refactor.md).
+
 **Report date:** 2026-09-19  
 **Coverage:** Work completed on 2026-09-18  
 **Repository:** `/Users/users/Documents/projects/travel-planner`

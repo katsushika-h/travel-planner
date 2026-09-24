@@ -4,6 +4,7 @@ Potential features to implement after the POC. These are ideas, not commitments 
 
 ## Completed recently
 
+- [x] **Unscheduled ideas** — create an item without a date, keep it in the Ideas panel, drag it onto a date, and remove its date to return it to Ideas.
 - [x] **Travel document attachments** — upload, list, preview/download, and delete files on itinerary items. Current implementation stores file bytes in PostgreSQL and limits uploads to 20 MB.
 - [x] **Google Maps saved-list import** — import Google Takeout CSV files, preserve place metadata and Maps links, and map CSV categories to event types.
 - [x] **Map view** — show items with extracted coordinates on a Leaflet/OpenStreetMap map with colored markers and day filters.

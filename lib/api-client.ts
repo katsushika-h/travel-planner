@@ -1,4 +1,4 @@
-import type { TravelAttachment, TravelObject, Trip } from "@/types/travel";
+import type { CreateTravelObjectInput, TravelAttachment, TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   let response: Response;
@@ -30,9 +30,9 @@ export const api = {
     request<Trip>(`/api/trips/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }),
   objects: (tripId: string) =>
     request<TravelObject[]>(`/api/travel-objects?tripId=${encodeURIComponent(tripId)}`),
-  createObject: (data: Omit<TravelObject, "id" | "createdAt" | "updatedAt" | "dayOrder" | "date" | "endDate" | "startTime" | "endTime" | "placementTime" | "startDateTime" | "endDateTime" | "dayIndex"> & Partial<Pick<TravelObject, "date" | "endDate" | "startTime" | "endTime" | "placementTime" | "startDateTime" | "endDateTime" | "dayIndex">> & { dayOrder?: number | null }) =>
+  createObject: (data: CreateTravelObjectInput) =>
     request<TravelObject>("/api/travel-objects", { method: "POST", body: JSON.stringify(data) }),
-  updateObject: (id: string, data: Partial<TravelObject>) =>
+  updateObject: (id: string, data: UpdateTravelObjectInput) =>
     request<TravelObject>(`/api/travel-objects/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),

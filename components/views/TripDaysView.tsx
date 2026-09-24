@@ -3,8 +3,9 @@
 import { closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { useEffect, useRef, useState } from "react";
 import { Plus, MapPin, GripVertical } from "lucide-react";
-import { formatTripDate, dateParts } from "@/lib/date-utils";
-import { compareScheduleOrder } from "@/lib/schedule-order";
+import { formatTripDate } from "@/lib/date-utils";
+import { occursOnItineraryDate } from "@/lib/schedule-domain";
+import { compareScheduleOrder, isTimedItem } from "@/lib/schedule-order";
 import type { TravelObject, Trip } from "@/types/travel";
 
 const defaultTypeColors: Record<string, string> = { unclassified: "#64748b", flight: "#0ea5e9", hotel: "#8b5cf6", food: "#f97316", commute: "#f59e0b", activity: "#10b981", sightseeing: "#f43f5e" };
@@ -22,18 +23,17 @@ function TripDayColumn({ date, index, items, timezone, colorMap, selectedIds, pr
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3" onDoubleClick={() => onCreate(date)} title="Double-click to add an item">{items.map((item, order) => <div key={`${item.id}:${date}`}><TripDayDropSlot date={date} order={order} /><DayCard item={item} order={order} date={date} timezone={timezone} color={eventTypeColor(item.type, colorMap)} selected={selectedIds.has(item.id)} primary={primarySelectedId === item.id} onSelect={onSelect} /></div>)}<TripDayDropSlot date={date} order={items.length} empty={items.length === 0} />{items.length === 0 && <button type="button" onDoubleClick={(event) => { event.stopPropagation(); onCreate(date); }} className="grid min-h-24 place-items-center rounded-lg border border-dashed text-xs text-muted-foreground">Double-click to add an item</button>}</div>
   </section>;
 }
-function DayCard({ item, order, date, timezone, color, selected, primary, onSelect }: { item: TravelObject; order: number; date: string; timezone: string; color: string; selected: boolean; primary: boolean; onSelect: (item: TravelObject, additive?: boolean) => void }) {
+function DayCard({ item, order, date, color, selected, primary, onSelect }: { item: TravelObject; order: number; date: string; timezone: string; color: string; selected: boolean; primary: boolean; onSelect: (item: TravelObject, additive?: boolean) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `${item.id}:${date}`, data: { item } }); const place = (item.location as { name?: string } | null)?.name;
-  const time = item.startDateTime && !item.isAllDay ? dateParts(item.startDateTime, timezone).time : item.isAllDay ? "All day" : "";
+  const time = item.isAllDay ? "All day" : isTimedItem(item) ? item.startTime : "";
   return <div ref={setNodeRef} data-travel-object-id={item.id} {...attributes} {...listeners} role="button" tabIndex={0} onClick={(event) => onSelect(item, event.shiftKey)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(item, event.shiftKey); } }} style={transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : undefined} className={`flex w-full scroll-mx-4 items-stretch gap-2 text-left ${selected ? primary ? "ring-2 ring-white ring-offset-2 ring-offset-emerald-600" : "ring-2 ring-emerald-600" : ""} ${isDragging ? "opacity-40" : ""}`}><span className="w-11 shrink-0 pt-3 text-right text-[11px] font-medium text-stone-400 dark:text-stone-500">{time}</span><article style={{ borderLeft: `4px solid ${color}` }} className="min-w-0 flex-1 overflow-hidden rounded-lg border bg-background shadow-sm">{item.headerImage && <img src={item.headerImage} alt="" className="h-28 w-full object-cover" />}<div className="flex gap-3 p-3"><span className="w-5 shrink-0 pt-0.5 text-center text-xs font-semibold text-muted-foreground">{order + 1}</span><div className="min-w-0 flex-1"><p className="flex items-center gap-1.5 text-sm font-medium"><GripVertical size={13} className="shrink-0 text-muted-foreground"/><span className="truncate">{item.title}</span></p><p className="mt-1 text-xs text-muted-foreground">{item.isAllDay ? "All day" : item.type}</p>{place && <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><MapPin size={11}/>{place}</p>}</div></div></article></div>;
 }
-function DragPreview({ item, timezone, color }: { item: TravelObject; timezone: string; color: string }) {
+function DragPreview({ item, color }: { item: TravelObject; timezone: string; color: string }) {
   const place = (item.location as { name?: string } | null)?.name;
-  const scheduleLabel = item.isAllDay ? "All day" : item.startDateTime && item.endDateTime ? `${dateParts(item.startDateTime, timezone).time}–${dateParts(item.endDateTime, timezone).time}` : "Unscheduled time";
+  const scheduleLabel = item.isAllDay ? "All day" : isTimedItem(item) ? `${item.startTime}–${item.endTime}` : "Unscheduled time";
   return <article className="w-[280px] overflow-hidden rounded-lg border bg-background text-left shadow-xl" style={{ borderLeft: `4px solid ${color}` }}>{item.headerImage && <img src={item.headerImage} alt="" className="h-28 w-full object-cover" />}<div className="p-3"><p className="flex items-center gap-1.5 text-sm font-medium"><GripVertical size={13} className="shrink-0 text-muted-foreground"/><span className="truncate">{item.title}</span></p><p className="mt-1 pl-5 text-xs text-muted-foreground">{scheduleLabel} · {item.type}</p>{place && <p className="mt-1 flex items-center gap-1 pl-5 text-xs text-muted-foreground"><MapPin size={11}/>{place}</p>}</div></article>;
 }
 export function TripDaysView({ trip, items, typeColors, selectedIds, primarySelectedId, inspectedItemId, onSelect, onSelectForDrag, onMove, onReorder, onCreateItem }: { trip: Trip; items: TravelObject[]; typeColors: Record<string, string>; selectedIds: ReadonlySet<string>; primarySelectedId: string | null; inspectedItemId: string | null; onSelect: (item: TravelObject, additive?: boolean) => void; onSelectForDrag: (item: TravelObject) => void; onMove: (item: TravelObject, date: string) => Promise<void>; onReorder: (item: TravelObject, date: string, order: number, clearTime: boolean) => Promise<void>; onCreateItem: (date: string) => void }) {
-  const displayItems = items.filter((item) => item.dayIndex !== null || (item.startDateTime && item.endDateTime));
   const start = trip.startDate.slice(0, 10); const end = trip.endDate.slice(0, 10); const days: string[] = []; for (let date = start, i = 0; date <= end && i < 1000; date = shiftDate(date, 1), i++) days.push(date);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 3 } }));
   const [activeItem, setActiveItem] = useState<TravelObject | null>(null);
@@ -47,16 +47,23 @@ export function TripDaysView({ trip, items, typeColors, selectedIds, primarySele
   }, [inspectedItemId]);
   const finishDrag = () => { setActiveItem(null); requestAnimationFrame(() => { suppressClickRef.current = false; }); };
   const onDragStart = (event: DragStartEvent) => { suppressClickRef.current = true; const item = (event.active.data.current as { item?: TravelObject } | undefined)?.item ?? null; setActiveItem(item); if (item && !selectedIds.has(item.id)) onSelectForDrag(item); };
-  const orderedForDate = (date: string) => displayItems.filter((item) => {
-    if (item.startDateTime && item.endDateTime) {
-      const first = dateParts(item.startDateTime, trip.timezone).date;
-      const last = dateParts(item.endDateTime, trip.timezone).date;
-      return first <= date && last >= date;
-    }
-    return item.dayIndex === days.indexOf(date) + 1;
-  }).sort(compareScheduleOrder);
+  const orderedForDate = (date: string) => items.filter((item) => occursOnItineraryDate(item, date)).sort(compareScheduleOrder);
   async function persistReorder(item: TravelObject, date: string, order: number, clearTime: boolean) { await onReorder(item, date, order, clearTime); }
-  const onDragEnd = (event: DragEndEvent) => { const target = String(event.over?.id ?? ""); if (!target.startsWith("trip-day:")) return; const item = (event.active.data.current as { item?: TravelObject } | undefined)?.item; const [, date, rawOrder] = target.split(":"); if (!item || !date) return; const destinationDay = days.indexOf(date) + 1; const targetItems = orderedForDate(date).filter((candidate) => candidate.id !== item.id); const order = Math.min(Number.isFinite(Number(rawOrder)) ? Number(rawOrder) : targetItems.length, targetItems.length); const isAnchor = (candidate: TravelObject | undefined) => Boolean(candidate?.startDateTime && candidate.endDateTime && !candidate.isAllDay); const betweenAnchors = isAnchor(targetItems[order - 1]) && isAnchor(targetItems[order]); if (betweenAnchors) { void persistReorder(item, date, order, true); return; } if (item.startDateTime && item.endDateTime && item.dayIndex !== destinationDay) { void onMove(item, date); return; } void persistReorder(item, date, order, false); };
+  const onDragEnd = (event: DragEndEvent) => {
+    const target = String(event.over?.id ?? "");
+    if (!target.startsWith("trip-day:")) return;
+    const item = (event.active.data.current as { item?: TravelObject } | undefined)?.item;
+    const [, date, rawOrder] = target.split(":");
+    if (!item || !date) return;
+    if (item.isAllDay) { if (item.date !== date) void onMove(item, date); return; }
+    const targetItems = orderedForDate(date).filter((candidate) => candidate.id !== item.id);
+    const order = Math.min(Number.isFinite(Number(rawOrder)) ? Number(rawOrder) : targetItems.length, targetItems.length);
+    const isAnchor = (candidate: TravelObject | undefined) => Boolean(candidate && isTimedItem(candidate));
+    const betweenAnchors = isAnchor(targetItems[order - 1]) && isAnchor(targetItems[order]);
+    if (betweenAnchors) { void persistReorder(item, date, order, true); return; }
+    if (isTimedItem(item) && item.date !== date) { void onMove(item, date); return; }
+    void persistReorder(item, date, order, false);
+  };
   const selectFromClick = (item: TravelObject, additive = false) => { if (!suppressClickRef.current) onSelect(item, additive); };
   return <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-stone-50 dark:bg-neutral-950"><header className="border-b bg-white px-4 py-3 dark:bg-neutral-900"><h2 className="text-sm font-semibold">Itinerary</h2><p className="text-xs text-muted-foreground">Ordered plan · timed items keep their actual time; flexible items have no confirmed time.</p></header><DndContext sensors={sensors} collisionDetection={(args) => { const pointerCollisions = pointerWithin(args); const slot = pointerCollisions.find(({ id }) => String(id).split(":").length === 3); return slot ? [slot] : pointerCollisions.length ? pointerCollisions : closestCorners(args); }} onDragStart={onDragStart} onDragCancel={finishDrag} onDragEnd={(event) => { onDragEnd(event); finishDrag(); }}><div ref={boardRef} className="flex min-h-0 flex-1 items-start gap-3 overflow-x-auto p-4">{days.map((date, index) => <TripDayColumn key={date} date={date} index={index} timezone={trip.timezone} items={orderedForDate(date)} colorMap={typeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} onSelect={selectFromClick} onCreate={onCreateItem} />)}</div><DragOverlay dropAnimation={null}>{activeItem && <DragPreview item={activeItem} timezone={trip.timezone} color={eventTypeColor(activeItem.type, typeColors)} />}</DragOverlay></DndContext></div>;
 }

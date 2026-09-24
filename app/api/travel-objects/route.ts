@@ -1,21 +1,18 @@
 import { Prisma } from "@prisma/client";
 import {
   isRecord,
-  readDate,
   readEventType,
   readHeaderImage,
   readJsonBody,
-  readPlacementTime,
-  readTime,
   readTags,
   readTrimmedString,
   validateCost,
   validateLocation,
 } from "@/lib/api-validation";
+import { readCreateSchedule } from "@/lib/api-schedule";
 import { prisma } from "@/lib/prisma";
 import { withScheduleCompatibility } from "@/lib/travel-object-compat";
-import { dateParts } from "@/lib/date-utils";
-import { normalizeDayOrder } from "@/lib/schedule-order";
+import { writeDateOrder } from "@/lib/schedule-order-service";
 
 export const dynamic = "force-dynamic";
 
@@ -55,22 +52,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "Trip not found." }, { status: 404 });
     }
 
-    const legacyStart = typeof body.startDateTime === "string" ? readDate(body.startDateTime, "startDateTime") : null;
-    const legacyEnd = typeof body.endDateTime === "string" ? readDate(body.endDateTime, "endDateTime") : null;
-    const legacyStartParts = legacyStart ? dateParts(legacyStart, trip.timezone) : null;
-    const legacyEndParts = legacyEnd ? dateParts(legacyEnd, trip.timezone) : null;
-    const date = body.date === undefined ? legacyStartParts ? readDate(legacyStartParts.date, "date", true) : null : body.date === null ? null : readDate(body.date, "date", true);
-    const endDate = date === null ? null : body.endDate === undefined ? legacyEndParts ? readDate(legacyEndParts.date, "endDate", true) : date : body.endDate === null ? date : readDate(body.endDate, "endDate", true);
-    const startTime = body.startTime === undefined ? legacyStartParts && body.isAllDay !== true ? legacyStartParts.time : null : body.startTime === null ? null : readTime(body.startTime, "startTime");
-    const endTime = body.endTime === undefined ? legacyEndParts && body.isAllDay !== true ? legacyEndParts.time : null : body.endTime === null ? null : readTime(body.endTime, "endTime");
-    const placementTime = body.placementTime === undefined ? null : body.placementTime === null ? null : readPlacementTime(body.placementTime, "placementTime");
-    const isAllDay = body.isAllDay === true;
-    if (date === null && (endDate !== null || placementTime !== null || isAllDay)) throw new Error("Unscheduled items cannot have an end date, placement time, or be all-day.");
-    if (date && endDate! < date) throw new Error("endDate must be on or after date.");
-    if (isAllDay && (startTime || endTime)) throw new Error("All-day items cannot have times.");
-    if (!isAllDay && (startTime === null) !== (endTime === null)) throw new Error("startTime and endTime must both be set or both be null.");
-    if (placementTime && (isAllDay || startTime || endTime)) throw new Error("placementTime is only for flexible items without confirmed times.");
-    if (!isAllDay && date && startTime && endTime && endDate!.getTime() === date.getTime() && endTime <= startTime) throw new Error("endTime must be after startTime on the same date.");
+    const { date, endDate, startTime, endTime, placementTime, isAllDay } = readCreateSchedule(body, trip.timezone);
     const travelObject = await prisma.$transaction(async (tx) => {
       const created = await tx.travelObject.create({
       data: {
@@ -92,10 +74,7 @@ export async function POST(request: Request) {
       },
       });
       if (date !== null) {
-        const siblings = await tx.travelObject.findMany({ where: { tripId, date } });
-        for (const { item, dayOrder: normalizedOrder } of normalizeDayOrder(siblings)) {
-          if (item.dayOrder !== normalizedOrder) await tx.travelObject.update({ where: { id: item.id }, data: { dayOrder: normalizedOrder } });
-        }
+        await writeDateOrder(tx, tripId, date, "initial");
       }
       return tx.travelObject.findUniqueOrThrow({ where: { id: created.id } });
     });

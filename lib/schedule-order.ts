@@ -58,6 +58,21 @@ export function compareScheduleOrder(a: OrderableItem, b: OrderableItem) {
   return byExistingOrder(a, b);
 }
 
+/** Day presentation keeps all-day items above the ordered itinerary. */
+export function compareDayDisplayOrder(a: OrderableItem, b: OrderableItem) {
+  return Number(b.isAllDay) - Number(a.isAllDay) || compareScheduleOrder(a, b);
+}
+
 export function sortScheduleItems<T extends OrderableItem>(items: readonly T[]) {
   return [...items].sort(compareScheduleOrder);
+}
+
+/** Close gaps after removal without changing the remaining explicit order. */
+export function compactDayOrder<T extends OrderableItem>(items: readonly T[]) {
+  return sortScheduleItems(items).map((item, dayOrder) => ({ item, dayOrder }));
+}
+
+/** Order a complete trip collection, with undated ideas after dated items. */
+export function sortTravelObjects<T extends OrderableItem & { date: string | null }>(items: readonly T[]) {
+  return [...items].sort((a, b) => (a.date ?? "9999-12-31").localeCompare(b.date ?? "9999-12-31") || compareScheduleOrder(a, b));
 }

@@ -6,8 +6,9 @@ import { arrayMove, horizontalListSortingStrategy, SortableContext, useSortable 
 import { CSS } from "@dnd-kit/utilities";
 import { CalendarDays, GripVertical, MapPin, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatTripDate } from "@/lib/date-utils";
+import { formatTripDate, startDateTimeFor } from "@/lib/date-utils";
 import { api } from "@/lib/api-client";
+import { compareScheduleOrder } from "@/lib/schedule-order";
 import { useTravelStore } from "@/store/use-travel-store";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { TravelObject, Trip } from "@/types/travel";
@@ -17,12 +18,16 @@ const emptyTypeOrder: string[] = [];
 const defaultColors: Record<string, string> = { unclassified: "#64748b", flight: "#0ea5e9", hotel: "#8b5cf6", food: "#f97316", commute: "#f59e0b", activity: "#10b981", sightseeing: "#f43f5e" };
 const palette = ["#14b8a6", "#3b82f6", "#a855f7", "#ec4899", "#f97316", "#84cc16", "#64748b"];
 function typeColor(type: string, colors: Record<string, string>) { return colors[type] ?? defaultColors[type] ?? palette[[...type].reduce((sum, char) => sum + char.charCodeAt(0), 0) % palette.length]; }
+function itemDateLabel(item: TravelObject, timezone: string) {
+  const start = startDateTimeFor(item, timezone);
+  return start ? formatTripDate(start, timezone, { month: "short", day: "numeric", ...(item.isAllDay ? {} : { hour: "numeric", minute: "2-digit" }) }) : "Unscheduled";
+}
 
 function Card({ item, timezone, color, selected, primary, onSelect }: { item: TravelObject; timezone: string; color: string; selected: boolean; primary: boolean; onSelect: (item: TravelObject, additive: boolean) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: item.id, disabled: item.id.startsWith("draft:") });
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `card:${item.id}` });
   const location = item.location as { name?: string } | null;
-  const dateLabel = item.startDateTime ? formatTripDate(item.startDateTime, timezone, { month: "short", day: "numeric", ...(item.isAllDay ? {} : { hour: "numeric", minute: "2-digit" }) }) : "Unscheduled";
+  const dateLabel = itemDateLabel(item, timezone);
   return <div ref={setDropRef} className={`relative ${isOver ? "before:absolute before:inset-x-1 before:-top-1 before:z-20 before:border-t-2 before:border-emerald-500" : ""}`}><button ref={setNodeRef} data-travel-object-id={item.id} style={{ borderLeft: `4px solid ${color}` }} onClick={(event) => onSelect(item, event.shiftKey)} onDoubleClick={(event) => event.stopPropagation()} {...attributes} {...listeners} className={`w-full scroll-mx-4 touch-none overflow-hidden rounded-xl border border-l-4 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md dark:bg-neutral-800 dark:hover:border-neutral-600 ${selected ? primary ? "ring-2 ring-white ring-offset-2 ring-offset-emerald-600" : "ring-2 ring-emerald-600" : ""} ${isDragging ? "opacity-40" : ""}`}>
     {item.headerImage && <img src={item.headerImage} alt="" className="h-28 w-full object-cover" />}
     <div className="flex items-start gap-2 p-3"><GripVertical size={14} className="mt-0.5 shrink-0 text-stone-300" /><div className="min-w-0 flex-1"><p className="font-medium leading-snug">{item.title}</p><p className="mt-2 flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400"><CalendarDays size={12} />{dateLabel}</p>{location?.name && <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-stone-500 dark:text-stone-400"><MapPin size={12} />{location.name}</p>}{item.tags?.length ? <div className="mt-2 flex flex-wrap gap-1">{item.tags.map((tag) => <span key={tag} className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] text-stone-600 dark:bg-neutral-700 dark:text-stone-200">{tag}</span>)}</div> : null}</div></div>
@@ -31,7 +36,7 @@ function Card({ item, timezone, color, selected, primary, onSelect }: { item: Tr
 
 function DragPreview({ item, timezone, color }: { item: TravelObject; timezone: string; color: string }) {
   const location = item.location as { name?: string } | null;
-  const dateLabel = item.startDateTime ? formatTripDate(item.startDateTime, timezone, { month: "short", day: "numeric", ...(item.isAllDay ? {} : { hour: "numeric", minute: "2-digit" }) }) : "Unscheduled";
+  const dateLabel = itemDateLabel(item, timezone);
   return <div style={{ borderLeft: `4px solid ${color}` }} className="w-[270px] overflow-hidden rounded-xl border border-l-4 bg-white text-left shadow-xl dark:bg-neutral-800">
     {item.headerImage && <img src={item.headerImage} alt="" className="h-28 w-full object-cover" />}
     <div className="flex items-start gap-2 p-3"><GripVertical size={14} className="mt-0.5 shrink-0 text-stone-300" /><div className="min-w-0 flex-1"><p className="font-medium leading-snug">{item.title}</p><p className="mt-2 flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400"><CalendarDays size={12} />{dateLabel}</p>{location?.name && <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-stone-500 dark:text-stone-400"><MapPin size={12} />{location.name}</p>}</div></div>
@@ -83,10 +88,10 @@ export function KanbanView({ trip, items, eventTypes, typeColors, selectedIds, p
     if (target.startsWith("card:")) {
       const targetItem = items.find((candidate) => candidate.id === target.slice(5));
       if (item && targetItem && item.type !== targetItem.type) await onMoveType(item, targetItem.type);
-      if (item && targetItem && item.id !== targetItem.id && item.dayIndex !== null && targetItem.dayIndex !== null && item.dayIndex === targetItem.dayIndex) {
-        const ordered = items.filter((candidate) => candidate.dayIndex === targetItem.dayIndex && candidate.id !== item.id).sort((a, b) => (a.dayOrder ?? Number.MAX_SAFE_INTEGER) - (b.dayOrder ?? Number.MAX_SAFE_INTEGER) || a.createdAt.localeCompare(b.createdAt));
+      if (item && targetItem && !item.isAllDay && item.id !== targetItem.id && item.date !== null && item.date === targetItem.date) {
+        const ordered = items.filter((candidate) => candidate.date === targetItem.date && candidate.id !== item.id).sort(compareScheduleOrder);
         const order = Math.max(0, ordered.findIndex((candidate) => candidate.id === targetItem.id));
-        const date = targetItem.date?.slice(0, 10) ?? (targetItem.startDateTime ? targetItem.startDateTime.slice(0, 10) : null);
+        const date = targetItem.date?.slice(0, 10) ?? null;
         if (date) await onReorder(item, date, order);
       }
       return;
