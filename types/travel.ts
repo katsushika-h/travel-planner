@@ -53,12 +53,6 @@ export interface TravelObject {
   endTime: string | null;
   /** A 15-minute Week-view placement for flexible items; never a committed event time. */
   placementTime: string | null;
-  /** @deprecated Computed by the API from canonical date/time fields during the UI migration. */
-  startDateTime: string | null;
-  /** @deprecated Computed by the API from canonical date/time fields during the UI migration. */
-  endDateTime: string | null;
-  /** @deprecated Computed by the API from canonical `date` during the UI migration. */
-  dayIndex: number | null;
   dayOrder: number | null;
   isAllDay: boolean;
   headerImage?: string | null;
@@ -72,12 +66,12 @@ export interface TravelObject {
 
 type TravelObjectWriteFields = Pick<TravelObject,
   "title" | "type" | "date" | "endDate" | "startTime" | "endTime" | "placementTime" |
-  "startDateTime" | "endDateTime" | "dayIndex" | "dayOrder" | "isAllDay" |
+  "dayOrder" | "isAllDay" |
   "headerImage" | "location" | "cost" | "notes" | "tags"
 >;
 
-/** Client request shape; legacy schedule inputs remain until the API contract migration. */
+/** Client request shape using canonical schedule fields. */
 export type CreateTravelObjectInput = Pick<TravelObject, "tripId" | "title" | "type" | "isAllDay"> & Partial<TravelObjectWriteFields>;
 
-/** Excludes server-owned response fields while retaining transitional request compatibility. */
+/** Excludes server-owned response fields. */
 export type UpdateTravelObjectInput = Partial<TravelObjectWriteFields>;

@@ -7,6 +7,7 @@ import { ExternalLink, GripVertical, List, LocateFixed, Map as MapIcon, MapPin, 
 import { Button } from "@/components/ui/button";
 import { formatTripDate, shiftDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
+import { itemDateSpan, itemScheduleLabel } from "@/lib/schedule-domain";
 import { compareDayDisplayOrder, compareScheduleOrder } from "@/lib/schedule-order";
 import { typeColor } from "@/lib/type-color";
 import type { LocationData, TravelObject, Trip } from "@/types/travel";
@@ -26,8 +27,7 @@ function tripDates(trip: Trip) {
 }
 
 function itemAppearsOnDate(item: TravelObject, date: string) {
-  const first = item.date?.slice(0, 10);
-  const last = item.endDate?.slice(0, 10) ?? first;
+  const { first, last } = itemDateSpan(item);
   return Boolean(first && first <= date && last && last >= date);
 }
 
@@ -55,7 +55,7 @@ function DayItemDrop({ date, order, children }: { date: string; order: number; c
 const JourneyCard = memo(function JourneyCard({ item, date, number, color, selected, primary, highlighted, onSelect, onInspect, onHover }: { item: TravelObject; date: string; number: number; color: string; selected: boolean; primary: boolean; highlighted: boolean; onSelect: (item: TravelObject, additive?: boolean) => void; onInspect: (item: TravelObject) => void; onHover: (itemId: string | null) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `agenda:${date}:${item.id}`, data: { item, draggedDate: date } });
   const location = item.location?.name ?? item.location?.address;
-  const fixed = Boolean(item.startTime && item.endTime && !item.isAllDay);
+  const scheduleLabel = itemScheduleLabel(item);
   const cost = item.cost?.amount != null ? `${item.cost.currency} ${item.cost.amount.toLocaleString()}` : null;
   const style: CSSProperties = { borderLeftColor: color, ...(transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : {}) };
   return <article id={`day-card-${item.id}`} ref={setNodeRef} style={style} onDoubleClick={(event) => { if ((event.target as HTMLElement).closest("[data-reorder-handle]")) return; onInspect(item); }} onMouseEnter={() => onHover(item.id)} onMouseLeave={() => onHover(null)} className={`relative overflow-hidden rounded-xl border border-l-4 bg-white shadow-sm transition dark:bg-neutral-900 ${selectionRing(selected, primary)} ${highlighted ? "shadow-md ring-2 ring-emerald-400/70" : ""} ${isDragging ? "opacity-40" : ""}`}>
@@ -64,7 +64,7 @@ const JourneyCard = memo(function JourneyCard({ item, date, number, color, selec
       <div className="flex w-12 shrink-0 flex-col items-center gap-2 border-r bg-stone-50 px-1 py-3 dark:bg-neutral-800/60"><span className="grid size-7 place-items-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: color }}>{number}</span><button type="button" data-reorder-handle aria-label={`Reorder ${item.title}`} className="cursor-grab rounded p-1 text-muted-foreground hover:bg-stone-200 active:cursor-grabbing dark:hover:bg-neutral-700" {...attributes} {...listeners}><GripVertical size={15} /></button></div>
       <button type="button" data-item-content onClick={(event) => onSelect(item, event.shiftKey)} className="flex min-w-0 flex-1 items-start gap-3 px-3 py-3 text-left">
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2"><p className="min-w-0 truncate text-sm font-semibold">{item.title}</p>{item.isAllDay ? <span className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[9px] font-semibold uppercase text-stone-600 dark:bg-neutral-800 dark:text-stone-300">All day</span> : fixed ? <span className="shrink-0 text-xs font-semibold text-violet-700 dark:text-violet-300">{item.startTime}–{item.endTime}</span> : null}</div>
+          <div className="flex items-start justify-between gap-2"><p className="min-w-0 truncate text-sm font-semibold">{item.title}</p>{item.isAllDay ? <span className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[9px] font-semibold uppercase text-stone-600 dark:bg-neutral-800 dark:text-stone-300">{scheduleLabel}</span> : scheduleLabel ? <span className="shrink-0 text-xs font-semibold text-violet-700 dark:text-violet-300">{scheduleLabel}</span> : null}</div>
           <p className="mt-1 text-[11px] text-muted-foreground">{item.type}{cost ? ` · ${cost}` : ""}</p>
           <p className={`mt-2 flex items-center gap-1.5 truncate text-xs ${location ? "text-muted-foreground" : "text-amber-700 dark:text-amber-300"}`}><MapPin size={12} className="shrink-0" />{location || "Location unavailable"}</p>
           {item.location?.openingHours?.[0] && <p className="mt-2 line-clamp-1 text-[11px] text-muted-foreground">{item.location.openingHours[0]}</p>}
@@ -169,7 +169,10 @@ export function DayJourneyView({ trip, items, typeColors, selectedIds, primarySe
   }, [primarySelectedId]);
 
   const scrollToDate = useCallback((date: string, behavior: ScrollBehavior = "smooth") => {
-    sectionRefs.current.get(date)?.scrollIntoView({ behavior, block: "start" });
+    const root = scrollRef.current;
+    const section = sectionRefs.current.get(date);
+    if (!root || !section) return;
+    root.scrollTo({ top: root.scrollTop + section.getBoundingClientRect().top - root.getBoundingClientRect().top, behavior });
   }, []);
 
   useEffect(() => {

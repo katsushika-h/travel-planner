@@ -1,6 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compactDayOrder, compareDayDisplayOrder, itineraryDropPosition, mergeCreatedTravelObject, normalizeDayOrder, sortTravelObjects, weekFlexibleDropOrder } from "../lib/schedule-order.ts";
+import { canDropInDayOrder, compactDayOrder, compareDayDisplayOrder, itineraryDropPosition, mergeCreatedTravelObject, normalizeDayOrder, sortTravelObjects, weekFixedLayers, weekFlexibleDropOrder } from "../lib/schedule-order.ts";
+
+test("Day blocks out-of-time fixed drops and flexible gaps inside overlaps", () => {
+  const date = "2026-09-24";
+  const createdAt = "2026-09-24T00:00:00.000Z";
+  const item = (id, dayOrder, startTime, endTime) => ({ id, date, endDate: date, dayOrder, startTime, endTime, isAllDay: false, createdAt });
+  const morning = item("morning", 0, "09:00", "10:00");
+  const later = item("later", 1, "11:00", "12:00");
+  const flexible = item("flexible", 2, null, null);
+  assert.equal(canDropInDayOrder([morning, later, flexible], later, date, 0), false);
+  assert.equal(canDropInDayOrder([morning, later, flexible], flexible, date, 1), true);
+  const overlap = item("overlap", 1, "09:30", "11:00");
+  assert.equal(canDropInDayOrder([morning, overlap, flexible], flexible, date, 1), false);
+  assert.equal(canDropInDayOrder([morning, overlap, flexible], flexible, date, 0), true);
+  assert.equal(canDropInDayOrder([morning, overlap, flexible], flexible, date, 3), true);
+});
+
+test("Week gives overlapping cards separate color bars and later cards the front layer", () => {
+  const createdAt = "2026-09-24T00:00:00.000Z";
+  const item = (id, startTime, endTime) => ({ id, dayOrder: null, startTime, endTime, isAllDay: false, createdAt });
+  const layers = weekFixedLayers([item("later", "10:30", "13:00"), item("short", "10:00", "11:00"), item("long", "09:00", "12:00"), item("after", "13:00", "14:00")]);
+  assert.deepEqual(layers.get("long"), { left: 4, zIndex: 10 });
+  assert.deepEqual(layers.get("short"), { left: 12, zIndex: 11 });
+  assert.deepEqual(layers.get("later"), { left: 20, zIndex: 12 });
+  assert.deepEqual(layers.get("after"), { left: 4, zIndex: 13 });
+});
 
 test("Week time-slot drops use the original day index for forward moves", () => {
   const date = "2026-09-24";

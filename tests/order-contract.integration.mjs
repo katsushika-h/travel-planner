@@ -32,6 +32,8 @@ try {
   assert.deepEqual(invalidOrder, { status: 400, body: { error: "dayOrder must be a non-negative integer." } });
   const invalidPlacement = await request("/api/travel-objects/reorder", "POST", { tripId, objectId: a.id, date: "2026-09-25", dayOrder: 0, clearTime: true, placementTime: "10:10" });
   assert.deepEqual(invalidPlacement, { status: 400, body: { error: "placementTime must fall on a 15-minute interval." } });
+  const removedField = await request("/api/travel-objects/reorder", "POST", { tripId, objectId: a.id, date: "2026-09-25", dayOrder: 0, dayIndex: 2 });
+  assert.deepEqual(removedField, { status: 400, body: { error: "dayIndex is no longer supported; use canonical schedule fields." } });
   const afterInvalidReorders = await request(`/api/travel-objects?tripId=${tripId}`);
   assert.equal(afterInvalidReorders.status, 200);
   assert.deepEqual(afterInvalidReorders.body.map(({ title, date, dayOrder }) => [title, date, dayOrder]), [
@@ -40,6 +42,7 @@ try {
 
   const forward = await request("/api/travel-objects/reorder", "POST", { tripId, objectId: a.id, date: "2026-09-24", dayOrder: 3 });
   assert.equal(forward.status, 200);
+  assert.ok(forward.body.every((item) => ["startDateTime", "endDateTime", "dayIndex"].every((field) => !Object.hasOwn(item, field))));
   assert.deepEqual(forward.body.filter((item) => item.date === "2026-09-24").map((item) => item.title), ["B", "C", "A"]);
   const backward = await request("/api/travel-objects/reorder", "POST", { tripId, objectId: a.id, date: "2026-09-24", dayOrder: 0 });
   assert.equal(backward.status, 200);

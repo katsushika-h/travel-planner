@@ -101,6 +101,38 @@ export function weekFlexibleDropOrder<T extends OrderableItem & { date: string |
   return nextFixed < 0 ? ordered.length : nextFixed;
 }
 
+/** Reject Day placements that contradict confirmed times or split overlapping bookings. */
+export function canDropInDayOrder<T extends OrderableItem & { date: string | null; endDate: string | null }>(items: readonly T[], moving: T, date: string, requestedOrder: number) {
+  const ordered = items.filter((item) => item.date?.slice(0, 10) === date).sort(compareScheduleOrder);
+  const sourceIndex = ordered.findIndex((item) => item.id === moving.id);
+  const gap = Number.isFinite(requestedOrder) ? Math.min(Math.max(Math.trunc(requestedOrder), 0), ordered.length) : ordered.length;
+  const insertionIndex = gap - (sourceIndex >= 0 && sourceIndex < gap ? 1 : 0);
+  const result = ordered.filter((item) => item.id !== moving.id);
+  result.splice(insertionIndex, 0, moving);
+
+  const fixed = result.filter(isTimedItem);
+  if (fixed.some((item, index) => index > 0 && fixed[index - 1].startTime! > item.startTime!)) return false;
+  if (isTimedItem(moving)) return true;
+
+  const position = result.findIndex((item) => item.id === moving.id);
+  const before = result.slice(0, position).reverse().find(isTimedItem);
+  const after = result.slice(position + 1).find(isTimedItem);
+  if (!before || !after) return true;
+  if (before.endDate && before.endDate.slice(0, 10) > date) return false;
+  return before.endTime! <= after.startTime!;
+}
+
+/** Week cards with later starts sit in front; a shorter card wins a shared start. */
+export function weekFixedLayers<T extends OrderableItem>(items: readonly T[]) {
+  const ordered = items.filter(isTimedItem).sort((a, b) => a.startTime!.localeCompare(b.startTime!) || b.endTime!.localeCompare(a.endTime!) || compareScheduleOrder(a, b));
+  const layers = new Map<string, { left: number; zIndex: number }>();
+  for (const [index, item] of ordered.entries()) {
+    const depth = ordered.slice(0, index).filter((previous) => previous.startTime! < item.endTime! && previous.endTime! > item.startTime!).length;
+    layers.set(item.id, { left: 4 + depth * 8, zIndex: 10 + index });
+  }
+  return layers;
+}
+
 /** Close gaps after removal without changing the remaining explicit order. */
 export function compactDayOrder<T extends OrderableItem>(items: readonly T[]) {
   return sortScheduleItems(items).map((item, dayOrder) => ({ item, dayOrder }));

@@ -5,6 +5,27 @@ const DAY_MS = 86_400_000;
 
 type ScheduleRange = { date: string | null; endDate: string | null; startTime: string | null; endTime: string | null; isAllDay: boolean };
 
+/** Project imported timestamp values into the canonical schedule fields. */
+export function canonicalScheduleFromInstants(startIso: string | null, endIso: string | null, isAllDay: boolean, timezone: string) {
+  if (!startIso || !endIso) return { date: null, endDate: null, startTime: null, endTime: null, isAllDay: false };
+  const start = dateParts(startIso, timezone);
+  const end = dateParts(endIso, timezone);
+  return {
+    date: start.date,
+    endDate: end.date,
+    startTime: isAllDay ? null : start.time,
+    endTime: isAllDay ? null : end.time,
+    isAllDay,
+  };
+}
+
+/** Inclusive calendar dates occupied by an item, with a missing end date treated as one day. */
+export function itemDateSpan(item: Pick<ScheduleRange, "date" | "endDate">) {
+  const first = item.date?.slice(0, 10) ?? null;
+  const last = item.endDate?.slice(0, 10) ?? first;
+  return { first, last };
+}
+
 /** Default end for a fixed-time item: one elapsed hour in the trip timezone. */
 export function oneHourEnd(date: string, startTime: string, timeZone: string) {
   const start = zonedDateTimeToUtc(date, startTime, timeZone);
@@ -18,6 +39,12 @@ export function scheduleKind(item: Pick<ScheduleRange, "date" | "startTime" | "e
   if (!item.date) return "unscheduled";
   if (item.startTime && item.endTime) return "fixed";
   return "flexible";
+}
+
+/** Short label shared by views that show an item's all-day or confirmed time. */
+export function itemScheduleLabel(item: Pick<ScheduleRange, "startTime" | "endTime" | "isAllDay">, flexibleLabel: string | null = null) {
+  if (item.isAllDay) return "All day";
+  return item.startTime && item.endTime ? `${item.startTime}–${item.endTime}` : flexibleLabel;
 }
 
 /** Itinerary spans all-day and fixed ranges, but places flexible items only on their start date. */
@@ -49,6 +76,23 @@ export function placeUnfixedItem(item: { startTime: string | null; endTime: stri
     placementTime: null,
     isAllDay: false,
   };
+}
+
+/** Canonical PATCH fields for moving one item to a date or confirmed time. */
+export function schedulePatchForMove(item: ScheduleRange & { placementTime: string | null }, date: string, time?: string) {
+  const kind = scheduleKind(item);
+  if (kind === "all-day") {
+    const sourceDate = item.date?.slice(0, 10) ?? date;
+    const sourceEndDate = item.endDate?.slice(0, 10) ?? sourceDate;
+    return { ...moveAllDayRange(sourceDate, sourceEndDate, date), startTime: null, endTime: null, placementTime: null, dayOrder: null, isAllDay: true };
+  }
+  if (kind !== "fixed") {
+    const { kind: placedKind, ...schedule } = placeUnfixedItem(item, date, time);
+    return { ...schedule, ...(placedKind === "flexible" ? { dayOrder: null } : {}) };
+  }
+  if (!item.date || !item.startTime || !item.endTime) return null;
+  const moved = moveFixedTimeRange(item.date.slice(0, 10), item.endDate?.slice(0, 10) ?? item.date.slice(0, 10), item.startTime, item.endTime, date, time);
+  return { ...moved, isAllDay: false, placementTime: null };
 }
 
 /** Elapsed duration for display, derived from canonical fields in the trip timezone. */

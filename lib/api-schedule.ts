@@ -1,5 +1,4 @@
 import { readDate, readPlacementTime, readTime, type JsonRecord } from "./api-validation.ts";
-import { dateParts } from "./date-utils.ts";
 
 /** Parse canonical PATCH fields, preserving partial-update semantics. */
 export function readUpdateScheduleFields(body: JsonRecord) {
@@ -18,37 +17,12 @@ export function readUpdateScheduleFields(body: JsonRecord) {
   return fields;
 }
 
-/** Keep legacy request parsing at the API boundary while clients migrate. */
-export function readLegacyScheduleParts(body: JsonRecord, timezone: string) {
-  const start = typeof body.startDateTime === "string" ? readDate(body.startDateTime, "startDateTime") : null;
-  const end = typeof body.endDateTime === "string" ? readDate(body.endDateTime, "endDateTime") : null;
-  return { start: start ? dateParts(start, timezone) : null, end: end ? dateParts(end, timezone) : null };
-}
-
-/** Project legacy PATCH fields only when no canonical schedule field was supplied. */
-export function readLegacyUpdateScheduleFields(body: JsonRecord, timezone: string, isAllDay: boolean) {
-  const hasCanonicalScheduleField = ["date", "endDate", "startTime", "endTime", "placementTime", "isAllDay", "dayOrder"].some((field) => body[field] !== undefined);
-  const { start, end } = readLegacyScheduleParts(body, timezone);
-  if (hasCanonicalScheduleField) return {};
-  if (body.startDateTime === null && body.endDateTime === null) return { date: null };
-  if (!start || !end) return {};
-  return {
-    date: readDate(start.date, "date", true),
-    endDate: readDate(end.date, "endDate", true),
-    startTime: isAllDay ? null : start.time,
-    endTime: isAllDay ? null : end.time,
-    placementTime: null,
-    isAllDay,
-  };
-}
-
 /** Preserve POST defaults and validation order while returning persisted fields. */
-export function readCreateSchedule(body: JsonRecord, timezone: string) {
-  const { start: legacyStartParts, end: legacyEndParts } = readLegacyScheduleParts(body, timezone);
-  const date = body.date === undefined ? legacyStartParts ? readDate(legacyStartParts.date, "date", true) : null : body.date === null ? null : readDate(body.date, "date", true);
-  const endDate = date === null ? null : body.endDate === undefined ? legacyEndParts ? readDate(legacyEndParts.date, "endDate", true) : date : body.endDate === null ? date : readDate(body.endDate, "endDate", true);
-  const startTime = body.startTime === undefined ? legacyStartParts && body.isAllDay !== true ? legacyStartParts.time : null : body.startTime === null ? null : readTime(body.startTime, "startTime");
-  const endTime = body.endTime === undefined ? legacyEndParts && body.isAllDay !== true ? legacyEndParts.time : null : body.endTime === null ? null : readTime(body.endTime, "endTime");
+export function readCreateSchedule(body: JsonRecord) {
+  const date = body.date === undefined || body.date === null ? null : readDate(body.date, "date", true);
+  const endDate = date === null ? null : body.endDate === undefined || body.endDate === null ? date : readDate(body.endDate, "endDate", true);
+  const startTime = body.startTime === undefined || body.startTime === null ? null : readTime(body.startTime, "startTime");
+  const endTime = body.endTime === undefined || body.endTime === null ? null : readTime(body.endTime, "endTime");
   const placementTime = body.placementTime === undefined ? null : body.placementTime === null ? null : readPlacementTime(body.placementTime, "placementTime");
   const isAllDay = body.isAllDay === true;
   if (date === null && (endDate !== null || placementTime !== null || isAllDay)) throw new Error("Unscheduled items cannot have an end date, placement time, or be all-day.");
@@ -60,7 +34,7 @@ export function readCreateSchedule(body: JsonRecord, timezone: string) {
   return { date, endDate, startTime, endTime, placementTime, isAllDay };
 }
 
-/** Normalize the final PATCH schedule after canonical and legacy fields are merged. */
+/** Normalize the final PATCH schedule after canonical fields are applied. */
 export function normalizeUpdatedScheduleData(data: Record<string, unknown>, existing: {
   date: Date | null;
   endDate: Date | null;
