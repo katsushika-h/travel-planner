@@ -32,14 +32,28 @@ function byInitialSchedule(a: OrderableItem, b: OrderableItem) {
 
 /**
  * Returns the canonical order for one date. Existing complete dayOrder values
- * represent an explicit user order and are preserved. Missing values are
- * initialized with timed items first, in chronological order, followed by
- * flexible items in their stable existing order.
+ * represent an explicit user order and are preserved. New missing-order items
+ * join that sequence without moving already ordered siblings; fixed-time items
+ * join near their timed anchors, and untimed items follow the existing list.
+ * Legacy incomplete sequences fall back to chronological initialization.
  */
 export function normalizeDayOrder<T extends OrderableItem>(items: readonly T[]) {
   const ordered = [...items].sort(byExistingOrder);
   const hasMissingOrder = ordered.some((item, index) => item.dayOrder == null || item.dayOrder !== index);
-  return (hasMissingOrder ? [...items].sort(byInitialSchedule) : ordered).map((item, index) => ({ item, dayOrder: index }));
+  if (!hasMissingOrder) return ordered.map((item, dayOrder) => ({ item, dayOrder }));
+
+  const existing = ordered.filter((item) => item.dayOrder != null);
+  const missing = ordered.filter((item) => item.dayOrder == null);
+  if (missing.length && existing.every((item, index) => item.dayOrder === index)) {
+    for (const item of missing.sort(byInitialSchedule)) {
+      if (!isTimedItem(item)) { existing.push(item); continue; }
+      const nextTimed = existing.findIndex((candidate) => isTimedItem(candidate) && byInitialSchedule(item, candidate) < 0);
+      const lastTimedEnd = existing.reduce((end, candidate, index) => isTimedItem(candidate) ? index + 1 : end, 0);
+      existing.splice(nextTimed >= 0 ? nextTimed : lastTimedEnd, 0, item);
+    }
+    return existing.map((item, dayOrder) => ({ item, dayOrder }));
+  }
+  return [...items].sort(byInitialSchedule).map((item, dayOrder) => ({ item, dayOrder }));
 }
 
 /** Reorders fixed items after a time edit while keeping flexible items in their existing gaps. */
@@ -67,6 +81,26 @@ export function sortScheduleItems<T extends OrderableItem>(items: readonly T[]) 
   return [...items].sort(compareScheduleOrder);
 }
 
+/** Translate an Itinerary gap in the visible list into the reorder route's index. */
+export function itineraryDropPosition<T extends Pick<TravelObject, "id" | "date" | "startTime" | "endTime" | "isAllDay">>(visibleItems: readonly T[], moving: T, targetDate: string, gap: number) {
+  const visibleGap = Number.isFinite(gap) ? Math.min(Math.max(Math.trunc(gap), 0), visibleItems.length) : visibleItems.length;
+  const movingIndex = visibleItems.findIndex((item) => item.id === moving.id);
+  const insertionIndex = visibleGap - (movingIndex >= 0 && movingIndex < visibleGap ? 1 : 0);
+  const remaining = visibleItems.filter((item) => item.id !== moving.id);
+  return {
+    requestedOrder: moving.date === targetDate ? visibleGap : insertionIndex,
+    betweenTimedAnchors: Boolean(remaining[insertionIndex - 1] && isTimedItem(remaining[insertionIndex - 1]))
+      && Boolean(remaining[insertionIndex] && isTimedItem(remaining[insertionIndex])),
+  };
+}
+
+/** Week time-slot drops use the original order expected by the reorder route. */
+export function weekFlexibleDropOrder<T extends OrderableItem & { date: string | null }>(items: readonly T[], date: string, targetTime: string) {
+  const ordered = items.filter((item) => item.date?.slice(0, 10) === date).sort(compareScheduleOrder);
+  const nextFixed = ordered.findIndex((item) => isTimedItem(item) && item.startTime! >= targetTime);
+  return nextFixed < 0 ? ordered.length : nextFixed;
+}
+
 /** Close gaps after removal without changing the remaining explicit order. */
 export function compactDayOrder<T extends OrderableItem>(items: readonly T[]) {
   return sortScheduleItems(items).map((item, dayOrder) => ({ item, dayOrder }));
@@ -75,4 +109,14 @@ export function compactDayOrder<T extends OrderableItem>(items: readonly T[]) {
 /** Order a complete trip collection, with undated ideas after dated items. */
 export function sortTravelObjects<T extends OrderableItem & { date: string | null }>(items: readonly T[]) {
   return [...items].sort((a, b) => (a.date ?? "9999-12-31").localeCompare(b.date ?? "9999-12-31") || compareScheduleOrder(a, b));
+}
+
+/** Apply a create response that may have shifted later siblings' stored order. */
+export function mergeCreatedTravelObject<T extends OrderableItem & { date: string | null }>(items: readonly T[], created: T) {
+  if (created.date === null || created.dayOrder === null) return sortTravelObjects([...items, created]);
+  const createdOrder = created.dayOrder;
+  const shifted = items.map((item) => item.date === created.date && item.dayOrder !== null && item.dayOrder >= createdOrder
+    ? { ...item, dayOrder: item.dayOrder + 1 }
+    : item);
+  return sortTravelObjects([...shifted, created]);
 }

@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 
-**Decision:** Persist `date`, `endDate`, `startTime`, `endTime`, `placementTime`, and `dayOrder` on travel objects. Keep `startDateTime`, `endDateTime`, and `dayIndex` as derived API compatibility fields while the UI migration is incomplete.
+**Decision:** Persist `date`, `endDate`, `startTime`, `endTime`, `placementTime`, and `dayOrder` on travel objects. Keep `startDateTime`, `endDateTime`, and `dayIndex` as derived API compatibility fields until a dedicated contract migration removes them. Active UI schedule reads now use canonical fields.
 
 **Why:** The product distinguishes unscheduled, all-day, confirmed-time, and flexibly placed items. A timestamp pair alone does not express those states, and a flexible visual placement must not imply a confirmed booking time.
 

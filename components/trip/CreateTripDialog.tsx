@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api-client";
+import { shiftDate } from "@/lib/date-utils";
 import type { Trip } from "@/types/travel";
 
 const zones = (Intl as typeof Intl & { supportedValuesOf?: (key: "timeZone") => string[] })
@@ -19,7 +20,7 @@ function localDate(date = new Date()) {
 
 function nextDate(date: string) {
   if (!date) return "";
-  return new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  return shiftDate(date, 1);
 }
 
 export function CreateTripDialog({ onCreated }: { onCreated: (trip: Trip) => void }) {

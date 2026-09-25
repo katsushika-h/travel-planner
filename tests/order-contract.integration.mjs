@@ -28,12 +28,26 @@ try {
   const c = await create("C", "2026-09-24", "11:00", "12:00");
   assert.deepEqual([a.dayOrder, b.dayOrder, c.dayOrder], [0, 1, 2]);
 
+  const invalidOrder = await request("/api/travel-objects/reorder", "POST", { tripId, objectId: a.id, date: "2026-09-25", dayOrder: -1 });
+  assert.deepEqual(invalidOrder, { status: 400, body: { error: "dayOrder must be a non-negative integer." } });
+  const invalidPlacement = await request("/api/travel-objects/reorder", "POST", { tripId, objectId: a.id, date: "2026-09-25", dayOrder: 0, clearTime: true, placementTime: "10:10" });
+  assert.deepEqual(invalidPlacement, { status: 400, body: { error: "placementTime must fall on a 15-minute interval." } });
+  const afterInvalidReorders = await request(`/api/travel-objects?tripId=${tripId}`);
+  assert.equal(afterInvalidReorders.status, 200);
+  assert.deepEqual(afterInvalidReorders.body.map(({ title, date, dayOrder }) => [title, date, dayOrder]), [
+    ["A", "2026-09-24", 0], ["B", "2026-09-24", 1], ["C", "2026-09-24", 2],
+  ]);
+
   const forward = await request("/api/travel-objects/reorder", "POST", { tripId, objectId: a.id, date: "2026-09-24", dayOrder: 3 });
   assert.equal(forward.status, 200);
   assert.deepEqual(forward.body.filter((item) => item.date === "2026-09-24").map((item) => item.title), ["B", "C", "A"]);
   const backward = await request("/api/travel-objects/reorder", "POST", { tripId, objectId: a.id, date: "2026-09-24", dayOrder: 0 });
   assert.equal(backward.status, 200);
   assert.deepEqual(backward.body.filter((item) => item.date === "2026-09-24").map((item) => item.title), ["A", "B", "C"]);
+  const beforeLast = await request("/api/travel-objects/reorder", "POST", { tripId, objectId: a.id, date: "2026-09-24", dayOrder: 2 });
+  assert.equal(beforeLast.status, 200);
+  assert.deepEqual(beforeLast.body.filter((item) => item.date === "2026-09-24").map((item) => item.title), ["B", "A", "C"]);
+  assert.equal((await request("/api/travel-objects/reorder", "POST", { tripId, objectId: a.id, date: "2026-09-24", dayOrder: 0 })).status, 200);
 
   const overnight = await create("Overnight", "2026-09-24", "23:30", "01:00", "2026-09-25");
   const crossDay = await request("/api/travel-objects/reorder", "POST", { tripId, objectId: overnight.id, date: "2026-09-26", dayOrder: 0 });
@@ -72,6 +86,21 @@ try {
   const afterDelete = await request(`/api/travel-objects?tripId=${tripId}`);
   assert.equal(afterDelete.status, 200);
   assert.deepEqual(afterDelete.body.filter((item) => item.date === "2026-09-24").map((item) => item.dayOrder), Array.from({ length: beforeDelete.length - 1 }, (_, index) => index));
+  await create("Anchor B", "2026-09-28", "10:00", "11:00");
+  await create("Anchor C", "2026-09-28", "11:00", "12:00");
+  const gapItem = await create("Gap", "2026-09-28", null, null);
+  const insertedGap = await request("/api/travel-objects/reorder", "POST", { tripId, objectId: gapItem.id, date: "2026-09-28", dayOrder: 1 });
+  assert.equal(insertedGap.status, 200);
+  assert.deepEqual(insertedGap.body.filter((item) => item.date === "2026-09-28").map((item) => item.title), ["Anchor B", "Gap", "Anchor C"]);
+  await create("Tail", "2026-09-28", null, null);
+  await create("Timed D", "2026-09-28", "10:30", "11:30");
+  const afterCreate = await request(`/api/travel-objects?tripId=${tripId}`);
+  assert.equal(afterCreate.status, 200);
+  assert.deepEqual(afterCreate.body.filter((item) => item.date === "2026-09-28").map((item) => item.title), ["Anchor B", "Gap", "Timed D", "Anchor C", "Tail"]);
+  const weekForward = await request("/api/travel-objects/reorder", "POST", { tripId, objectId: gapItem.id, date: "2026-09-28", dayOrder: 3, clearTime: true, placementTime: "10:45" });
+  assert.equal(weekForward.status, 200);
+  assert.deepEqual(weekForward.body.filter((item) => item.date === "2026-09-28").map((item) => item.title), ["Anchor B", "Timed D", "Gap", "Anchor C", "Tail"]);
+  assert.equal(weekForward.body.find((item) => item.id === gapItem.id).placementTime, "10:45");
   console.log("Ordering contract passed: forward/backward, fixed/flexible, and multi-day all-day movement.");
 } finally {
   if (tripId) assert.equal((await request(`/api/trips/${tripId}`, "DELETE")).status, 204);

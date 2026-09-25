@@ -2,15 +2,13 @@
 
 import { useEffect, useRef } from "react";
 import L, { type Map as LeafletMapInstance, type Marker } from "leaflet";
+import { hasMapCoordinates } from "@/lib/map-coordinates";
+import { defaultTypeColor, typeColor } from "@/lib/type-color";
 import type { TravelObject, Trip } from "@/types/travel";
 
-const defaultTypeColors: Record<string, string> = { unclassified: "#64748b", flight: "#0ea5e9", hotel: "#8b5cf6", food: "#f97316", commute: "#f59e0b", activity: "#10b981", sightseeing: "#f43f5e" };
-const typePalette = ["#14b8a6", "#3b82f6", "#a855f7", "#ec4899", "#f97316", "#84cc16", "#64748b"];
-
 function markerColor(type: string, colors: Record<string, string>) {
-  const fallback = defaultTypeColors[type] ?? typePalette[[...type].reduce((sum, character) => sum + character.charCodeAt(0), 0) % typePalette.length];
-  const candidate = colors[type] ?? fallback;
-  return /^#[0-9a-f]{6}$/i.test(candidate) ? candidate : fallback;
+  const color = typeColor(type, colors);
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : defaultTypeColor(type);
 }
 
 function markerIcon(color: string, number?: number, highlighted = false) {
@@ -44,11 +42,6 @@ function popupContent(item: TravelObject, number?: number) {
   action.dataset.openItem = item.id;
   content.appendChild(action);
   return content;
-}
-
-function hasCoordinates(item: TravelObject) {
-  const { lat, lng } = item.location ?? {};
-  return typeof lat === "number" && Number.isFinite(lat) && lat >= -90 && lat <= 90 && typeof lng === "number" && Number.isFinite(lng) && lng >= -180 && lng <= 180;
 }
 
 export interface LeafletMapProps {
@@ -108,7 +101,7 @@ export function LeafletMap({ trip, items, typeColors, onSelect, markerNumbers, s
     if (!layer) return;
     layer.clearLayers();
     markersRef.current.clear();
-    for (const item of items.filter(hasCoordinates)) {
+    for (const item of items.filter((item) => hasMapCoordinates(item.location))) {
       const point: [number, number] = [item.location!.lat!, item.location!.lng!];
       const number = markerNumbers?.get(item.id);
       const marker = L.marker(point, { title: item.title || "Untitled item", icon: markerIcon(markerColor(item.type, typeColors), number), riseOnHover: true });
@@ -120,7 +113,7 @@ export function LeafletMap({ trip, items, typeColors, onSelect, markerNumbers, s
   }, [items, markerNumbers, trip, typeColors]);
 
   useEffect(() => {
-    for (const item of items.filter(hasCoordinates)) {
+    for (const item of items.filter((item) => hasMapCoordinates(item.location))) {
       const marker = markersRef.current.get(item.id);
       if (!marker) continue;
       marker.setIcon(markerIcon(markerColor(item.type, typeColors), markerNumbers?.get(item.id), item.id === selectedItemId || item.id === hoveredItemId));
@@ -133,7 +126,7 @@ export function LeafletMap({ trip, items, typeColors, onSelect, markerNumbers, s
     if (lastSelectedItemRef.current === selectedItemId) return;
     lastSelectedItemRef.current = selectedItemId;
     if (!selectedItemId) { map.closePopup(); return; }
-    const selected = items.find((item) => item.id === selectedItemId && hasCoordinates(item));
+    const selected = items.find((item) => item.id === selectedItemId && hasMapCoordinates(item.location));
     if (!selected) return;
     const point: [number, number] = [selected.location!.lat!, selected.location!.lng!];
     programmaticMoveRef.current = true;
@@ -143,7 +136,7 @@ export function LeafletMap({ trip, items, typeColors, onSelect, markerNumbers, s
 
   useEffect(() => {
     const map = mapRef.current;
-    const points = items.filter(hasCoordinates).map((item) => [item.location!.lat!, item.location!.lng!] as [number, number]);
+    const points = items.filter((item) => hasMapCoordinates(item.location)).map((item) => [item.location!.lat!, item.location!.lng!] as [number, number]);
     const nextFit = `${fitKey ?? "items"}:${recenterToken}`;
     if (!map || lastFitRef.current === nextFit) return;
     lastFitRef.current = nextFit;

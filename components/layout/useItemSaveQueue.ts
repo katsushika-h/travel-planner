@@ -27,7 +27,7 @@ export function useItemSaveQueue(activeTripId: string | undefined, setItems: Dis
           const newer = saveQueues.current.get(id) ?? {};
           setItems((current) => activeTripIdRef.current === activeTripId ? sortTravelObjects(current.map((item) => item.id === id ? { ...updated, ...newer } : item)) : current);
         } catch (cause) {
-          onError(cause instanceof Error ? cause.message : "Could not save item changes.");
+          if (activeTripIdRef.current === activeTripId) onError(cause instanceof Error ? cause.message : "Could not save item changes.");
           break;
         }
       }

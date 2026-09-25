@@ -99,9 +99,9 @@ Validation: Add or run tests for every schedule shape, timezone/DST boundaries, 
 
 ### Pass 3 — Shared API parsing and serialization
 
-Status: **In progress — shared schedule-field parsing underway; route behavior remains separate**
+Status: **In progress — shared schedule parsing and compatibility serialization extracted; broader route parity remains**
 
-Current behavior: Create and update routes independently parse canonical and legacy payloads, validate JSON fields, and construct persistence data.
+Current behavior: Create and update routes use shared schedule parsing and compatibility serialization. They retain separate non-schedule field validation and persistence logic.
 
 Structural improvement: Centralize request parsing and travel-object response serialization while preserving route paths, status codes, error behavior, and compatibility fields.
 
@@ -111,17 +111,17 @@ Validation: Contract tests or fixtures for GET, POST, PATCH, DELETE, invalid pay
 
 Status: **In progress — transaction-oriented normalization and reorder extraction complete; broader ordering parity remains**
 
-Current behavior: `dayOrder` normalization and movement behavior are distributed across create, update, reorder, Calendar, Kanban, and Itinerary paths. Ordering is a known risk area.
+Current behavior: API create, update, reorder, and delete use a shared transaction-oriented order writer. Calendar, Kanban, and Itinerary still choose drop targets and insertion positions in their respective views.
 
 Structural improvement: Move reorder and affected-date normalization into one transaction-oriented service. Preserve existing explicit-order and timed-item ordering rules unless a behavior fix is separately approved.
 
-Validation: Database-backed checks for insert, same-day reorder, cross-day reorder, flexible placement, clear-time drops, multi-day items, deletion, and migration upgrades using real pre-refactor data.
+Validation: Database-backed checks for insert, same-day reorder, cross-day reorder, flexible placement, clear-time drops, multi-day items, deletion, and synthetic legacy-schema migration upgrades. Current data is disposable placeholder data, so a real-data backup rehearsal is not required.
 
 ### Pass 5 — AppShell decomposition
 
 Status: **In progress — sorting, trip/item loading, save queue, and selection extracted; view actions remain**
 
-Current behavior: `AppShell` coordinates data loading, selection, optimistic edits, debounced persistence, deletes, keyboard shortcuts, scheduling mutations, and all view rendering.
+Current behavior: Focused hooks own trip/item loading, selection, and optimistic save queues. `AppShell` still coordinates deletes, keyboard shortcuts, scheduling mutations, and view rendering.
 
 Structural improvement: Extract focused hooks/services such as trip data loading, travel-object mutation queues, selection state, and pure schedule actions. Preserve existing component-level APIs.
 
@@ -131,7 +131,7 @@ Validation: Manual parity checks for trip switching, selection and multi-selecti
 
 Status: **In progress — active views and optimistic writes use canonical fields; API compatibility remains**
 
-Current behavior: Several UI surfaces still read deprecated `startDateTime`, `endDateTime`, and `dayIndex` compatibility fields.
+Current behavior: Active UI surfaces use canonical schedule fields. The API still accepts and emits deprecated compatibility fields; shared response and request types retain them for the separate contract migration.
 
 Structural improvement: Migrate consumers to canonical schedule fields and pass explicitly named collections to each view. Keep compatibility fields at the API boundary until all consumers are migrated.
 
@@ -141,7 +141,7 @@ Exit condition: once repository-wide searches confirm that no UI, importer, API 
 
 ### Pass 7 — Shared view primitives
 
-Status: **Not started**
+Status: **In progress — shared type-color, map-coordinate, and UTF-8 note-limit checks extracted; other primitives remain**
 
 Current behavior: Calendar contains several mode-specific behaviors; Day and global Map surfaces independently configure Leaflet; item display logic is repeated.
 
@@ -151,19 +151,21 @@ Validation: Visual/manual checks across all Calendar modes, global Map filters, 
 
 ### Pass 8 — CSV/import decomposition
 
-Status: **In progress — pure parsing extracted; unresolved-link and live-import parity remain**
+Status: **Complete — parsing and import orchestration extracted; multi-row browser and failure-path contracts checked**
 
-Current behavior: `ImportGoogleMapsCsvButton.tsx` owns parsing, scheduling, Maps resolution, concurrency, persistence, progress, and rendering.
+Current behavior: The button owns file selection and user feedback. Library modules parse schedules, resolve Maps URLs, and persist imported objects.
 
 Structural improvement: Move pure CSV and schedule parsing into testable library modules. Keep the component responsible for file selection, progress, and user feedback.
 
 Validation: Fixtures for quoted CSV fields, malformed dates/times, categories, custom types, unresolved Maps links, empty rows, and imported object parity.
 
+The existing partial-create failure behavior is recorded as a separate product decision; it does not block the structural extraction.
+
 ### Pass 9 — Type and documentation alignment
 
-Status: **In progress — explicit item request types underway; documentation alignment remains**
+Status: **Complete — explicit item request types and current-document pointers validated**
 
-Current behavior: `api.updateObject` accepts broad `Partial<TravelObject>` data, and project documentation describes superseded architecture and schema details.
+Current behavior: The API client accepts explicit create/update input types. `README.md` and `HANDOFF_REPORT.md` point to current architecture and the tracker while retaining historical detail; `FEATURES.md` marks implemented ideas.
 
 Structural improvement: Introduce explicit create/update input types, update `README.md`, `FEATURES.md`, and `HANDOFF_REPORT.md`, and document the compatibility policy.
 
@@ -200,6 +202,62 @@ Do not combine these with ordinary refactoring:
 
 ## Work log
 
+### 2026-09-25 — Keep late action errors with their source trip
+
+- Pass: `Pass 5 — AppShell decomposition` validation.
+- Intent/current behavior: Creating, reordering, or saving an item and importing a CSV may finish after the user selects another trip. Their status messages should describe only the trip where the action began.
+- Files changed: `components/layout/AppShell.tsx`, `components/layout/useItemSaveQueue.ts`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Guard create, reorder, and queued-save failure messages and CSV import feedback with the active source-trip ID, matching the existing result guards.
+- Behavior preserved: Server writes still target the original trip and successful results still update its view only while it remains active.
+- Validation run: `npm run check` (43 passing tests) and `git diff --check`.
+- Risks or follow-up: Late create, reorder, queued-save, and CSV import error feedback is guarded in code but has not been exercised with delayed failures in the browser.
+- Next recommended pass: Continue focused Pass 3–5 parity, including a delayed failure-path check if the interaction changes again.
+
+### 2026-09-25 — Guard trip deletion across trip switches
+
+- Pass: `Pass 5 — AppShell decomposition` validation.
+- Intent/current behavior: Deleting Trip Alpha should remove Alpha from the trip list. If the user switches to Beta before the DELETE reply, Beta should remain active with its items and selection intact.
+- Structural improvement: Apply the delete result by the deleted trip's ID, and reset active-trip state only if that trip is still active when the response arrives.
+- Files changed: `components/layout/AppShell.tsx`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: Deleting the active trip still selects the next available trip; a late deletion response removes only its source trip from the list and does not clear another active trip's state or display a stale error.
+- Validation run: Delayed trip DELETE against a disposable browser and PostgreSQL fixture; `npm run check` (43 passing tests), isolated webpack production build, and `git diff --check`.
+- Results: A test-only 20-second client callback delay allowed switching from deleted Gamma to Beta before result handling. Beta and its item remained visible after the callback; API readback contained only Beta and its item. The temporary browser, app, and database were removed.
+- Next recommended pass: Continue the focused AppShell mutation audit.
+
+### 2026-09-25 — Guard late type and delete results across trip switches
+
+- Pass: `Pass 5 — AppShell decomposition` validation.
+- Intent/current behavior: Type changes and deletions persist on the source trip; a response that arrives after switching trips should not alter the destination trip's items, selection, confirmation state, or error message.
+- Files changed: `components/layout/AppShell.tsx`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Capture the source trip and guard local result handling after asynchronous calls.
+- Behavior preserved: Server writes still target the source item; the current trip's items, selection, and error feedback are handled only when that trip remains active. Switching trips also clears a pending bulk-delete confirmation.
+- Validation run: Delayed-response browser checks for single-item deletion, Kanban type change, and bulk deletion against disposable PostgreSQL; `npm run check`, isolated webpack build, and `git diff --check`.
+- Results: A late Alpha single-item DELETE and Kanban type PATCH persisted on Alpha while Beta kept its own item. The fixed bulk-delete check removed both same-day Alpha siblings; after switching during delayed responses, Beta retained its item and had no stale selection or error. The isolated production build passed.
+- Risks or follow-up: A bulk-delete confirmation blocks ordinary trip switching while open; the tested path dismissed it with Escape after starting deletion, then switched trips. Remaining AppShell mutations can be audited separately.
+- Next recommended pass: Continue focused AppShell mutation-race and view parity checks.
+
+### 2026-09-25 — Serialize bulk deletion within one trip
+
+- Pass: `Pass 4 — Schedule ordering service` and `Pass 5 — AppShell decomposition` behavior fix.
+- Intent/current behavior: Bulk deletion sends concurrent DELETE requests. Each DELETE compacts `dayOrder`; simultaneous requests for siblings on one date can race and one can fail with Prisma P2025.
+- Files changed: `components/layout/AppShell.tsx`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Delete selected items in sequence while retaining per-item success/failure feedback and the active-trip result guard.
+- Behavior preserved: Successful items are removed, failed items remain selected with the existing error feedback, and deletion remains scoped to the source trip.
+- Validation run: Reproduced concurrent failure against disposable PostgreSQL, then retested sequential deletion in the browser with delayed responses; `npm run check`, isolated webpack build, and `git diff --check`.
+- Results: The original concurrent action deleted one sibling and failed to normalize the other with Prisma P2025. Sequential deletion removed both siblings; API readback showed Alpha empty and Beta unchanged. The confirmation was dismissed after starting the action to allow a trip switch before the delayed responses.
+- Risks or follow-up: Bulk deletion now takes one request per item in sequence, so large selections finish more slowly. The route still normalizes each delete independently.
+- Next recommended pass: Review other same-date concurrent mutations and the remaining Pass 5 actions.
+
+### 2026-09-25 — Disposable-data migration scope
+
+- Pass: `Pass 4 — Schedule ordering service` and `Pass 6 — Canonical view data boundaries` planning.
+- Decision: The user confirmed that the current database contains only disposable placeholder data. A sanitized real-data backup rehearsal is not required for this refactor; existing synthetic migration fixtures remain the upgrade check.
+- Files changed: `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: No schema, migration, or runtime change.
+- Validation run: User clarification recorded; `git diff --check`.
+- Risks or follow-up: If real user data is added before migration or deployment, reassess the rehearsal need. Public API compatibility removal remains a separate approval decision.
+- Next recommended pass: Continue mutation-race guards, then remaining contract and view parity.
+
 Each agent must append an entry. Use the following format:
 
 ```md
@@ -215,6 +273,222 @@ Each agent must append an entry. Use the following format:
 - Risks or follow-up:
 - Next recommended pass:
 ```
+
+### 2026-09-25 — Itinerary all-day drag anchor
+
+- Pass: `Pass 4 — Schedule ordering service` and `Pass 6 — Canonical view data boundaries`.
+- Intent/current behavior: Itinerary renders a multi-day all-day item on each covered date, but its drag handler treats a continuation card's date as the new start date on drop.
+- Structural improvement: Reuse the existing all-day drop-date calculation in the Itinerary drag boundary, carrying the grabbed card's date in drag data.
+- Files changed: `components/views/TripDaysView.tsx`, `tests/schedule-domain.test.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: The grabbed date lands on the target date while the all-day item's inclusive span stays intact; dropping a continuation card back on its own date does nothing. Other Itinerary ordering paths are unchanged.
+- Validation run: `npm run check` and `git diff --check`.
+- Results: Lint and TypeScript passed with six existing image warnings; 35 tests passed, including continuation-card forward, backward, and same-date anchors. Diff check passed.
+- Risks or follow-up: Itinerary drag behavior still needs visual browser parity; remaining ordering consumers and wider API contracts remain open.
+- Next recommended pass: Continue browser drag parity and ordering-contract coverage before the separate compatibility migration.
+
+### 2026-09-25 — Kanban browser parity and timed-create reachability
+
+- Pass: `Pass 4 — Schedule ordering service` and `Pass 5 — AppShell decomposition` validation.
+- Intent/current behavior: Kanban's corrected same-day target index and AppShell's created-item merge need runtime confirmation.
+- Structural improvement: Validate the existing ordering boundaries before further extraction; check whether a timed create is reachable from the current UI.
+- Files changed: `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: No runtime code changed in this validation slice.
+- Validation run: Disposable database/browser forward drag and reload; source-level create caller audit.
+- Results: Dragging A onto C in Kanban produced B–A–C, and that order survived reload. No active UI caller supplies both a date and a time to `openCreateItem`; current Add item paths create unscheduled or flexible items. The timed-create branch and its immediate merge remain unit-checked but not browser-reachable.
+- Risks or follow-up: Other Kanban type moves and Calendar drag modes remain separate parity checks.
+- Next recommended pass: Continue Pass 3 API contract coverage and remaining view parity.
+
+### 2026-09-25 — Week time-slot forward insertion
+
+- Pass: `Pass 4 — Schedule ordering service` and `Pass 6 — Canonical view data boundaries`.
+- Intent/current behavior: Week computes a flexible item's time-slot insertion index after removing the moving item, but the reorder route expects the original day-list index and adjusts same-day forward moves itself.
+- Files changed: `lib/schedule-order.ts`, `components/views/CalendarView.tsx`, `tests/schedule-order.test.mjs`, `tests/order-contract.integration.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Move the Week target-index calculation into the shared ordering module and use the original ordered list.
+- Behavior preserved: The time slot still sets `placementTime`; same-day forward movement now inserts at the intended position. The API contract and schema are unchanged.
+- Validation run: Pure forward/cross-day insertion tests, database-backed reorder fixture against temporary PostgreSQL, browser Week drag and reload, `npm run check`, and `git diff --check`.
+- Results: Lint and TypeScript passed; 39 unit tests passed; ordering fixture passed. Browser drag of Flexible A from before 10:00 to 12:00 persisted Anchor B, Anchor C, Flexible A after reload. Six existing image warnings remain.
+- Risks or follow-up: Week flexible cluster and exact-gap targets calculate indices from a list excluding all-day items; check those against the route's full day order next.
+- Next recommended pass: Align Week cluster and gap target indices with persisted order, including all-day items.
+
+### 2026-09-25 — Week flexible target indices with all-day items
+
+- Pass: `Pass 4 — Schedule ordering service` and `Pass 6 — Canonical view data boundaries`.
+- Intent/current behavior: Week cluster and exact-gap droppables derive their target indices from non-all-day items, while the reorder route indexes the full start-date list.
+- Files changed: `components/views/CalendarView.tsx`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Derive drop target indices from the complete original day order without changing the visual grouping of all-day items.
+- Behavior preserved: All-day items remain at the top of Week, and flexible clusters still follow their timed anchors. Cluster and gap drops now address the route's full day order.
+- Validation run: Browser cluster and exact-gap drags against disposable PostgreSQL; persisted-order reads; `npm run check`; `git diff --check`.
+- Results: With persisted All-day O, Flexible A, Fixed B, Flexible C, dropping C onto A's cluster produced O, C, A, B. Dragging A into the first exact gap restored O, A, C, B. Both drops used indices including O. Lint and TypeScript passed; 39 unit tests passed with six existing image warnings.
+- Risks or follow-up: Broader Week drag combinations and exact-gap keyboard interaction remain untested. No public API or schema change.
+- Next recommended pass: Continue API parity and remaining view interactions, keeping legacy API removal separate.
+
+### 2026-09-25 — Malformed JSON and attachment API parity
+
+- Pass: `Pass 3 — Shared API parsing and serialization`.
+- Intent/current behavior: Travel-object create and update routes share `readJsonBody`; malformed JSON and non-object JSON should retain the same HTTP 400 error contract. Attachments support multipart upload, listing, inline preview, download, and delete.
+- Files changed: `tests/api-contract.integration.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Extend the database-backed API fixture to cover malformed and non-object bodies plus attachment upload, listing, retrieval, and deletion without changing route behavior.
+- Behavior preserved: No route, validation, response, or attachment storage changes; tests assert the existing status codes, response metadata, content headers, and bytes.
+- Validation run: API contract fixture against disposable PostgreSQL with all migrations, `npm run check`, and `git diff --check`.
+- Results: Malformed and array JSON bodies returned the existing HTTP 400 error. A TXT attachment uploaded, appeared in the list, returned matching preview/download content and headers, deleted with HTTP 204, and returned 404 afterward; unsupported extensions returned HTTP 400. API fixture passed; lint and TypeScript passed; 39 unit tests passed; diff check passed. Six existing image warnings remain.
+- Risks or follow-up: Attachment size-boundary and unusual Unicode filename cases remain untested. The app continues to store bytes in PostgreSQL.
+- Next recommended pass: Continue targeted API field and view interaction parity before the separate compatibility migration.
+
+### 2026-09-25 — Shared mappable-coordinate rule
+
+- Pass: `Pass 7 — Shared view primitives`.
+- Intent/current behavior: Day counts every finite latitude/longitude pair as mappable, while the Leaflet map and Map workspace reject coordinates outside valid geographic ranges. This can show a mapped-item count without a marker.
+- Files changed: `lib/map-coordinates.ts`, `components/views/DayJourneyView.tsx`, `components/views/MapView.tsx`, `components/views/LeafletMap.tsx`, `tests/map-coordinates.test.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Use one pure coordinate predicate in Day, Map, and the Leaflet renderer so their filtering agrees.
+- Behavior preserved: Valid coordinates still produce markers; saved location URLs without coordinates remain available on items. Day's mapped count now excludes out-of-range coordinates, matching the map.
+- Validation run: Coordinate boundary test, `npm run check`, `git diff --check`, and source-consumer audit.
+- Results: The focused boundary test and all 40 project tests passed; lint and TypeScript passed with six existing image warnings; diff check passed. Day, Map, and Leaflet now import the same predicate.
+- Risks or follow-up: This narrow change has not had a visual browser check. Other shared view primitives and map interactions remain open.
+- Next recommended pass: Continue targeted Map and view interaction parity before wider component extraction.
+
+### 2026-09-25 — Map view and Day map browser parity
+
+- Pass: `Pass 7 — Shared view primitives` validation.
+- Intent/current behavior: Map and Day now share coordinate filtering; Map day chips should filter valid markers, and Day should count only markers that can render while retaining location links without coordinates.
+- Files changed: `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Validate the shared boundary in the running UI before further map component extraction.
+- Behavior preserved: Saved location links remain available for items without map coordinates; selecting a valid marker opens its item inspector.
+- Validation run: Disposable migrated PostgreSQL trip with two valid coordinates on separate days, one URL-only location, and one out-of-range coordinate; browser Map filter, marker selection, and Day count checks; `git diff --check`.
+- Results: Map showed two of four items with coordinates. Its day chips showed one marker each, and selecting the second marker opened the matching popup and inspector. Day showed one of three places with map coordinates on the first day and one of one on the second. The URL-only item retained its Google Maps link. The temporary browser, app, and database were closed afterward.
+- Risks or follow-up: Map visual styling and interaction on touch devices remain untested; this pass changed documentation only.
+- Next recommended pass: Continue targeted Pass 7 and Pass 8 parity, keeping public API compatibility removal separate.
+
+### 2026-09-25 — CSV invalid-row parity
+
+- Pass: `Pass 8 — CSV/import decomposition` validation.
+- Intent/current behavior: Invalid dates and times should leave imported places unscheduled, and blank or incomplete rows should be skipped while valid rows retain their categories.
+- Files changed: `tests/google-maps-csv.test.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Extend the pure parser fixture for these outcomes without changing import behavior.
+- Behavior preserved: Rows with a valid title and URL remain importable even when their schedules are invalid; invalid schedules are flagged and left undated. Incomplete rows are skipped.
+- Validation run: Focused CSV parser tests, `npm run check`, and `git diff --check`.
+- Results: The new fixture covered an impossible date, invalid hour, missing title, missing URL, an empty line, and a valid categorized row. All 41 project tests, lint, and TypeScript passed; lint retained six existing image warnings.
+- Risks or follow-up: Multi-row live import and partial create failures remain browser parity cases. Whitespace-only rows still count as skipped input; this fixture uses a truly empty row.
+- Next recommended pass: Continue Pass 8 live import parity or a focused remaining view interaction check.
+
+### 2026-09-25 — CSV partial-create failure contract
+
+- Pass: `Pass 8 — CSV/import decomposition` validation.
+- Intent/current behavior: Multi-row creation starts after URL resolution; a failed create rejects the import after other create requests may have succeeded.
+- Files changed: `tests/google-maps-import.test.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Record this partial-failure contract with a focused service test before deciding whether a future import transaction is needed.
+- Behavior preserved: A failed create rejects the import; successful rows remain created. The service does not attempt rollback.
+- Validation run: Mocked multi-row import with one failed create, `npm run check`, and `git diff --check`.
+- Results: The second row returned HTTP 500 and the import rejected with its error; first and third rows had already succeeded. Lint, TypeScript, and all 42 tests passed, with six existing image warnings.
+- Risks or follow-up: The button reports the failure but does not call `onImported` for successful rows, so the current trip may need a reload to show them. A transactional or partial-success UX change requires a separate behavior decision.
+- Next recommended pass: Check remaining Pass 8 browser parity, then return to focused ordering and API contract cases.
+
+### 2026-09-25 — Multi-row CSV browser parity
+
+- Pass: `Pass 8 — CSV/import decomposition` validation.
+- Intent/current behavior: A multi-row import should create each valid place, retain coordinate-free URLs, assign categories, and report invalid schedules without interrupting valid rows.
+- Files changed: `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Verify the extracted parser and importer through the actual file-selection UI and persisted records.
+- Behavior preserved: Valid rows were created, including a URL-only place; an invalid schedule left its place unscheduled while retaining its resolved coordinates.
+- Validation run: Disposable PostgreSQL with all existing migration SQL applied, CSV upload through the browser, persisted API readback, and `git diff --check`.
+- Results: The browser reported three imported places, one link without coordinates, and one invalid schedule. API readback showed the quoted-title cafe at 09:00 with coordinates, a new custom-type all-day place retaining its coordinate-free URL, and an undated place with its coordinates. The browser, app, and database were closed afterward.
+- Risks or follow-up: `prisma migrate deploy` returned an uninformative schema-engine error in this disposable setup, so this browser fixture applied the same ten migration SQL files directly. The earlier migration fixture validated the Prisma migration path separately. Partial-create failure remains a separate behavior issue.
+- Next recommended pass: Continue focused ordering and API contract checks; keep compatibility removal separate.
+
+### 2026-09-25 — Reorder validation parity
+
+- Pass: `Pass 4 — Schedule ordering service` validation.
+- Intent/current behavior: Invalid requested order and invalid flexible placement should return HTTP 400 without moving an item or changing its siblings.
+- Files changed: `tests/order-contract.integration.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Add database-backed failure assertions around the existing reorder fixture before further ordering extraction.
+- Behavior preserved: Negative `dayOrder` and off-grid `placementTime` return their existing validation errors; no schedule or sibling-order fields change.
+- Validation run: Ordering fixture against disposable PostgreSQL with all existing migration SQL applied, `npm run check`, and `git diff --check`.
+- Results: Both invalid requests returned HTTP 400, and readback retained A/B/C on the original date at orders 0/1/2. The full ordering fixture, lint, TypeScript, and all 42 unit tests passed; lint retained six existing image warnings.
+- Risks or follow-up: A clean Prisma migration command failed with an uninformative schema-engine error in this environment, so this fixture applied the checked-in SQL directly. The legacy migration fixture previously covered Prisma migration sequencing.
+- Next recommended pass: Continue targeted API and ordering edge cases, then review remaining Pass 2–7 scope.
+
+### 2026-09-25 — Compatibility consumer audit
+
+- Pass: `Pass 6 — Canonical view data boundaries` validation.
+- Intent/current behavior: The API still accepts and emits `startDateTime`, `endDateTime`, and `dayIndex`; active UI scheduling should depend only on canonical fields.
+- Files changed: `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Inventory remaining compatibility references before planning the dedicated public API migration.
+- Behavior preserved: No runtime code or response shape changed.
+- Validation run: Repository search across `app`, `components`, `lib`, `store`, and `types` for legacy field accesses and declarations; prior `npm run check`; `git diff --check`.
+- Results: No component, store, or API-client property read uses the legacy fields. Remaining property accesses are CSV input-column parsing and the API's legacy request parser. Shared response/request types and API serialization still declare or emit the fields; date utilities compute instants from canonical fields without reading legacy properties.
+- Risks or follow-up: Public API response removal remains a dedicated contract migration requiring explicit approval under this tracker and ADR. External consumers cannot be ruled out by repository search.
+- Next recommended pass: Continue independent Pass 2–5 and Pass 7 checks while preparing a separate compatibility-removal proposal.
+
+### 2026-09-25 — Share inspector type colors
+
+- Pass: `Pass 7 — Shared view primitives`.
+- Intent/current behavior: The inspector repeats the same default and fallback type-color tables already shared by the workspace views.
+- Files changed: `components/inspector/ObjectInspectorPanel.tsx`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Use the shared type-color lookup for the selected type and its picker options.
+- Behavior preserved: Saved custom colors, built-in defaults, and deterministic fallback colors use the same values as before.
+- Validation run: Call-site and fallback-value review, `npm run check`, and `git diff --check`.
+- Results: Both inspector swatches now use the shared lookup. Lint, TypeScript, and all 42 tests passed; lint retained six existing image warnings. No build or browser check was run for this narrow import replacement.
+- Risks or follow-up: Visual inspector parity remains manual; other Pass 7 primitives remain.
+- Next recommended pass: Continue targeted shared-view work and remaining Pass 2–5 checks.
+
+### 2026-09-25 — Share UTF-8 note limit
+
+- Pass: `Pass 7 — Shared view primitives` and `Pass 8 — CSV/import decomposition` follow-up.
+- Intent/current behavior: Inspector edits and CSV imports independently truncate notes to 2,500 UTF-8 bytes without splitting Unicode characters.
+- Files changed: `lib/text-utils.ts`, `components/inspector/ObjectInspectorPanel.tsx`, `lib/google-maps-import.ts`, `tests/text-utils.test.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: Use one pure byte-limit helper at both input paths.
+- Behavior preserved: The note limit remains 2,500 UTF-8 bytes in the Inspector and CSV importer; the helper stops before an incomplete Unicode character.
+- Validation run: Unicode boundary test, `npm run check`, isolated `npx next build --webpack`, and `git diff --check`.
+- Results: The new boundary test and all 43 project tests passed; lint and TypeScript passed with six existing image warnings; isolated webpack build passed.
+- Risks or follow-up: No database or response-shape change; the importer partial-failure UX remains separate.
+- Next recommended pass: Continue Pass 2–5 or remaining Pass 7 work with targeted parity checks.
+
+### 2026-09-25 — Non-schedule API field parity
+
+- Pass: `Pass 3 — Shared API parsing and serialization`.
+- Intent/current behavior: The API contract fixture covers schedule shapes but has little persisted coverage for nullable location/cost/notes, tags, header-image URLs, and invalid non-schedule fields.
+- Structural improvement: Extend the database-backed fixture with set, clear, and validation cases without changing route behavior.
+- Files changed: `tests/api-contract.integration.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: Existing POST/PATCH route paths, status codes, JSON validation messages, and response shapes remain unchanged.
+- Validation run: API fixture against disposable PostgreSQL with all migrations, `npm run check`, and `git diff --check`.
+- Results: Set and clear round trips passed for location, cost, notes, tags, and URL-only header images; invalid location, negative cost, data URL image, and non-array tags retained HTTP 400 messages. Lint and TypeScript passed with six existing image warnings, 38 unit tests passed, and diff check passed.
+- Risks or follow-up: Further route parity can cover malformed bodies and attachment endpoints before compatibility removal; real-data migration rehearsal still needs a suitable backup.
+- Next recommended pass: Continue targeted route parity and browser view interactions, keeping legacy API removal a separate migration.
+
+### 2026-09-25 — Itinerary exact-gap insertion
+
+- Pass: `Pass 4 — Schedule ordering service`.
+- Intent/current behavior: Itinerary gap IDs use the original visible list, but the drag handler removes the moving item before clamping the requested index and checking timed neighbors. Forward drops can land one slot early or miss a timed-anchor conversion.
+- Structural improvement: Resolve the route's requested index and the effective post-removal neighbors in a pure ordering helper.
+- Files changed: `lib/schedule-order.ts`, `components/views/TripDaysView.tsx`, `tests/schedule-order.test.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: Existing date-move and all-day paths remain; exact gap indices now reach the reorder route, including the final gap. A drop between fixed-time anchors converts the moving item to flexible placement as intended.
+- Validation run: Focused gap-position tests, disposable database/browser drag checks, `npm run check`, and `git diff --check`.
+- Results: Itinerary placed the first card after the last card, then placed it between two fixed-time cards and cleared its confirmed time. The order and flexible shape survived reload. Lint and TypeScript passed with six existing image warnings; 38 unit tests and diff check passed.
+- Risks or follow-up: Browser parity for Kanban forward drops and remaining Calendar interactions is still open.
+- Next recommended pass: Continue remaining view drag parity and API contract coverage.
+
+### 2026-09-25 — Preserve explicit order when creating items
+
+- Pass: `Pass 4 — Schedule ordering service`.
+- Intent/current behavior: Creating an item with null `dayOrder` makes initial normalization sort every sibling by time, which can undo a previously saved flexible-item insertion between fixed-time items.
+- Structural improvement: Insert missing-order items into the existing explicit sequence while placing new fixed-time items relative to timed anchors. Merge the created item into AppShell with the same affected-order shift so the immediate view matches persistence.
+- Files changed: `lib/schedule-order.ts`, `components/layout/AppShell.tsx`, `tests/schedule-order.test.mjs`, `tests/order-contract.integration.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: New fixed items still join by confirmed time, and new untimed items follow the established sequence. Existing explicit sibling order remains intact; public API and schema are unchanged.
+- Validation run: Focused normalization and client-merge tests, ordering HTTP fixture on disposable PostgreSQL with all migrations, browser drag/create/reload parity, `npm run check`, and `git diff --check`.
+- Results: Database fixture preserved a flexible gap after subsequent untimed and timed creation. In the browser, B–A–C remained after adding Tail and reloading; dragging a multi-day all-day continuation card one day forward shifted the full span without converting it to flexible time. Lint and TypeScript passed with six existing image warnings; 38 unit tests, database fixture, and diff check passed.
+- Risks or follow-up: The AppShell immediate creation merge is unit-checked but still merits direct browser parity for a timed insertion. A real pre-refactor backup migration rehearsal needs suitable data.
+- Next recommended pass: Check immediate timed creation and Kanban forward drag in the browser, then continue API contract coverage before compatibility removal.
+
+### 2026-09-25 — Kanban forward insertion target
+
+- Pass: `Pass 4 — Schedule ordering service`.
+- Intent/current behavior: Kanban computes a same-day card target index after excluding the moving item, but the reorder route expects an index in the original sequence and adjusts forward moves itself.
+- Structural improvement: Send the target's original day-order position from Kanban and record the forward-insertion route contract.
+- Files changed: `components/views/KanbanView.tsx`, `tests/order-contract.integration.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: Same-day drops still insert before the target card; all-day cards remain excluded from Kanban same-day reorder calls. The route, response shape, and persisted schedule fields are unchanged.
+- Validation run: `npm run check`, ordering HTTP fixture against a disposable local PostgreSQL database with all migrations, and `git diff --check`.
+- Results: Lint and TypeScript passed with six existing image warnings; 35 unit tests passed. The database fixture passed its new forward-before-target case and all existing cases. Diff check passed.
+- Risks or follow-up: Browser drag parity remains to be checked for Kanban and Itinerary. A real pre-refactor backup migration rehearsal still requires suitable data.
+- Next recommended pass: Continue browser drag parity and remaining API contract coverage before compatibility removal.
 
 ### 2026-09-24 — Reorder transaction extraction
 
@@ -335,6 +609,102 @@ Each agent must append an entry. Use the following format:
 - Results: Lint and TypeScript passed with six existing image warnings; 33 tests and diff check passed.
 - Risks or follow-up: A delayed-response browser check for create, reorder, and import is still useful. Failed-save behavior remains a separate pending decision.
 - Next recommended pass: Continue browser parity for asynchronous trip mutations, then remaining ordering and API contract coverage.
+
+### 2026-09-25 — Normalize order after legacy PATCH moves
+
+- Pass: `Pass 3 — Shared API parsing and serialization` and `Pass 4 — Schedule ordering service`.
+- Intent/current behavior: A legacy timestamp PATCH projects into canonical date/time fields, but the route decides whether to normalize affected dates from the original request keys. A legacy-only move can leave `dayOrder` gaps on its source or destination date.
+- Structural improvement: Detect schedule changes from the parsed update fields, regardless of request format.
+- Files changed: `app/api/travel-objects/[objectId]/route.ts`, `tests/api-contract.integration.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: Canonical PATCH behavior and legacy request/response shapes stay the same. Legacy moves and unscheduling now compact affected `dayOrder` values.
+- Validation run: `npm run check`, isolated `npx next build --webpack`, both HTTP contract fixtures on disposable PostgreSQL with all ten migrations, and `git diff --check`.
+- Results: Lint and TypeScript passed with six existing image warnings; 33 unit tests, webpack build, API fixture including new legacy ordering assertions, ordering fixture, and diff check passed.
+- Risks or follow-up: Broader runtime view parity and eventual dedicated API compatibility removal remain.
+- Next recommended pass: Continue browser parity for asynchronous trip mutations and remaining Pass 3–9 coverage.
+
+### 2026-09-25 — Share event-type color lookup
+
+- Pass: `Pass 7 — Shared view primitives`.
+- Intent/current behavior: Calendar, Kanban, Day, Itinerary, Table, and Leaflet markers repeat the same saved-color, default-color, and deterministic palette fallback rule. Leaflet also rejects non-hex custom colors before putting them into marker SVG.
+- Structural improvement: Move the common lookup into one pure helper across all six views while retaining Leaflet's hex validation.
+- Files changed: `lib/type-color.ts`, six view modules, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: Existing custom colors, defaults, deterministic palette, and Leaflet's invalid-color fallback remain the same.
+- Validation run: Call-site and fallback-value review, `npm run check`, isolated `npx next build --webpack`, and `git diff --check`.
+- Results: All six views call the shared helper; lint and TypeScript passed with six existing image warnings, 33 unit tests passed, webpack build passed, and diff check passed.
+- Risks or follow-up: Visual parity of custom colors and map markers remains to be checked in the browser. Other Pass 7 primitives remain separate work.
+- Next recommended pass: Continue a small shared-view or parity pass while keeping legacy API removal separate.
+
+### 2026-09-25 — Separate CSV import orchestration from its button
+
+- Pass: `Pass 8 — CSV/import decomposition`.
+- Intent/current behavior: The button handles file input and progress UI while also resolving Maps URLs, retaining unresolved links, creating travel objects, and counting import outcomes.
+- Structural improvement: Move resolution and persistence into a focused import function; leave file selection and user feedback in the component.
+- Files changed: `lib/google-maps-import.ts`, `components/trip/ImportGoogleMapsCsvButton.tsx`, `tests/google-maps-import.test.mjs`, `docs/architecture.md`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: Import concurrency, resolver fallback, URL retention, canonical schedule payloads, custom types, progress counts, and summary wording stay the same.
+- Validation run: Exercise resolved, coordinate-free, and failed URL resolution through a mocked fetch boundary; `npm run check`, isolated `npx next build --webpack`, `git diff --check`, and a synthetic CSV upload in the isolated browser/database.
+- Results: The import fixture retained all three source URLs, created canonical all-day and unscheduled payloads, reported two unresolved locations and one invalid date, and counted progress through all three rows. Lint and TypeScript passed with six existing image warnings; 34 unit tests and webpack build passed; diff check passed. The browser import displayed the new item, and the API confirmed canonical all-day fields, normalized type, original Maps URL, and parsed coordinates.
+- Risks or follow-up: Multi-row live import and partial create failure behavior are not browser checked. A create failure after other rows succeed can leave a partial import, as before.
+- Next recommended pass: Continue Pass 8 runtime parity and remaining view interactions; keep API compatibility removal separate.
+
+### 2026-09-25 — Align refactor guidance with current boundaries
+
+- Pass: `Pass 9 — Type and documentation alignment`.
+- Intent/current behavior: The tracker still describes legacy UI reads, duplicated route parsing, and the pre-extraction CSV button even though those slices are complete.
+- Files changed: `AGENTS.md`, `docs/decisions/0001-canonical-schedule-fields.md`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: State the current canonical UI and transitional API boundary consistently; mark type/documentation alignment complete.
+- Behavior preserved: Documentation only; no runtime or public contract change.
+- Validation run: Source search for compatibility consumers, review of request types and documentation pointers, and `git diff --check`.
+- Results: Active UI has no direct legacy-field reads; type declarations and current-doc pointers match the implementation; diff check passed. The earlier 34-test check and webpack build validated the associated code changes.
+- Risks or follow-up: Dedicated API compatibility removal and remaining browser parity remain separate work.
+- Next recommended pass: Continue Pass 4–8 parity and small structural slices.
+
+### 2026-09-25 — Share calendar-day shifting
+
+- Pass: `Pass 2 — Pure schedule-domain helpers`.
+- Intent/current behavior: Calendar, Day, Itinerary, CSV parsing, and trip creation each advance ISO calendar dates with local UTC helpers.
+- Structural improvement: Use one pure UTC calendar-day shift helper while retaining each caller's existing empty-input handling.
+- Files changed: `lib/date-utils.ts`, Calendar, Day, Itinerary, CSV parser, trip dialog, `tests/schedule-domain.test.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: Date navigation, trip defaults, and overnight CSV end dates still advance by whole UTC calendar days.
+- Validation run: Leap-day and year-boundary assertions, `npm run check`, isolated `npx next build --webpack`, duplicate-implementation search, and `git diff --check`.
+- Results: Lint and TypeScript passed with six existing image warnings; 35 unit tests, webpack build, and diff check passed. Only the shared helper mutates a UTC date for these callers.
+- Risks or follow-up: Larger Calendar and Day mode behavior remains a separate browser parity item.
+- Next recommended pass: Continue targeted view parity and API contract readiness.
+
+### 2026-09-25 — Delayed-create trip-switch parity
+
+- Pass: `Pass 5 — AppShell decomposition` validation.
+- Intent/current behavior: A create response for the previous trip must not append its item or select it after switching trips.
+- Files changed: `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Structural improvement: No code change; verified the existing active-trip guard with a delayed HTTP response.
+- Behavior preserved: The original trip still receives the created item; the newly selected trip keeps its own item list and selection.
+- Validation run: Browser check through an isolated production build, disposable PostgreSQL, and a local proxy delaying POST `/api/travel-objects` responses.
+- Results: Alpha's new item persisted. Beta remained empty after the delayed response, and switching back showed the item in Alpha.
+- Risks or follow-up: Reorder and CSV import response guards still lack a delayed-response browser check.
+- Next recommended pass: Continue those race checks only where they address a concrete risk, then remaining refactor parity.
+
+### 2026-09-25 — Failed-save behavior decision
+
+- Pass: `Pass 5 — AppShell decomposition` behavior policy.
+- Intent/current behavior: A failed debounced save shows an error while the optimistic edit stays visible; the failed patch is removed from the queue.
+- Decision: The user chose to retain the current error-only feedback. Do not add automatic retry, rollback, or an unsaved marker as part of this refactor.
+- Files changed: `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: No save-queue code or UI change.
+- Validation run: Existing failed-save browser check reviewed; `git diff --check` for documentation.
+- Results: The existing check already observed the chosen visible behavior. No new runtime test was needed for a documentation-only decision.
+- Risks or follow-up: The visible optimistic edit may not be persisted after a failure; the error is the only indication until a later reload or edit.
+- Next recommended pass: Continue independent schedule, ordering, and browser parity work.
+
+### 2026-09-25 — Unscheduled round-trip API parity
+
+- Pass: `Pass 0 — Contract and parity baseline` and `Pass 6 — Canonical view data boundaries` validation.
+- Intent/current behavior: An undated idea can be placed flexibly on a date and later returned to the unscheduled collection without acquiring confirmed times.
+- Structural improvement: Add a persisted contract assertion for that full canonical schedule transition.
+- Files changed: `tests/api-contract.integration.mjs`, `REFACTORING_TRACKER.md`, `docs/work/schedule-refactor.md`.
+- Behavior preserved: Existing canonical PATCH payloads and response shapes remain; the fixture records expected fields and day order at both transitions.
+- Validation run: API fixture against isolated production build and disposable PostgreSQL, `npm run check`, and `git diff --check`.
+- Results: The idea gained a date and 10:15 flexible placement with no confirmed times, then returned to null date, end date, placement, and day order. API fixture passed; lint and TypeScript passed with six existing image warnings, 35 unit tests passed, and diff check passed.
+- Risks or follow-up: Browser drag/drop round-trip remains to be checked separately.
+- Next recommended pass: Continue remaining view interaction parity and API-contract readiness.
 
 ### 2026-09-24 — Ordering normalization after deletion
 

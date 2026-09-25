@@ -5,8 +5,10 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { ExternalLink, GripVertical, List, LocateFixed, Map as MapIcon, MapPin, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatTripDate } from "@/lib/date-utils";
+import { formatTripDate, shiftDate } from "@/lib/date-utils";
+import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { compareDayDisplayOrder, compareScheduleOrder } from "@/lib/schedule-order";
+import { typeColor } from "@/lib/type-color";
 import type { LocationData, TravelObject, Trip } from "@/types/travel";
 
 const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.LeafletMap), {
@@ -15,18 +17,6 @@ const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.
 });
 
 const savedScrollPositions = new Map<string, number>();
-const defaultTypeColors: Record<string, string> = { unclassified: "#64748b", flight: "#0ea5e9", hotel: "#8b5cf6", food: "#f97316", commute: "#f59e0b", activity: "#10b981", sightseeing: "#f43f5e" };
-const typePalette = ["#14b8a6", "#3b82f6", "#a855f7", "#ec4899", "#f97316", "#84cc16", "#64748b"];
-
-function typeColor(type: string, colors: Record<string, string>) {
-  return colors[type] ?? defaultTypeColors[type] ?? typePalette[[...type].reduce((sum, character) => sum + character.charCodeAt(0), 0) % typePalette.length];
-}
-
-function shiftDate(date: string, days: number) {
-  const value = new Date(`${date}T00:00:00Z`);
-  value.setUTCDate(value.getUTCDate() + days);
-  return value.toISOString().slice(0, 10);
-}
 
 function tripDates(trip: Trip) {
   const dates: string[] = [];
@@ -42,10 +32,6 @@ function itemAppearsOnDate(item: TravelObject, date: string) {
 }
 
 const itinerarySort = compareDayDisplayOrder;
-
-function hasCoordinates(item: TravelObject) {
-  return Number.isFinite(item.location?.lat) && Number.isFinite(item.location?.lng);
-}
 
 function selectionRing(selected: boolean, primary: boolean) {
   return selected ? primary ? "ring-2 ring-white ring-offset-2 ring-offset-emerald-600" : "ring-2 ring-emerald-600" : "";
@@ -207,7 +193,7 @@ export function DayJourneyView({ trip, items, typeColors, selectedIds, primarySe
   }, [dates, items]);
 
   const activeItems = useMemo(() => grouped.get(activeDate) ?? [], [activeDate, grouped]);
-  const mappedItems = activeItems.filter(hasCoordinates);
+  const mappedItems = activeItems.filter((item) => hasMapCoordinates(item.location));
   const markerNumbers = useMemo(() => new Map(activeItems.map((item, index) => [item.id, index + 1])), [activeItems]);
 
   function selectFromMap(item: TravelObject) {

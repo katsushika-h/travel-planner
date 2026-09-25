@@ -9,15 +9,13 @@ import { Button } from "@/components/ui/button";
 import { formatTripDate, startDateTimeFor } from "@/lib/date-utils";
 import { api } from "@/lib/api-client";
 import { compareScheduleOrder } from "@/lib/schedule-order";
+import { typeColor } from "@/lib/type-color";
 import { useTravelStore } from "@/store/use-travel-store";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { TravelObject, Trip } from "@/types/travel";
 
 const defaultTypes = ["unclassified", "flight", "hotel", "food", "commute", "activity", "sightseeing"];
 const emptyTypeOrder: string[] = [];
-const defaultColors: Record<string, string> = { unclassified: "#64748b", flight: "#0ea5e9", hotel: "#8b5cf6", food: "#f97316", commute: "#f59e0b", activity: "#10b981", sightseeing: "#f43f5e" };
-const palette = ["#14b8a6", "#3b82f6", "#a855f7", "#ec4899", "#f97316", "#84cc16", "#64748b"];
-function typeColor(type: string, colors: Record<string, string>) { return colors[type] ?? defaultColors[type] ?? palette[[...type].reduce((sum, char) => sum + char.charCodeAt(0), 0) % palette.length]; }
 function itemDateLabel(item: TravelObject, timezone: string) {
   const start = startDateTimeFor(item, timezone);
   return start ? formatTripDate(start, timezone, { month: "short", day: "numeric", ...(item.isAllDay ? {} : { hour: "numeric", minute: "2-digit" }) }) : "Unscheduled";
@@ -89,7 +87,7 @@ export function KanbanView({ trip, items, eventTypes, typeColors, selectedIds, p
       const targetItem = items.find((candidate) => candidate.id === target.slice(5));
       if (item && targetItem && item.type !== targetItem.type) await onMoveType(item, targetItem.type);
       if (item && targetItem && !item.isAllDay && item.id !== targetItem.id && item.date !== null && item.date === targetItem.date) {
-        const ordered = items.filter((candidate) => candidate.date === targetItem.date && candidate.id !== item.id).sort(compareScheduleOrder);
+        const ordered = items.filter((candidate) => candidate.date === targetItem.date).sort(compareScheduleOrder);
         const order = Math.max(0, ordered.findIndex((candidate) => candidate.id === targetItem.id));
         const date = targetItem.date?.slice(0, 10) ?? null;
         if (date) await onReorder(item, date, order);

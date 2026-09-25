@@ -31,6 +31,13 @@ export function dayIndexForDate(date: string, tripStartDate: string) {
   return Math.floor((target - start) / 86_400_000) + 1;
 }
 
+/** Advance a calendar date without applying the browser or trip timezone. */
+export function shiftDate(date: string, days: number) {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
 function timezoneOffsetMs(utcMs: number, timeZone: string) {
   const { date, time } = dateParts(new Date(utcMs), timeZone);
   return Date.parse(`${date}T${time}:00Z`) - utcMs;

@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { allDayCalendarDays, allDayDropStartDate, elapsedDurationMinutes, endForAllDayCalendarDays, endForElapsedDuration, groupedMoveTarget, moveAllDayRange, moveFixedTimeRange, occursOnItineraryDate, oneHourEnd, placeUnfixedItem, resizeFixedTimeRange, scheduleAtTableStart, scheduleKind } from "../lib/schedule-domain.ts";
-import { endDateTimeFor, startDateTimeFor, zonedDateTimeToUtc } from "../lib/date-utils.ts";
+import { endDateTimeFor, shiftDate, startDateTimeFor, zonedDateTimeToUtc } from "../lib/date-utils.ts";
 import { canonicalScheduleFromInstants, withScheduleCompatibility } from "../lib/travel-object-compat.ts";
+
+test("calendar-day shifts cross leap days and year boundaries", () => {
+  assert.equal(shiftDate("2028-02-28", 1), "2028-02-29");
+  assert.equal(shiftDate("2028-02-29", 1), "2028-03-01");
+  assert.equal(shiftDate("2026-01-01", -1), "2025-12-31");
+  assert.equal(shiftDate("2026-03-08", 1), "2026-03-09");
+});
 
 test("unscheduled and flexible items have no confirmed elapsed duration", () => {
   assert.equal(elapsedDurationMinutes({ date: null, endDate: null, startTime: null, endTime: null, isAllDay: false }, "Asia/Singapore"), null);
@@ -38,6 +45,8 @@ test("new fixed items end one elapsed hour later in the trip timezone", () => {
 
 test("all-day moves keep the inclusive day span across DST", () => {
   assert.equal(allDayDropStartDate("2026-03-07", "2026-03-08", "2026-03-10"), "2026-03-09");
+  assert.equal(allDayDropStartDate("2026-03-07", "2026-03-08", "2026-03-08"), "2026-03-07");
+  assert.equal(allDayDropStartDate("2026-03-07", "2026-03-09", "2026-03-08"), "2026-03-06");
   assert.equal(allDayDropStartDate("2026-09-23", "2026-09-23", "2026-09-25"), "2026-09-25");
   const moved = moveAllDayRange("2026-03-07", "2026-03-09", "2026-10-31");
   assert.deepEqual(moved, {

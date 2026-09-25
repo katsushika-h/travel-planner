@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Filter, RotateCcw } from "lucide-react";
 import { dateParts, startDateTimeFor } from "@/lib/date-utils";
 import { allDayCalendarDays, elapsedDurationMinutes, endForAllDayCalendarDays, endForElapsedDuration, scheduleAtTableStart } from "@/lib/schedule-domain";
+import { typeColor } from "@/lib/type-color";
 import type { TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
 
 type SortKey = "startDate" | "title" | "type" | "duration" | "cost" | "tags";
@@ -34,12 +35,6 @@ const columns: { key: SortKey; label: string }[] = [
   { key: "cost", label: "Cost" },
   { key: "tags", label: "Tags" },
 ];
-
-const defaultTypeColors: Record<string, string> = { unclassified: "#64748b", flight: "#0ea5e9", hotel: "#8b5cf6", food: "#f97316", commute: "#f59e0b", activity: "#10b981", sightseeing: "#f43f5e" };
-const typePalette = ["#14b8a6", "#3b82f6", "#a855f7", "#ec4899", "#f97316", "#84cc16", "#64748b"];
-function typeColor(type: string, colors: Record<string, string>) {
-  return colors[type] ?? defaultTypeColors[type] ?? typePalette[[...type].reduce((sum, character) => sum + character.charCodeAt(0), 0) % typePalette.length];
-}
 
 function InlineInput({ value, label, type = "text", min, step, onFocus, onCommit, className = "" }: { value: string; label: string; type?: "text" | "number" | "datetime-local"; min?: string; step?: string; onFocus: () => void; onCommit: (value: string) => void; className?: string }) {
   return <input key={value} aria-label={label} type={type} min={min} step={step} defaultValue={value} onFocus={onFocus} onBlur={(event) => { if (event.currentTarget.value !== value) onCommit(event.currentTarget.value); }} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); else if (event.key === "Escape") { event.currentTarget.value = value; event.currentTarget.blur(); } }} className={`w-full rounded border border-transparent bg-transparent px-1.5 py-1 outline-none hover:border-stone-300 focus:border-emerald-600 focus:bg-background ${className}`} />;

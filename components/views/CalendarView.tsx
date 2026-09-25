@@ -5,18 +5,15 @@ import { closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, 
 import { ChevronLeft, ChevronRight, Clock, GripVertical, Lightbulb, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DayJourneyView } from "@/components/views/DayJourneyView";
-import { dateParts, formatTripDate, monthGrid, startDateTimeFor } from "@/lib/date-utils";
+import { dateParts, formatTripDate, monthGrid, shiftDate, startDateTimeFor } from "@/lib/date-utils";
 import { useTravelStore } from "@/store/use-travel-store";
 import { api } from "@/lib/api-client";
-import { compareScheduleOrder, isTimedItem } from "@/lib/schedule-order";
+import { compareScheduleOrder, isTimedItem, weekFlexibleDropOrder } from "@/lib/schedule-order";
 import { allDayDropStartDate, occursOnItineraryDate } from "@/lib/schedule-domain";
+import { typeColor } from "@/lib/type-color";
 import type { TravelObject, Trip } from "@/types/travel";
 
 type Mode = "month" | "week" | "day";
-const defaultColors: Record<string, string> = { unclassified: "#64748b", flight: "#0ea5e9", hotel: "#8b5cf6", food: "#f97316", commute: "#f59e0b", activity: "#10b981", sightseeing: "#f43f5e" };
-const palette = ["#14b8a6", "#3b82f6", "#a855f7", "#ec4899", "#f97316", "#84cc16", "#64748b"];
-function typeColor(type: string, colors: Record<string, string>) { return colors[type] ?? defaultColors[type] ?? palette[[...type].reduce((sum, char) => sum + char.charCodeAt(0), 0) % palette.length]; }
-function shiftDate(date: string, days: number) { const value = new Date(`${date}T00:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10); }
 function sundayOf(date: string) { const value = new Date(`${date}T00:00:00Z`); return shiftDate(date, -value.getUTCDay()); }
 function selectionRing(selected: boolean, primary: boolean) { return selected ? primary ? "ring-2 ring-white ring-offset-2 ring-offset-emerald-600" : "ring-2 ring-emerald-600" : ""; }
 function itemDates(item: TravelObject) { const first = item.date?.slice(0, 10) ?? null; const last = item.endDate?.slice(0, 10) ?? first; return { first, last }; }
@@ -61,12 +58,6 @@ const weekRowHeight = 44;
 
 function weekMinutes(value: string | null) { if (!value) return null; const [hours, minutes] = value.split(":").map(Number); return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : null; }
 function weekTimeLabel(minutes: number) { const bounded = Math.max(0, Math.min(23 * 60 + 45, Math.round(minutes / 15) * 15)); return `${String(Math.floor(bounded / 60)).padStart(2, "0")}:${String(bounded % 60).padStart(2, "0")}`; }
-function flexibleDropOrder(items: TravelObject[], date: string, minutes: number, movingId: string) {
-  const ordered = items.filter((item) => item.date?.slice(0, 10) === date && item.id !== movingId).sort(agendaSort);
-  const nextFixed = ordered.findIndex((item) => isTimedItem(item) && (weekMinutes(item.startTime) ?? 0) >= minutes);
-  return nextFixed < 0 ? ordered.length : nextFixed;
-}
-
 function WeekTimeSlot({ date, hour }: { date: string; hour: number }) {
   const { setNodeRef, isOver } = useDroppable({ id: `week-time:${date}:${hour}` });
   return <div ref={setNodeRef} className={`h-[44px] border-t border-stone-200/80 dark:border-neutral-800 ${isOver ? "bg-emerald-50/80 dark:bg-emerald-950/30" : ""}`} />;
@@ -118,9 +109,9 @@ function WeekAllDayLane({ date, items, height, typeColors, selectedIds, primaryS
   return <div ref={setNodeRef} style={{ height }} className={`space-y-1 overflow-y-auto border-b px-1 py-1 ${isOver ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-stone-50/70 dark:bg-neutral-950/40"}`}>{items.map((item) => <WeekAllDayItem key={item.id} item={item} date={date} color={typeColor(item.type, typeColors)} selected={selectedIds.has(item.id)} primary={primarySelectedId === item.id} onSelect={onSelect} />)}</div>;
 }
 
-function WeekFlexibleChunk({ date, anchor, top, items, expanded, globalOrder, typeColors, selectedIds, primarySelectedId, onToggle, onSelect }: { date: string; anchor: string; top: number; items: TravelObject[]; expanded: boolean; globalOrder: Map<string, number>; typeColors: Record<string, string>; selectedIds: ReadonlySet<string>; primarySelectedId: string | null; onToggle: () => void; onSelect: (item: TravelObject, additive?: boolean) => void }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `week-cluster:${date}:${anchor.replace(":", "")}:${globalOrder.get(items[0]?.id) ?? 0}` });
-  return <div ref={setNodeRef} className={`absolute inset-x-1 z-30 ${isOver ? "rounded-md ring-2 ring-emerald-400" : ""}`} style={{ top }}><button type="button" onClick={onToggle} className="flex h-12 w-full flex-col items-start justify-center rounded-md border border-dashed border-emerald-500 bg-emerald-950/90 px-2 text-left text-[9px] text-emerald-50 shadow-sm"><span className="font-semibold">{items.length} Flexible idea{items.length === 1 ? "" : "s"}</span><span className="text-[8px] text-emerald-200">{anchor} · {expanded ? "Click to collapse" : "ordered · click to expand"}</span></button>{expanded && <div className="absolute left-full top-0 z-[100] ml-2 w-48 rounded-lg border border-stone-600 bg-neutral-900 p-2 shadow-2xl"><p className="mb-1 text-[10px] font-semibold text-stone-100">Flexible ideas · ordered</p><div className="space-y-1">{items.map((item) => <div key={item.id}><WeekFlexibleGap date={date} order={globalOrder.get(item.id) ?? 0} /><WeekClusterItem item={item} color={typeColor(item.type, typeColors)} selected={selectedIds.has(item.id)} primary={primarySelectedId === item.id} onSelect={onSelect} /></div>)}</div></div>}</div>;
+function WeekFlexibleChunk({ date, anchor, top, items, expanded, dropOrder, typeColors, selectedIds, primarySelectedId, onToggle, onSelect }: { date: string; anchor: string; top: number; items: TravelObject[]; expanded: boolean; dropOrder: Map<string, number>; typeColors: Record<string, string>; selectedIds: ReadonlySet<string>; primarySelectedId: string | null; onToggle: () => void; onSelect: (item: TravelObject, additive?: boolean) => void }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `week-cluster:${date}:${anchor.replace(":", "")}:${dropOrder.get(items[0]?.id) ?? 0}` });
+  return <div ref={setNodeRef} className={`absolute inset-x-1 z-30 ${isOver ? "rounded-md ring-2 ring-emerald-400" : ""}`} style={{ top }}><button type="button" onClick={onToggle} className="flex h-12 w-full flex-col items-start justify-center rounded-md border border-dashed border-emerald-500 bg-emerald-950/90 px-2 text-left text-[9px] text-emerald-50 shadow-sm"><span className="font-semibold">{items.length} Flexible idea{items.length === 1 ? "" : "s"}</span><span className="text-[8px] text-emerald-200">{anchor} · {expanded ? "Click to collapse" : "ordered · click to expand"}</span></button>{expanded && <div className="absolute left-full top-0 z-[100] ml-2 w-48 rounded-lg border border-stone-600 bg-neutral-900 p-2 shadow-2xl"><p className="mb-1 text-[10px] font-semibold text-stone-100">Flexible ideas · ordered</p><div className="space-y-1">{items.map((item) => <div key={item.id}><WeekFlexibleGap date={date} order={dropOrder.get(item.id) ?? 0} /><WeekClusterItem item={item} color={typeColor(item.type, typeColors)} selected={selectedIds.has(item.id)} primary={primarySelectedId === item.id} onSelect={onSelect} /></div>)}</div></div>}</div>;
 }
 
 function WeekDayColumn({ date, items, allDayHeight, trip, typeColors, selectedIds, primarySelectedId, expandedChunk, onToggleExpanded, onSelect, onResize, onSelectDay, onCreateItem }: { date: string; items: TravelObject[]; allDayHeight: number; trip: Trip; typeColors: Record<string, string>; selectedIds: ReadonlySet<string>; primarySelectedId: string | null; expandedChunk: string | null; onToggleExpanded: (key: string) => void; onSelect: (item: TravelObject, additive?: boolean) => void; onResize: (item: TravelObject, edge: "start" | "end", time: string) => void; onSelectDay: () => void; onCreateItem: (date: string, order: number) => void }) {
@@ -129,6 +120,7 @@ function WeekDayColumn({ date, items, allDayHeight, trip, typeColors, selectedId
   const fixedItems = orderedItems.filter((item) => !item.isAllDay && item.startTime && item.endTime);
   const flexibleItems = orderedItems.filter((item) => !item.startTime || !item.endTime);
   const globalOrder = new Map(orderedItems.map((item, index) => [item.id, index]));
+  const dropOrder = new Map(items.filter((item) => item.date?.slice(0, 10) === date).sort(agendaSort).map((item, index) => [item.id, index]));
   const chunkGroups = [...flexibleItems.reduce((groups, item) => {
     const position = globalOrder.get(item.id) ?? 0;
     const previousFixed = [...orderedItems.slice(0, position)].reverse().find(isTimedItem);
@@ -168,7 +160,7 @@ function WeekDayColumn({ date, items, allDayHeight, trip, typeColors, selectedId
     placedRects.push({ top, bottom: top + chunkHeight });
     return { chunkKey, ...chunk, top };
   });
-  return <section className={`relative ${expandedChunk?.startsWith(`${date}:`) ? "z-40" : "z-0"} min-w-0 border-l bg-white dark:bg-neutral-900`}><button type="button" onClick={onSelectDay} className="relative z-10 flex h-14 w-full flex-col justify-center border-b px-2 text-left hover:bg-stone-50 dark:hover:bg-neutral-800"><span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{formatTripDate(`${date}T12:00:00Z`, trip.timezone, { weekday: "short" })}</span><span className="truncate text-xs font-semibold">{formatTripDate(`${date}T12:00:00Z`, trip.timezone, { month: "short", day: "numeric" })}</span><span className="text-[9px] text-muted-foreground">{items.length} {items.length === 1 ? "place" : "places"}</span></button>{allDayHeight > 0 && <WeekAllDayLane date={date} items={allDayItems} height={allDayHeight} typeColors={typeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} onSelect={onSelect} />}<div className="relative min-h-[1056px]">{Array.from({ length: weekHourEnd - weekHourStart }, (_, index) => <WeekTimeSlot key={index} date={date} hour={weekHourStart + index} />)}{fixedItems.map((item) => <WeekFixedItem key={item.id} item={item} color={typeColor(item.type, typeColors)} onSelect={onSelect} onResize={onResize} />)}{chunks.map((chunk) => <WeekFlexibleChunk key={chunk.chunkKey} date={date} anchor={chunk.anchor} top={chunk.top} items={chunk.items} expanded={expandedChunk === `${date}:${chunk.chunkKey}`} globalOrder={globalOrder} typeColors={typeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} onToggle={() => onToggleExpanded(`${date}:${chunk.chunkKey}`)} onSelect={onSelect} />)}{items.length === 0 && <button type="button" onDoubleClick={() => onCreateItem(date, 0)} className="absolute inset-x-2 top-4 rounded border border-dashed py-3 text-[10px] text-muted-foreground">Double-click to add</button>}</div></section>;
+  return <section className={`relative ${expandedChunk?.startsWith(`${date}:`) ? "z-40" : "z-0"} min-w-0 border-l bg-white dark:bg-neutral-900`}><button type="button" onClick={onSelectDay} className="relative z-10 flex h-14 w-full flex-col justify-center border-b px-2 text-left hover:bg-stone-50 dark:hover:bg-neutral-800"><span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{formatTripDate(`${date}T12:00:00Z`, trip.timezone, { weekday: "short" })}</span><span className="truncate text-xs font-semibold">{formatTripDate(`${date}T12:00:00Z`, trip.timezone, { month: "short", day: "numeric" })}</span><span className="text-[9px] text-muted-foreground">{items.length} {items.length === 1 ? "place" : "places"}</span></button>{allDayHeight > 0 && <WeekAllDayLane date={date} items={allDayItems} height={allDayHeight} typeColors={typeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} onSelect={onSelect} />}<div className="relative min-h-[1056px]">{Array.from({ length: weekHourEnd - weekHourStart }, (_, index) => <WeekTimeSlot key={index} date={date} hour={weekHourStart + index} />)}{fixedItems.map((item) => <WeekFixedItem key={item.id} item={item} color={typeColor(item.type, typeColors)} onSelect={onSelect} onResize={onResize} />)}{chunks.map((chunk) => <WeekFlexibleChunk key={chunk.chunkKey} date={date} anchor={chunk.anchor} top={chunk.top} items={chunk.items} expanded={expandedChunk === `${date}:${chunk.chunkKey}`} dropOrder={dropOrder} typeColors={typeColors} selectedIds={selectedIds} primarySelectedId={primarySelectedId} onToggle={() => onToggleExpanded(`${date}:${chunk.chunkKey}`)} onSelect={onSelect} />)}{items.length === 0 && <button type="button" onDoubleClick={() => onCreateItem(date, 0)} className="absolute inset-x-2 top-4 rounded border border-dashed py-3 text-[10px] text-muted-foreground">Double-click to add</button>}</div></section>;
 }
 
 function WeekPlanner({ dates, items, trip, typeColors, selectedIds, primarySelectedId, expandedDate, onToggleExpanded, onSelect, onResize, onSelectDay, onCreateItem }: { dates: string[]; items: TravelObject[]; trip: Trip; typeColors: Record<string, string>; selectedIds: ReadonlySet<string>; primarySelectedId: string | null; expandedDate: string | null; onToggleExpanded: (key: string) => void; onSelect: (item: TravelObject, additive?: boolean) => void; onResize: (item: TravelObject, edge: "start" | "end", time: string) => void; onSelectDay: (date: string) => void; onCreateItem: (date: string, order: number) => void }) {
@@ -202,7 +194,7 @@ export function CalendarView({ trip, items, typeColors = {}, selectedIds, primar
       const flexible = !item.startTime || !item.endTime;
       if (target.startsWith("week-time:")) {
         const [, date, rawHour] = target.split(":");
-        if (date) { const targetMinutes = Number(rawHour) * 60; const targetTime = `${String(Number(rawHour)).padStart(2, "0")}:00`; if (flexible) await onFlexibleDrop(item, date, flexibleDropOrder(scheduledItems, date, targetMinutes, item.id), true, targetTime); else await onMove(item, date, targetTime); setFocusDate(date); }
+        if (date) { const targetTime = `${String(Number(rawHour)).padStart(2, "0")}:00`; if (flexible) await onFlexibleDrop(item, date, weekFlexibleDropOrder(scheduledItems, date, targetTime), true, targetTime); else await onMove(item, date, targetTime); setFocusDate(date); }
         return;
       }
       if (target.startsWith("week-cluster:")) {

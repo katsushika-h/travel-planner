@@ -19,7 +19,7 @@ import { useItemSaveQueue } from "@/components/layout/useItemSaveQueue";
 import { useItemSelection } from "@/components/layout/useItemSelection";
 import { api } from "@/lib/api-client";
 import { groupedMoveTarget, moveAllDayRange, moveFixedTimeRange, oneHourEnd, placeUnfixedItem, resizeFixedTimeRange, scheduleKind } from "@/lib/schedule-domain";
-import { sortTravelObjects } from "@/lib/schedule-order";
+import { mergeCreatedTravelObject, sortTravelObjects } from "@/lib/schedule-order";
 import { useTravelStore } from "@/store/use-travel-store";
 import type { TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
 
@@ -65,7 +65,7 @@ export function AppShell() {
         setItems((current) => [...current, created]);
         replaceSelection([created.id], created.id);
         setInspectedItemId(created.id);
-      } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create itinerary item."); }
+      } catch (cause) { if (activeTripKeyRef.current === tripId) setError(cause instanceof Error ? cause.message : "Could not create itinerary item."); }
       return;
     }
     if (!time) {
@@ -76,11 +76,11 @@ export function AppShell() {
           if (activeTripKeyRef.current !== tripId) return;
           setItems(sortTravelObjects(reordered));
         }
-        else if (activeTripKeyRef.current === tripId) setItems((current) => [...current, created]);
+        else if (activeTripKeyRef.current === tripId) setItems((current) => mergeCreatedTravelObject(current, created));
         if (activeTripKeyRef.current !== tripId) return;
         replaceSelection([created.id], created.id);
         setInspectedItemId(created.id);
-      } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create itinerary item."); }
+      } catch (cause) { if (activeTripKeyRef.current === tripId) setError(cause instanceof Error ? cause.message : "Could not create itinerary item."); }
       return;
     }
     const startDate = date ?? activeTrip.startDate.slice(0, 10);
@@ -88,15 +88,18 @@ export function AppShell() {
     try {
       const created = await api.createObject({ tripId, title, type, date: startDate, endDate, startTime: time, endTime, placementTime: null, dayOrder: null, isAllDay: false, location: null, cost: null, notes: null, tags: [] });
       if (activeTripKeyRef.current !== tripId) return;
-      setItems((current) => sortTravelObjects([...current, created]));
+      setItems((current) => mergeCreatedTravelObject(current, created));
       replaceSelection([created.id], created.id);
       setInspectedItemId(created.id);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create itinerary item."); }
+    } catch (cause) { if (activeTripKeyRef.current === tripId) setError(cause instanceof Error ? cause.message : "Could not create itinerary item."); }
   }
 
   async function deleteItem(id: string) {
+    const tripId = activeTrip?.id;
+    if (!tripId) return;
     cancelPendingSave(id);
     await api.deleteObject(id);
+    if (activeTripKeyRef.current !== tripId) return;
     setItems((current) => current.filter((item) => item.id !== id));
     setSelectedIds((current) => { const next = new Set(current); next.delete(id); setPrimarySelectedId((primary) => primary === id ? next.values().next().value ?? null : primary); return next; });
     setInspectedItemId((current) => current === id ? null : current);
@@ -136,9 +139,15 @@ export function AppShell() {
   }
 
   async function deleteSelectedItems(ids: string[]) {
+    const tripId = activeTrip?.id;
+    if (!tripId) return;
     for (const id of ids) cancelPendingSave(id);
-    const results = await Promise.allSettled(ids.map((id) => api.deleteObject(id)));
-    const deleted = new Set(ids.filter((_, index) => results[index].status === "fulfilled"));
+    const deleted = new Set<string>();
+    for (const id of ids) {
+      try { await api.deleteObject(id); deleted.add(id); }
+      catch { /* keep failed items selected below */ }
+    }
+    if (activeTripKeyRef.current !== tripId) return;
     const failed = ids.filter((id) => !deleted.has(id));
     setItems((current) => current.filter((item) => !deleted.has(item.id)));
     setPendingDeleteIds(null);
@@ -172,27 +181,31 @@ export function AppShell() {
     try {
       const updated = await api.reorderObjects({ tripId, objectId: item.id, date, dayOrder: order, clearTime, placementTime });
       if (activeTripKeyRef.current === tripId) setItems(sortTravelObjects(updated));
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not reorder itinerary."); }
+    } catch (cause) { if (activeTripKeyRef.current === tripId) setError(cause instanceof Error ? cause.message : "Could not reorder itinerary."); }
   }
 
   async function moveType(item: TravelObject, type: string) {
+    const tripId = activeTrip?.id;
+    if (!tripId) return;
     const moving = selectedIds.has(item.id) ? items.filter((candidate) => selectedIds.has(candidate.id)) : [item];
     try {
       const changed = await Promise.all(moving.map((candidate) => candidate.type === type ? Promise.resolve(candidate) : api.updateObject(candidate.id, { type })));
+      if (activeTripKeyRef.current !== tripId) return;
       const byId = new Map(changed.map((candidate) => [candidate.id, candidate]));
       setItems((current) => sortTravelObjects(current.map((candidate) => byId.get(candidate.id) ?? candidate)));
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not change item type."); }
+    } catch (cause) { if (activeTripKeyRef.current === tripId) setError(cause instanceof Error ? cause.message : "Could not change item type."); }
   }
 
   const eventTypes = [...new Set(["unclassified", "flight", "hotel", "food", "commute", "activity", "sightseeing", ...savedEventTypes, ...items.map((item) => item.type)])];
   const itineraryItems = items.filter((item) => item.date !== null);
   const tripLabel = useMemo(() => activeTrip ? `${activeTrip.title} · ${new Date(`${activeTrip.startDate.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, { month: "short", year: "numeric" })}` : "Select a trip", [activeTrip]);
-  const selectTrip = (id: string) => { if (id !== activeTripId) clearSelection(); setActiveTripId(id); };
+  const selectTrip = (id: string) => { if (id !== activeTripId) { clearSelection(); setPendingDeleteIds(null); } setActiveTripId(id); };
   const onTripCreated = (trip: Trip) => { clearSelection(); setTrips((current) => [...current, trip]); setActiveTripId(trip.id); };
   const onTripSaved = (trip: Trip) => setTrips((current) => current.map((existing) => existing.id === trip.id ? trip : existing));
-  const onTripDeleted = () => {
-    const remaining = trips.filter((trip) => trip.id !== activeTripId);
-    setTrips(remaining);
+  const onTripDeleted = (deletedTripId: string) => {
+    const remaining = trips.filter((trip) => trip.id !== deletedTripId);
+    setTrips((current) => current.filter((trip) => trip.id !== deletedTripId));
+    if (activeTripKeyRef.current !== deletedTripId) return;
     setActiveTripId(remaining[0]?.id ?? null);
     setItems([]);
     setItemsTripId(null);
@@ -230,10 +243,10 @@ export function AppShell() {
       </div>
       <div className={`mt-auto border-t p-3 ${collapsed ? "px-2" : ""}`}>
         <div className="mb-2 space-y-1 border-b pb-2">
-          {activeTrip && <ImportGoogleMapsCsvButton compact={collapsed} trip={activeTrip} eventTypes={eventTypes} onAddType={(type) => addEventType(activeTrip.id, type)} onImported={(imported) => { if (activeTripKeyRef.current === activeTrip.id) setItems((current) => sortTravelObjects([...current, ...imported])); }} onError={setError} />}
+          {activeTrip && <ImportGoogleMapsCsvButton compact={collapsed} trip={activeTrip} eventTypes={eventTypes} onAddType={(type) => addEventType(activeTrip.id, type)} onImported={(imported) => { if (activeTripKeyRef.current === activeTrip.id) setItems((current) => sortTravelObjects([...current, ...imported])); }} onError={(message) => { if (activeTripKeyRef.current === activeTrip.id) setError(message); }} />}
           <Button type="button" variant="ghost" size={collapsed ? "icon" : "sm"} className={collapsed ? "mx-auto flex" : "w-full justify-start"} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={collapsed ? theme === "dark" ? "Switch to light mode" : "Switch to dark mode" : undefined} onClick={toggleTheme}>{theme === "dark" ? <Sun /> : <Moon />}{!collapsed && (theme === "dark" ? "Light mode" : "Dark mode")}</Button>
         </div>
-        <div className={`flex items-center gap-1 rounded-lg p-2 ${collapsed ? "justify-center" : ""}`}><div className="grid size-8 shrink-0 place-items-center rounded-full bg-orange-100 text-xs font-semibold text-orange-800">{activeTrip?.title.slice(0, 1).toUpperCase() ?? "T"}</div>{!collapsed && <span className="min-w-0 flex-1 truncate text-xs font-medium">{tripLabel}</span>}{activeTrip && <DeleteTripButton trip={activeTrip} compact onDeleted={onTripDeleted} onError={setError} />}</div>
+        <div className={`flex items-center gap-1 rounded-lg p-2 ${collapsed ? "justify-center" : ""}`}><div className="grid size-8 shrink-0 place-items-center rounded-full bg-orange-100 text-xs font-semibold text-orange-800">{activeTrip?.title.slice(0, 1).toUpperCase() ?? "T"}</div>{!collapsed && <span className="min-w-0 flex-1 truncate text-xs font-medium">{tripLabel}</span>}{activeTrip && <DeleteTripButton trip={activeTrip} compact onDeleted={() => onTripDeleted(activeTrip.id)} onError={(message) => { if (activeTripKeyRef.current === activeTrip.id) setError(message); }} />}</div>
       </div>
     </aside>
     <section className="relative flex min-w-0 flex-1 flex-col">

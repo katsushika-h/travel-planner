@@ -68,9 +68,9 @@ export async function PATCH(request: Request, { params }: Context) {
       return Response.json({ error: "Provide at least one field to update." }, { status: 400 });
     }
 
+    const scheduleChanged = ["date", "endDate", "startTime", "endTime", "placementTime", "isAllDay", "dayOrder"].some((field) => Object.hasOwn(data, field));
     normalizeUpdatedScheduleData(data, existing);
 
-    const scheduleChanged = ["date", "endDate", "startTime", "endTime", "placementTime", "isAllDay", "dayOrder"].some((field) => body[field] !== undefined);
     const travelObject = await prisma.$transaction(async (tx) => {
       const updated = await tx.travelObject.update({
         where: { id: objectId },

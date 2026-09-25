@@ -26,3 +26,21 @@ test("CSV parser preserves import validation errors", () => {
   assert.throws(() => parseGoogleMapsCsv("Title,URL\nA,https://maps.example/a", "Asia/Singapore", []), /Note and URL columns/);
   assert.throws(() => parseGoogleMapsCsv("Title,Note,URL\nA,note,", "Asia/Singapore", []), /No Google Maps places/);
 });
+
+test("CSV parser keeps places with invalid schedules unscheduled and skips incomplete rows", () => {
+  const csv = [
+    "Title,Note,URL,Category,Date,Time",
+    "Bad date,note,https://maps.example/date, Sights ,2026-02-30,09:00",
+    "Bad time,note,https://maps.example/time,Sights,2026-09-24,25:00",
+    "No title,note,,Sights,2026-09-24,09:00",
+    ",note,https://maps.example/untitled,Sights,2026-09-24,09:00",
+    "",
+    "Good,note,https://maps.example/good,Sights,2026-09-24,09:00",
+  ].join("\n");
+  const parsed = parseGoogleMapsCsv(csv, "Asia/Singapore", []);
+  assert.equal(parsed.skipped, 2);
+  assert.equal(parsed.invalidDates, 2);
+  assert.deepEqual(parsed.newTypes, ["Sights"]);
+  assert.deepEqual(parsed.records.map((record) => record.title), ["Bad date", "Bad time", "Good"]);
+  assert.deepEqual(parsed.records.map((record) => record.schedule.date), [null, null, "2026-09-24"]);
+});

@@ -1,4 +1,4 @@
-import { dateParts, zonedDateTimeToUtc } from "./date-utils.ts";
+import { dateParts, shiftDate, zonedDateTimeToUtc } from "./date-utils.ts";
 import { canonicalScheduleFromInstants } from "./travel-object-compat.ts";
 
 function parseCsv(text: string) {
@@ -54,7 +54,6 @@ function parseTime(value: string) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-function nextDate(date: string) { const value = new Date(`${date}T00:00:00Z`); value.setUTCDate(value.getUTCDate() + 1); return value.toISOString().slice(0, 10); }
 
 function parseCombinedDateTime(value: string, timeZone: string) {
   const text = value.trim();
@@ -93,7 +92,7 @@ function scheduleFromRow(row: string[], columns: ScheduleColumns, timeZone: stri
     const time = endTimeValue ? parseTime(endTimeValue) : (isAllDay ? "00:00" : startTime ?? dateParts(start.iso, timeZone).time);
     if (date && time) {
       let iso = zonedDateTimeToUtc(date, time, timeZone);
-      if (!endDateValue && endTimeValue && Date.parse(iso) <= Date.parse(start.iso)) { date = nextDate(date); iso = zonedDateTimeToUtc(date, time, timeZone); }
+      if (!endDateValue && endTimeValue && Date.parse(iso) <= Date.parse(start.iso)) { date = shiftDate(date, 1); iso = zonedDateTimeToUtc(date, time, timeZone); }
       end = { iso, date };
     }
   }

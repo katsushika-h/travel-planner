@@ -21,7 +21,7 @@ Travel Planner is a single-user itinerary app built with Next.js 16, React 19, T
 
 ## Important invariants
 
-- `date`, `endDate`, `startTime`, `endTime`, `placementTime`, and `dayOrder` are the persisted schedule fields. The API computes legacy `startDateTime`, `endDateTime`, and `dayIndex` for UI compatibility. `placementTime` is a 15-minute visual position for flexible items, not a confirmed booking time. `dayOrder` behavior still needs review across Calendar and Itinerary.
+- `date`, `endDate`, `startTime`, `endTime`, `placementTime`, and `dayOrder` are the persisted schedule fields. The API computes legacy `startDateTime`, `endDateTime`, and `dayIndex` for compatibility; active UI reads use canonical fields. Remove the legacy fields only in a dedicated API migration after parity checks. `placementTime` is a 15-minute visual position for flexible items, not a confirmed booking time. `dayOrder` behavior still needs review across Calendar and Itinerary.
 - The app has no authentication or per-user trip ownership. Do not assume either exists when changing routes.
 - Map coordinates are extracted from supported Google Maps URLs. Preserve URLs without coordinates; they cannot be plotted. Do not introduce Google API billing unless requested. Keep visible OpenStreetMap attribution and comply with tile/geocoding usage policies.
 - Attachments are stored as PostgreSQL `Bytes`. The repository tracks some `.next` artifacts despite `.gitignore`; avoid including generated output in source changes.
@@ -33,3 +33,13 @@ Run `npm ci` to install, `npm run dev` for local development, and `npm run check
 Do not rebuild or push Docker images unless deployment is requested. The target is **Linux AMD64**: explicitly use `--platform linux/amd64` for both app and migrator images. Rebuild the migrator when migrations change. After building the app image for deployment, push it with `docker push hokusaik/travel-planner-app:latest`.
 
 For substantial multi-step work, create or update one concise handoff in `docs/work/` with status, goal, scope, executable checklist, current state, remaining work, findings, verification, and next step. Update `docs/architecture.md` only for architectural changes and add a concise ADR in `docs/decisions/` only for a durable decision. Mark finished work complete and remove transient notes.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

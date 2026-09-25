@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useMemo, useState, type MouseEvent } from "react";
 import { dayIndexForDate } from "@/lib/date-utils";
+import { hasMapCoordinates } from "@/lib/map-coordinates";
 import type { TravelObject, Trip } from "@/types/travel";
 
 const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.LeafletMap), {
@@ -12,11 +13,7 @@ const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.
 
 export function MapView({ trip, items, typeColors, onSelect }: { trip: Trip; items: TravelObject[]; typeColors: Record<string, string>; onSelect: (item: TravelObject) => void }) {
   const [selectedDates, setSelectedDates] = useState<Set<string>>(() => new Set());
-  const mappedItems = useMemo(() => items.filter((item) => {
-    const lat = item.location?.lat;
-    const lng = item.location?.lng;
-    return typeof lat === "number" && Number.isFinite(lat) && lat >= -90 && lat <= 90 && typeof lng === "number" && Number.isFinite(lng) && lng >= -180 && lng <= 180;
-  }), [items]);
+  const mappedItems = useMemo(() => items.filter((item) => hasMapCoordinates(item.location)), [items]);
   const days = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of mappedItems) {
