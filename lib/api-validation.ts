@@ -1,7 +1,58 @@
+import { Prisma } from "@prisma/client";
+
 export type JsonRecord = Record<string, unknown>;
+
+/** Reject removed schedule request fields instead of silently ignoring them. */
+export function rejectLegacyScheduleFields(body: JsonRecord) {
+  for (const field of ["startDateTime", "endDateTime", "dayIndex"]) {
+    if (Object.hasOwn(body, field)) throw new Error(`${field} is no longer supported; use canonical schedule fields.`);
+  }
+}
 
 export function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function readOptionalJson(value: unknown, field: string, { optional = false }: { optional?: boolean } = {}) {
+  if (value === undefined && optional) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  if (!isRecord(value)) throw new Error(`${field} must be a JSON object${optional ? "" : " or null"}.`);
+  return value as Prisma.InputJsonValue;
+}
+
+/** Parse fields shared by travel-object creation and partial updates. */
+export function readTravelObjectContent(body: JsonRecord, mode: "create" | "update") {
+  const creating = mode === "create";
+  const data: {
+    headerImage?: string | null;
+    location?: ReturnType<typeof readOptionalJson>;
+    cost?: ReturnType<typeof readOptionalJson>;
+    notes?: string | null;
+    tags?: string[];
+  } = {};
+  if (creating || body.headerImage !== undefined) data.headerImage = body.headerImage === undefined ? null : readHeaderImage(body.headerImage);
+  if (creating || body.location !== undefined) {
+    validateLocation(body.location);
+    data.location = readOptionalJson(body.location, "location", { optional: creating });
+  }
+  if (creating || body.cost !== undefined) {
+    validateCost(body.cost);
+    data.cost = readOptionalJson(body.cost, "cost", { optional: creating });
+  }
+  if (creating || body.notes !== undefined) data.notes = body.notes === null ? null : readTrimmedString(body.notes, "notes", { optional: creating, maxBytes: 2500 });
+  if (creating || body.tags !== undefined) data.tags = readTags(body.tags);
+  return data;
+}
+
+/** Keep required create fields and partial-update fields on one validation path. */
+export function readTravelObjectIdentity(body: JsonRecord, mode: "create"): { title: string; type: string };
+export function readTravelObjectIdentity(body: JsonRecord, mode: "update"): { title?: string; type?: string };
+export function readTravelObjectIdentity(body: JsonRecord, mode: "create" | "update") {
+  const creating = mode === "create";
+  const data: { title?: string; type?: string } = {};
+  if (creating || body.title !== undefined) data.title = readTrimmedString(body.title, "title", { maxLength: 100 })!;
+  if (creating || body.type !== undefined) data.type = readEventType(creating ? body.type ?? "unclassified" : body.type, "type");
+  return data;
 }
 
 export function readTrimmedString(

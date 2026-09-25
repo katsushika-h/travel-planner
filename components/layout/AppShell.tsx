@@ -18,10 +18,10 @@ import { useTripData } from "@/components/layout/useTripData";
 import { useItemSaveQueue } from "@/components/layout/useItemSaveQueue";
 import { useItemSelection } from "@/components/layout/useItemSelection";
 import { api } from "@/lib/api-client";
-import { groupedMoveTarget, moveAllDayRange, moveFixedTimeRange, oneHourEnd, placeUnfixedItem, resizeFixedTimeRange, scheduleKind } from "@/lib/schedule-domain";
+import { groupedMoveTarget, oneHourEnd, resizeFixedTimeRange, schedulePatchForMove } from "@/lib/schedule-domain";
 import { mergeCreatedTravelObject, sortTravelObjects } from "@/lib/schedule-order";
 import { useTravelStore } from "@/store/use-travel-store";
-import type { TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
+import type { CreateTravelObjectInput, TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
 
 const EMPTY_EVENT_TYPES: string[] = [];
 const EMPTY_EVENT_TYPE_COLORS: Record<string, string> = {};
@@ -41,6 +41,16 @@ export function AppShell() {
   const activeTab = useTravelStore((state) => state.activeTab);
   const setCalendarMode = useTravelStore((state) => state.setCalendarMode);
   const collapsed = useTravelStore((state) => state.sidebarCollapsed);
+  const [narrowScreen, setNarrowScreen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 639px)");
+    const update = () => setNarrowScreen(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  const sidebarCollapsed = narrowScreen ? !mobileSidebarOpen : collapsed;
   const theme = useTravelStore((state) => state.theme);
   const setActiveTab = useTravelStore((state) => state.setActiveTab);
   const toggleSidebar = useTravelStore((state) => state.toggleSidebar);
@@ -58,37 +68,21 @@ export function AppShell() {
   async function openCreateItem(date?: string, time?: string, type = "unclassified", title = "(untitled event)", dayOrder?: number) {
     if (!activeTrip) return;
     const tripId = activeTrip.id;
-    if (!date) {
-      try {
-        const created = await api.createObject({ tripId, title, type, date: null, endDate: null, startTime: null, endTime: null, placementTime: null, isAllDay: false, location: null, cost: null, notes: null, tags: [] });
-        if (activeTripKeyRef.current !== tripId) return;
-        setItems((current) => [...current, created]);
-        replaceSelection([created.id], created.id);
-        setInspectedItemId(created.id);
-      } catch (cause) { if (activeTripKeyRef.current === tripId) setError(cause instanceof Error ? cause.message : "Could not create itinerary item."); }
-      return;
+    let schedule: Pick<CreateTravelObjectInput, "date" | "endDate" | "startTime" | "endTime" | "placementTime" | "dayOrder">;
+    if (!date) schedule = { date: null, endDate: null, startTime: null, endTime: null, placementTime: null };
+    else if (!time) schedule = { date, endDate: date, startTime: null, endTime: null, placementTime: "09:00", dayOrder: null };
+    else {
+      const { endDate, endTime } = oneHourEnd(date, time, activeTrip.timezone);
+      schedule = { date, endDate, startTime: time, endTime, placementTime: null, dayOrder: null };
     }
-    if (!time) {
-      try {
-        const created = await api.createObject({ tripId, title, type, date, endDate: date, startTime: null, endTime: null, placementTime: "09:00", dayOrder: null, isAllDay: false, location: null, cost: null, notes: null, tags: [] });
-        if (dayOrder !== undefined) {
-          const reordered = await api.reorderObjects({ tripId, objectId: created.id, date, dayOrder });
-          if (activeTripKeyRef.current !== tripId) return;
-          setItems(sortTravelObjects(reordered));
-        }
-        else if (activeTripKeyRef.current === tripId) setItems((current) => mergeCreatedTravelObject(current, created));
-        if (activeTripKeyRef.current !== tripId) return;
-        replaceSelection([created.id], created.id);
-        setInspectedItemId(created.id);
-      } catch (cause) { if (activeTripKeyRef.current === tripId) setError(cause instanceof Error ? cause.message : "Could not create itinerary item."); }
-      return;
-    }
-    const startDate = date ?? activeTrip.startDate.slice(0, 10);
-    const { endDate, endTime } = oneHourEnd(startDate, time, activeTrip.timezone);
     try {
-      const created = await api.createObject({ tripId, title, type, date: startDate, endDate, startTime: time, endTime, placementTime: null, dayOrder: null, isAllDay: false, location: null, cost: null, notes: null, tags: [] });
+      const created = await api.createObject({ tripId, title, type, ...schedule, isAllDay: false, location: null, cost: null, notes: null, tags: [] });
       if (activeTripKeyRef.current !== tripId) return;
-      setItems((current) => mergeCreatedTravelObject(current, created));
+      if (date && !time && dayOrder !== undefined) {
+        const reordered = await api.reorderObjects({ tripId, objectId: created.id, date, dayOrder });
+        if (activeTripKeyRef.current !== tripId) return;
+        setItems(sortTravelObjects(reordered));
+      } else setItems((current) => date ? mergeCreatedTravelObject(current, created) : [...current, created]);
       replaceSelection([created.id], created.id);
       setInspectedItemId(created.id);
     } catch (cause) { if (activeTripKeyRef.current === tripId) setError(cause instanceof Error ? cause.message : "Could not create itinerary item."); }
@@ -107,24 +101,8 @@ export function AppShell() {
 
   async function moveItem(item: TravelObject, date: string, time?: string) {
     if (!activeTrip) return;
-    const kind = scheduleKind(item);
-    if (kind === "all-day") {
-      const sourceDate = item.date?.slice(0, 10) ?? date;
-      const sourceEndDate = item.endDate?.slice(0, 10) ?? sourceDate;
-      const moved = moveAllDayRange(sourceDate, sourceEndDate, date);
-      const schedule = { ...moved, startTime: null, endTime: null, isAllDay: true };
-      changeItem(item.id, { ...schedule, placementTime: null, dayOrder: null }, true);
-      return;
-    }
-    if (kind !== "fixed") {
-      const { kind: placedKind, ...schedule } = placeUnfixedItem(item, date, time);
-      changeItem(item.id, { ...schedule, ...(placedKind === "flexible" ? { dayOrder: null } : {}) }, true);
-      return;
-    }
-    if (!item.date || !item.startTime || !item.endTime) return;
-    const moved = moveFixedTimeRange(item.date.slice(0, 10), item.endDate?.slice(0, 10) ?? item.date.slice(0, 10), item.startTime, item.endTime, date, time);
-    const schedule = { ...moved, isAllDay: false };
-    changeItem(item.id, { ...schedule, placementTime: null }, true);
+    const patch = schedulePatchForMove(item, date, time);
+    if (patch) changeItem(item.id, patch, true);
   }
 
   function resizeItem(item: TravelObject, edge: "start" | "end", time: string) {
@@ -156,8 +134,12 @@ export function AppShell() {
     if (failed.length) setError(`Could not delete ${failed.length === 1 ? "one selected item" : `${failed.length} selected items`}.`);
   }
 
+  function selectedActionItems(item: TravelObject) {
+    return selectedIds.has(item.id) ? items.filter((candidate) => selectedIds.has(candidate.id)) : [item];
+  }
+
   async function moveSelectedItems(item: TravelObject, date: string, time?: string) {
-    const moving = selectedIds.has(item.id) ? items.filter((candidate) => selectedIds.has(candidate.id)) : [item];
+    const moving = selectedActionItems(item);
     await Promise.all(moving.map((candidate) => {
       const target = groupedMoveTarget(item, candidate, date, activeTrip?.timezone ?? "UTC", time);
       return moveItem(candidate, target.date, target.time);
@@ -165,12 +147,12 @@ export function AppShell() {
   }
 
   async function moveSelectedItemsToDay(item: TravelObject, date: string) {
-    const moving = selectedIds.has(item.id) ? items.filter((candidate) => selectedIds.has(candidate.id)) : [item];
+    const moving = selectedActionItems(item);
     await Promise.all(moving.map((candidate) => moveItem(candidate, date)));
   }
 
   async function unscheduleSelectedItems(item: TravelObject) {
-    const moving = selectedIds.has(item.id) ? items.filter((candidate) => selectedIds.has(candidate.id)) : [item];
+    const moving = selectedActionItems(item);
     for (const candidate of moving) changeItem(candidate.id, { date: null, endDate: null, placementTime: null, isAllDay: false, dayOrder: null }, true);
   }
 
@@ -187,7 +169,7 @@ export function AppShell() {
   async function moveType(item: TravelObject, type: string) {
     const tripId = activeTrip?.id;
     if (!tripId) return;
-    const moving = selectedIds.has(item.id) ? items.filter((candidate) => selectedIds.has(candidate.id)) : [item];
+    const moving = selectedActionItems(item);
     try {
       const changed = await Promise.all(moving.map((candidate) => candidate.type === type ? Promise.resolve(candidate) : api.updateObject(candidate.id, { type })));
       if (activeTripKeyRef.current !== tripId) return;
@@ -229,24 +211,25 @@ export function AppShell() {
   }, [selectedIds, setActiveTab, setCalendarMode, setSelectedIds, setPrimarySelectedId, setInspectedItemId]);
 
   return <main style={{ colorScheme: theme }} className={`flex h-dvh min-h-[620px] overflow-hidden ${theme === "dark" ? "dark bg-neutral-950 text-stone-100" : "bg-[#f7f7f4] text-stone-900"}`}>
-    <aside className={`z-10 flex shrink-0 flex-col border-r bg-[#fbfbf9] transition-[width] duration-200 dark:bg-neutral-900 ${collapsed ? "w-[68px]" : "w-[230px]"}`}>
-      <div className={`flex h-[68px] items-center border-b ${collapsed ? "justify-center px-2" : "gap-3 px-4"}`}><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-800 text-white"><Compass size={19} /></div>{!collapsed && <div className="min-w-0"><p className="font-semibold tracking-tight">Wayfarer</p><p className="text-[10px] uppercase tracking-[.18em] text-stone-400">Travel planner</p></div>}</div>
-      <div className={`px-3 pt-5 ${collapsed ? "px-2" : ""}`}><div className={`mb-2 flex items-center justify-between px-2 text-[10px] font-semibold uppercase tracking-[.16em] text-stone-400 ${collapsed ? "justify-center" : ""}`}>{!collapsed && <span>Workspace</span>}<button onClick={toggleSidebar} className="rounded p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}</button></div>
-        <nav className="space-y-1">{([{ id: "calendar" as const, label: "Calendar", shortcut: "1", icon: CalendarDays }, { id: "kanban" as const, label: "Kanban", shortcut: "2", icon: Rows3 }, { id: "days" as const, label: "Itinerary", shortcut: "3", icon: CalendarRange }, { id: "table" as const, label: "Table", shortcut: "4", icon: TableProperties }, { id: "map" as const, label: "Map", shortcut: "5", icon: MapIcon }]).map(({ id, label, shortcut, icon: Icon }) => <button key={id} title={collapsed ? label : undefined} onClick={() => setActiveTab(id)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${activeTab === id ? "bg-emerald-50 font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100" : "text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-neutral-800"} ${collapsed ? "justify-center px-0" : ""}`}><Icon size={17} />{!collapsed && <><span className="flex-1 text-left">{label}</span><kbd className="rounded border px-1 text-[9px] opacity-60">{shortcut}</kbd></>}</button>)}</nav>
+    {narrowScreen && mobileSidebarOpen && <button type="button" className="fixed inset-0 z-[9] bg-black/20 sm:hidden" aria-label="Close navigation" onClick={() => setMobileSidebarOpen(false)} />}
+    <aside className={`z-10 flex shrink-0 flex-col border-r bg-[#fbfbf9] transition-[width] duration-200 dark:bg-neutral-900 ${sidebarCollapsed ? "w-[68px]" : "w-[230px]"} ${narrowScreen && mobileSidebarOpen ? "absolute inset-y-0 left-0" : ""}`}>
+      <div className={`flex h-[68px] items-center border-b ${sidebarCollapsed ? "justify-center px-2" : "gap-3 px-4"}`}><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-800 text-white"><Compass size={19} /></div>{!sidebarCollapsed && <div className="min-w-0"><p className="font-semibold tracking-tight">Wayfarer</p><p className="text-[10px] uppercase tracking-[.18em] text-stone-400">Travel planner</p></div>}</div>
+      <div className={`px-3 pt-5 ${sidebarCollapsed ? "px-2" : ""}`}><div className={`mb-2 flex items-center justify-between px-2 text-[10px] font-semibold uppercase tracking-[.16em] text-stone-400 ${sidebarCollapsed ? "justify-center" : ""}`}>{!sidebarCollapsed && <span>Workspace</span>}<button onClick={() => narrowScreen ? setMobileSidebarOpen((open) => !open) : toggleSidebar()} className="rounded p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700" aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>{sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}</button></div>
+        <nav className="space-y-1">{([{ id: "calendar" as const, label: "Calendar", shortcut: "1", icon: CalendarDays }, { id: "kanban" as const, label: "Kanban", shortcut: "2", icon: Rows3 }, { id: "days" as const, label: "Itinerary", shortcut: "3", icon: CalendarRange }, { id: "table" as const, label: "Table", shortcut: "4", icon: TableProperties }, { id: "map" as const, label: "Map", shortcut: "5", icon: MapIcon }]).map(({ id, label, shortcut, icon: Icon }) => <button key={id} title={sidebarCollapsed ? label : undefined} onClick={() => { setActiveTab(id); setMobileSidebarOpen(false); }} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${activeTab === id ? "bg-emerald-50 font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100" : "text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-neutral-800"} ${sidebarCollapsed ? "justify-center px-0" : ""}`}><Icon size={17} />{!sidebarCollapsed && <><span className="flex-1 text-left">{label}</span><kbd className="rounded border px-1 text-[9px] opacity-60">{shortcut}</kbd></>}</button>)}</nav>
       </div>
-      <div className={`mt-7 px-3 ${collapsed ? "px-2" : ""}`}>
-        <div className={`mb-2 flex items-center justify-between px-2 text-[10px] font-semibold uppercase tracking-[.16em] text-stone-400 ${collapsed ? "justify-center" : ""}`}>
-          {!collapsed && <span>Your trips</span>}
-          {!collapsed && <div className="flex items-center gap-1">{activeTrip && <EditTripDialog key={activeTrip.id} trip={activeTrip} onSaved={onTripSaved} />}<CreateTripDialog onCreated={onTripCreated} /></div>}
+      <div className={`mt-7 px-3 ${sidebarCollapsed ? "px-2" : ""}`}>
+        <div className={`mb-2 flex items-center justify-between px-2 text-[10px] font-semibold uppercase tracking-[.16em] text-stone-400 ${sidebarCollapsed ? "justify-center" : ""}`}>
+          {!sidebarCollapsed && <span>Your trips</span>}
+          {!sidebarCollapsed && <div className="flex items-center gap-1">{activeTrip && <EditTripDialog key={activeTrip.id} trip={activeTrip} onSaved={onTripSaved} />}<CreateTripDialog onCreated={(trip) => { onTripCreated(trip); setMobileSidebarOpen(false); }} /></div>}
         </div>
-        <TripList trips={trips} activeTripId={activeTripId} collapsed={collapsed} onSelect={selectTrip} />
+        <TripList trips={trips} activeTripId={activeTripId} collapsed={sidebarCollapsed} onSelect={(id) => { selectTrip(id); setMobileSidebarOpen(false); }} />
       </div>
-      <div className={`mt-auto border-t p-3 ${collapsed ? "px-2" : ""}`}>
+      <div className={`mt-auto border-t p-3 ${sidebarCollapsed ? "px-2" : ""}`}>
         <div className="mb-2 space-y-1 border-b pb-2">
-          {activeTrip && <ImportGoogleMapsCsvButton compact={collapsed} trip={activeTrip} eventTypes={eventTypes} onAddType={(type) => addEventType(activeTrip.id, type)} onImported={(imported) => { if (activeTripKeyRef.current === activeTrip.id) setItems((current) => sortTravelObjects([...current, ...imported])); }} onError={(message) => { if (activeTripKeyRef.current === activeTrip.id) setError(message); }} />}
-          <Button type="button" variant="ghost" size={collapsed ? "icon" : "sm"} className={collapsed ? "mx-auto flex" : "w-full justify-start"} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={collapsed ? theme === "dark" ? "Switch to light mode" : "Switch to dark mode" : undefined} onClick={toggleTheme}>{theme === "dark" ? <Sun /> : <Moon />}{!collapsed && (theme === "dark" ? "Light mode" : "Dark mode")}</Button>
+          {activeTrip && <ImportGoogleMapsCsvButton compact={sidebarCollapsed} trip={activeTrip} eventTypes={eventTypes} onAddType={(type) => addEventType(activeTrip.id, type)} onImported={(imported) => { if (activeTripKeyRef.current === activeTrip.id) setItems((current) => sortTravelObjects([...current, ...imported])); }} onError={(message) => { if (activeTripKeyRef.current === activeTrip.id) setError(message); }} />}
+          <Button type="button" variant="ghost" size={sidebarCollapsed ? "icon" : "sm"} className={sidebarCollapsed ? "mx-auto flex" : "w-full justify-start"} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={sidebarCollapsed ? theme === "dark" ? "Switch to light mode" : "Switch to dark mode" : undefined} onClick={toggleTheme}>{theme === "dark" ? <Sun /> : <Moon />}{!sidebarCollapsed && (theme === "dark" ? "Light mode" : "Dark mode")}</Button>
         </div>
-        <div className={`flex items-center gap-1 rounded-lg p-2 ${collapsed ? "justify-center" : ""}`}><div className="grid size-8 shrink-0 place-items-center rounded-full bg-orange-100 text-xs font-semibold text-orange-800">{activeTrip?.title.slice(0, 1).toUpperCase() ?? "T"}</div>{!collapsed && <span className="min-w-0 flex-1 truncate text-xs font-medium">{tripLabel}</span>}{activeTrip && <DeleteTripButton trip={activeTrip} compact onDeleted={() => onTripDeleted(activeTrip.id)} onError={(message) => { if (activeTripKeyRef.current === activeTrip.id) setError(message); }} />}</div>
+        <div className={`flex items-center gap-1 rounded-lg p-2 ${sidebarCollapsed ? "justify-center" : ""}`}><div className="grid size-8 shrink-0 place-items-center rounded-full bg-orange-100 text-xs font-semibold text-orange-800">{activeTrip?.title.slice(0, 1).toUpperCase() ?? "T"}</div>{!sidebarCollapsed && <span className="min-w-0 flex-1 truncate text-xs font-medium">{tripLabel}</span>}{activeTrip && <DeleteTripButton trip={activeTrip} compact onDeleted={() => onTripDeleted(activeTrip.id)} onError={(message) => { if (activeTripKeyRef.current === activeTrip.id) setError(message); }} />}</div>
       </div>
     </aside>
     <section className="relative flex min-w-0 flex-1 flex-col">

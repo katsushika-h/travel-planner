@@ -37,6 +37,9 @@ export async function importGoogleMapsCsv(text: string, trip: Pick<Trip, "id" | 
       onProgress(resolvedCount, records.length);
     }
   });
-  const created = await Promise.all(resolvedRecords.map((record) => api.createObject({ tripId: trip.id, title: record.title.slice(0, 100), type: record.type, date: record.schedule.date, endDate: record.schedule.endDate, startTime: record.schedule.startTime, endTime: record.schedule.endTime, isAllDay: record.schedule.isAllDay, location: record.location, cost: null, notes: truncateUtf8(record.notes, 2500) || null, tags: [] })));
-  return { created, newTypes, skipped, invalidDates, unresolvedCount };
+  const outcomes = await Promise.allSettled(resolvedRecords.map((record) => api.createObject({ tripId: trip.id, title: record.title.slice(0, 100), type: record.type, date: record.schedule.date, endDate: record.schedule.endDate, startTime: record.schedule.startTime, endTime: record.schedule.endTime, isAllDay: record.schedule.isAllDay, location: record.location, cost: null, notes: truncateUtf8(record.notes, 2500) || null, tags: [] })));
+  const created = outcomes.flatMap((outcome) => outcome.status === "fulfilled" ? [outcome.value] : []);
+  const failed = outcomes.flatMap((outcome, index) => outcome.status === "rejected" ? [{ title: resolvedRecords[index].title, reason: outcome.reason instanceof Error ? outcome.reason.message : "Could not create place." }] : []);
+  const createdTypes = new Set(created.map((item) => item.type));
+  return { created, failed, newTypes: newTypes.filter((type) => createdTypes.has(type)), skipped, invalidDates, unresolvedCount };
 }

@@ -4,7 +4,7 @@ import { closestCorners, DndContext, DragOverlay, PointerSensor, pointerWithin, 
 import { useEffect, useRef, useState } from "react";
 import { Plus, MapPin, GripVertical } from "lucide-react";
 import { formatTripDate, shiftDate } from "@/lib/date-utils";
-import { allDayDropStartDate, occursOnItineraryDate } from "@/lib/schedule-domain";
+import { allDayDropStartDate, itemScheduleLabel, occursOnItineraryDate } from "@/lib/schedule-domain";
 import { compareScheduleOrder, isTimedItem, itineraryDropPosition } from "@/lib/schedule-order";
 import { typeColor } from "@/lib/type-color";
 import type { TravelObject, Trip } from "@/types/travel";
@@ -27,7 +27,7 @@ function DayCard({ item, order, date, color, selected, primary, onSelect }: { it
 }
 function DragPreview({ item, color }: { item: TravelObject; timezone: string; color: string }) {
   const place = (item.location as { name?: string } | null)?.name;
-  const scheduleLabel = item.isAllDay ? "All day" : isTimedItem(item) ? `${item.startTime}–${item.endTime}` : "Unscheduled time";
+  const scheduleLabel = itemScheduleLabel(item, "Unscheduled time");
   return <article className="w-[280px] overflow-hidden rounded-lg border bg-background text-left shadow-xl" style={{ borderLeft: `4px solid ${color}` }}>{item.headerImage && <img src={item.headerImage} alt="" className="h-28 w-full object-cover" />}<div className="p-3"><p className="flex items-center gap-1.5 text-sm font-medium"><GripVertical size={13} className="shrink-0 text-muted-foreground"/><span className="truncate">{item.title}</span></p><p className="mt-1 pl-5 text-xs text-muted-foreground">{scheduleLabel} · {item.type}</p>{place && <p className="mt-1 flex items-center gap-1 pl-5 text-xs text-muted-foreground"><MapPin size={11}/>{place}</p>}</div></article>;
 }
 export function TripDaysView({ trip, items, typeColors, selectedIds, primarySelectedId, inspectedItemId, onSelect, onSelectForDrag, onMove, onReorder, onCreateItem }: { trip: Trip; items: TravelObject[]; typeColors: Record<string, string>; selectedIds: ReadonlySet<string>; primarySelectedId: string | null; inspectedItemId: string | null; onSelect: (item: TravelObject, additive?: boolean) => void; onSelectForDrag: (item: TravelObject) => void; onMove: (item: TravelObject, date: string) => Promise<void>; onReorder: (item: TravelObject, date: string, order: number, clearTime: boolean) => Promise<void>; onCreateItem: (date: string) => void }) {

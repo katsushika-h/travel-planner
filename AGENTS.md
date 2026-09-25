@@ -14,14 +14,14 @@ Travel Planner is a single-user itinerary app built with Next.js 16, React 19, T
 - `app/`: pages and API route handlers.
 - `components/layout/AppShell.tsx`: active trip, items, selection, editing, and workspace view coordination.
 - `components/views/`, `components/inspector/`, `components/trip/`: workspace views, item editing, and trip/item actions.
-- `lib/api-client.ts`, `lib/api-validation.ts`, `lib/date-utils.ts`, `lib/schedule-domain.ts`, `lib/schedule-order.ts`, `lib/travel-object-compat.ts`: request flow and schedule logic.
+- `lib/api-client.ts`, `lib/api-validation.ts`, `lib/date-utils.ts`, `lib/schedule-domain.ts`, `lib/schedule-order.ts`, `lib/travel-object-serialization.ts`: request flow and schedule logic.
 - `store/use-travel-store.ts`: persisted client UI preferences; `types/travel.ts`: shared browser types.
 - `prisma/schema.prisma`, `prisma/migrations/`: persisted model and migrations.
 - `Dockerfile`, `docker-compose.nas.yml`: app, migrator, and PostgreSQL deployment.
 
 ## Important invariants
 
-- `date`, `endDate`, `startTime`, `endTime`, `placementTime`, and `dayOrder` are the persisted schedule fields. The API computes legacy `startDateTime`, `endDateTime`, and `dayIndex` for compatibility; active UI reads use canonical fields. Remove the legacy fields only in a dedicated API migration after parity checks. `placementTime` is a 15-minute visual position for flexible items, not a confirmed booking time. `dayOrder` behavior still needs review across Calendar and Itinerary.
+- `date`, `endDate`, `startTime`, `endTime`, `placementTime`, and `dayOrder` are the persisted and public API schedule fields. The API rejects removed `startDateTime`, `endDateTime`, and `dayIndex` request keys and omits them from responses; historical migrations and CSV input column labels still mention timestamps. `placementTime` is a 15-minute visual position for flexible items, not a confirmed booking time. Preserve tested `dayOrder` behavior across Calendar and Itinerary.
 - The app has no authentication or per-user trip ownership. Do not assume either exists when changing routes.
 - Map coordinates are extracted from supported Google Maps URLs. Preserve URLs without coordinates; they cannot be plotted. Do not introduce Google API billing unless requested. Keep visible OpenStreetMap attribution and comply with tile/geocoding usage policies.
 - Attachments are stored as PostgreSQL `Bytes`. The repository tracks some `.next` artifacts despite `.gitignore`; avoid including generated output in source changes.

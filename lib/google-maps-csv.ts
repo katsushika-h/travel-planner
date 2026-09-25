@@ -1,5 +1,5 @@
 import { dateParts, shiftDate, zonedDateTimeToUtc } from "./date-utils.ts";
-import { canonicalScheduleFromInstants } from "./travel-object-compat.ts";
+import { canonicalScheduleFromInstants } from "./schedule-domain.ts";
 
 function parseCsv(text: string) {
   const rows: string[][] = []; let row: string[] = []; let field = ""; let quoted = false;

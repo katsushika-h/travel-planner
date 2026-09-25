@@ -22,9 +22,13 @@ After editing code:
 
 Keep each change reviewable. Prefer one pass per commit or pull request when practical.
 
+## Current status (2026-09-25)
+
+Passes 0 through 9 are complete. The separately approved API migration removed legacy schedule request and response fields; [ADR 0002](docs/decisions/0002-canonical-schedule-api.md) and the [release note](docs/work/api-schedule-release-note.md) describe the contract. Historical work-log entries below record the earlier compatibility period. The refactoring effort requires no further pass. The CSV partial-import and narrow Month density follow-ups are addressed in [the product follow-up handoff](docs/work/csv-calendar-followups.md).
+
 ## Current baseline
 
-Baseline captured on 2026-09-22:
+Historical baseline captured on 2026-09-22 (the API compatibility fields below were removed on 2026-09-25):
 
 - Project: Next.js 16, React 19, TypeScript, Tailwind CSS, Zustand, Prisma, PostgreSQL.
 - Active workspace views: Calendar, Kanban, Itinerary, Table, and Map.
@@ -89,7 +93,7 @@ Likely first target: `components/trip/CreateItemDialog.tsx`.
 
 ### Pass 2 — Pure schedule-domain helpers
 
-Status: **In progress — move, grouped move, resize, placement, creation, classification, and Table duration/start helpers extracted; other schedule decisions still inline**
+Status: **Complete — canonical schedule shapes and shared transformations extracted and tested**
 
 Current behavior: Date conversion, duration calculations, schedule-shape decisions, and legacy fallbacks are repeated across multiple components and routes.
 
@@ -99,9 +103,9 @@ Validation: Add or run tests for every schedule shape, timezone/DST boundaries, 
 
 ### Pass 3 — Shared API parsing and serialization
 
-Status: **In progress — shared schedule parsing and compatibility serialization extracted; broader route parity remains**
+Status: **Complete — shared request parsing and compatibility serialization pass HTTP contract parity**
 
-Current behavior: Create and update routes use shared schedule parsing and compatibility serialization. They retain separate non-schedule field validation and persistence logic.
+Current behavior: Create and update routes use shared identity, content, and schedule parsing plus compatibility serialization. They retain separate persistence logic and route-specific validation order.
 
 Structural improvement: Centralize request parsing and travel-object response serialization while preserving route paths, status codes, error behavior, and compatibility fields.
 
@@ -109,7 +113,7 @@ Validation: Contract tests or fixtures for GET, POST, PATCH, DELETE, invalid pay
 
 ### Pass 4 — Schedule ordering service
 
-Status: **In progress — transaction-oriented normalization and reorder extraction complete; broader ordering parity remains**
+Status: **Complete — transaction-oriented writes and required ordering parity validated**
 
 Current behavior: API create, update, reorder, and delete use a shared transaction-oriented order writer. Calendar, Kanban, and Itinerary still choose drop targets and insertion positions in their respective views.
 
@@ -119,35 +123,39 @@ Validation: Database-backed checks for insert, same-day reorder, cross-day reord
 
 ### Pass 5 — AppShell decomposition
 
-Status: **In progress — sorting, trip/item loading, save queue, and selection extracted; view actions remain**
+Status: **Complete — data loading, save queue, selection, and pure schedule actions extracted; AppShell retains view coordination**
 
-Current behavior: Focused hooks own trip/item loading, selection, and optimistic save queues. `AppShell` still coordinates deletes, keyboard shortcuts, scheduling mutations, and view rendering.
+Current behavior: Focused hooks own trip/item loading, selection, and optimistic save queues. `AppShell` coordinates view actions, trip-scoped async mutations, keyboard shortcuts, and rendering.
 
 Structural improvement: Extract focused hooks/services such as trip data loading, travel-object mutation queues, selection state, and pure schedule actions. Preserve existing component-level APIs.
 
 Validation: Manual parity checks for trip switching, selection and multi-selection, inspector opening, debounced edits, delete confirmation, keyboard shortcuts, and save failures.
 
+Completion audit (2026-09-25): Prior disposable-browser checks covered trip switching, selection, inspector, debounced title persistence, bulk delete confirmation, Escape, and failed-save feedback. A fresh disposable browser verified Q and workspace number shortcuts after the extraction. Pure schedule actions, sorting, and shared selection targeting are separated; remaining AppShell handlers depend directly on its trip-scoped state and are intentional coordination. The narrow Calendar header check also exercised the Week-to-Day transition.
+
 ### Pass 6 — Canonical view data boundaries
 
-Status: **In progress — active views and optimistic writes use canonical fields; API compatibility remains**
+Status: **Complete — canonical client and public API boundaries validated**
 
-Current behavior: Active UI surfaces use canonical schedule fields. The API still accepts and emits deprecated compatibility fields; shared response and request types retain them for the separate contract migration.
+Current behavior: Active UI surfaces and the travel-object API use canonical schedule fields. The API rejects removed timestamp/day-index request keys and omits them from responses.
 
-Structural improvement: Migrate consumers to canonical schedule fields and pass explicitly named collections to each view. Keep compatibility fields at the API boundary until all consumers are migrated.
+Structural improvement: Migrate consumers to canonical schedule fields, pass explicitly named collections to each view, and remove the transitional API adapter in an approved contract change.
 
 Validation: Month/week/day Calendar behavior, unscheduled drawer behavior, Table editing, Kanban moves, Itinerary filtering and ordering, and Inspector edits must remain unchanged.
 
-Exit condition: once repository-wide searches confirm that no UI, importer, API client, or internal helper consumes the compatibility fields, remove `startDateTime`, `endDateTime`, and `dayIndex` from shared client types and API responses in a dedicated API-contract change. Do not leave these fields in the normal response shape indefinitely.
+Exit validation: repository-wide search confirms that no active UI or API client consumes compatibility properties. `npm run check`, an isolated webpack build, and database-backed API and ordering fixtures pass with canonical responses and explicit rejection of removed request keys. Historical migrations and CSV input headers retain their original names.
 
 ### Pass 7 — Shared view primitives
 
-Status: **In progress — shared type-color, map-coordinate, and UTF-8 note-limit checks extracted; other primitives remain**
+Status: **Complete — shared display/domain primitives and responsive view parity validated**
 
 Current behavior: Calendar contains several mode-specific behaviors; Day and global Map surfaces independently configure Leaflet; item display logic is repeated.
 
 Structural improvement: Extract shared item cards, schedule labels, type-color helpers, map configuration, and focused mode components without merging distinct user experiences.
 
 Validation: Visual/manual checks across all Calendar modes, global Map filters, marker selection, responsive layouts, and inspector synchronization.
+
+Latest visual check (2026-09-25): A disposable trip with a three-day all-day event, overlapping fixed events, and a flexible item rendered in Month, Week, Day, and global Map at desktop and 390px widths. Week and Day showed all-day cards at the top; Map showed two markers, day filter, and attribution. At 390px, Month cells are small, Week scrolls horizontally, and the sidebar needs collapsing for useful content width. The Calendar header now wraps its controls; after scrolling Week to Friday, switching to Day kept the card aligned and showed Friday's itinerary. Day date navigation scrolls only its itinerary container. The desktop Day header retained a single row. Existing browser checks cover Map filters, marker selection, and inspector synchronization. Day, Itinerary, Kanban, and Calendar cards retain distinct layout and drag behavior, so a single shared card would add conditional complexity; they now share the relevant labels, colors, spans, and map predicates. `npm run check` passed 51 tests, and an isolated webpack production build passed after the header change.
 
 ### Pass 8 — CSV/import decomposition
 
@@ -190,8 +198,7 @@ Before declaring the refactor complete, verify these behaviors:
 
 Do not combine these with ordinary refactoring:
 
-- Removing legacy API request/response fields or changing public route contracts.
-- Removing schedule compatibility fields: after canonical consumers are migrated and parity checks pass, delete `startDateTime`, `endDateTime`, and `dayIndex` from the client types, serializers, response payloads, and legacy request parsing. Treat this as an explicit API migration with updated fixtures and release notes; do not remove the fields during an intermediate structural refactor.
+- Removing legacy API request/response fields or changing public route contracts: completed as the approved 2026-09-25 API migration; see [ADR 0002](docs/decisions/0002-canonical-schedule-api.md) and [release note](docs/work/api-schedule-release-note.md).
 - Rewriting or squashing Prisma migration history.
 - Changing schedule columns, constraints, or attachment storage.
 - Moving attachments from PostgreSQL bytes to object storage.
@@ -201,6 +208,173 @@ Do not combine these with ordinary refactoring:
 - Replacing the current Leaflet/OpenStreetMap or Google Maps integration.
 
 ## Work log
+
+### 2026-09-25 — CSV partial imports and narrow Month layout
+
+- Intent/current behavior: Concurrent CSV creates can partially succeed, but a rejected create hides all successful rows until reload. At narrow widths, seven Month columns shrink beyond readable item titles.
+- Change: Return successful and failed create outcomes together, show successful items immediately, report failed row names and reasons, and add event types only for successful rows. Give the Month grid a 700px minimum width with a shared horizontal scroll area for weekday headings and dates. At narrow widths, show an icon rail that can open as an overlay so the Calendar keeps usable width.
+- Files changed: `lib/google-maps-import.ts`, `components/trip/ImportGoogleMapsCsvButton.tsx`, `components/views/CalendarView.tsx`, `components/layout/AppShell.tsx`, `tests/google-maps-import.test.mjs`, this tracker, `README.md`, and `docs/work/csv-calendar-followups.md`.
+- Validation: `npm run check` passed 51 tests with six existing image warnings; an isolated webpack production build and `git diff --check` passed. A disposable 390px browser check showed aligned weekday/date columns before and after horizontal scrolling, a readable Month header, and a compact expandable sidebar. A three-row CSV with a test-only failure on the middle create displayed two confirmed places immediately and named the failed row; the two places persisted after reload. The API and ordering HTTP fixtures passed against the isolated database.
+- Remaining work: None within these two follow-ups.
+
+### 2026-09-25 — Post-migration PATCH validation audit
+
+- Intent/current behavior: PATCH requires a non-empty event type when `type` is supplied; POST defaults an omitted or null type to `unclassified`.
+- Fix: Restrict the default to creation so PATCH `{ "type": null }` retains its prior 400 response instead of changing the item.
+- Files changed: `lib/api-validation.ts`, identity and API contract fixtures, and this tracker.
+- Validation: `npm run check` passed 51 tests with six existing image warnings; `git diff --check` passed. The API contract fixture was extended but not rerun against a database in this audit.
+- Remaining work: No further refactor pass is identified.
+
+### 2026-09-25 — Approved canonical schedule API migration
+
+- Pass: `Pass 6 — Canonical view data boundaries` and a separately approved public API contract change.
+- Intent/current behavior: Active UI and import paths already use canonical schedule fields, while the API still accepts and emits deprecated timestamp/day-index keys.
+- Structural improvement: Remove the legacy request parser and response adapter; serialize date-only canonical fields, reject removed request keys, and remove them from shared client types. Keep CSV input conversion and historical migrations intact.
+- Files changed: travel-object API routes, `lib/api-schedule.ts`, `lib/api-validation.ts`, `lib/schedule-domain.ts`, `lib/travel-object-serialization.ts`, `types/travel.ts`, API/domain fixtures, agent/architecture/decision/release documentation, and this tracker.
+- Behavior preserved: Canonical GET/POST/PATCH/reorder, day ordering, all-day spans, CSV conversion, attachments, and trip-timezone calculations. The approved breaking change removes `startDateTime`, `endDateTime`, and `dayIndex` from public requests and responses.
+- Validation: `npm run check` passed 51 tests with six existing image warnings; isolated webpack production build passed; all ten migrations applied to a fresh disposable PostgreSQL database; API and ordering HTTP fixtures passed, including rejection and response-shape checks; `git diff --check` passed.
+- Risks or follow-up: External clients using removed keys must update; no schema migration was needed. Historical tracker entries below describe the earlier compatibility period.
+
+### 2026-09-25 — Narrow Calendar navigation and Pass 5 completion audit
+
+- Pass: `Pass 5 — AppShell decomposition` and `Pass 7 — Shared view primitives` responsive parity.
+- Intent/current behavior: A horizontally scrolled Week could leave the Day card offscreen at 390px because the Calendar header kept mode controls in an overflowing row. Day date navigation also used `scrollIntoView`, which may scroll ancestors horizontally.
+- Structural improvement: Wrap header controls within the available width and scroll Day dates through the itinerary container only. Keep trip-scoped view actions in AppShell while its focused hooks and pure schedule helpers own reusable behavior.
+- Files changed: `components/views/CalendarView.tsx`, `components/views/DayJourneyView.tsx`, this tracker, and `docs/work/schedule-refactor.md`.
+- Behavior preserved: Week horizontal scrolling, focused-date transfer to Day, desktop header layout, all-day position, and keyboard view shortcuts.
+- Validation: Disposable PostgreSQL with all ten migrations and a disposable webpack development app; at 390px, selected Friday from a horizontally scrolled Week and switched to Day with Friday visible and the card aligned. At 1280px, the Day header remained one row. Browser Q and workspace number shortcuts switched views. `npm run check` passed 51 tests, and an isolated webpack production build passed after the header change.
+- Risks or follow-up: Narrow Month remains dense and Week requires horizontal scrolling by design. Keep legacy API removal separate.
+
+### 2026-09-25 — Pass 2 schedule-domain audit
+
+- Pass: `Pass 2 — Pure schedule-domain helpers`.
+- Intent/current behavior: Active schedule consumers use canonical fields. Schedule classification, placement, item and group moves, resizing, date spans, Table length/start edits, labels, and compatibility serialization have pure helpers; Inspector input handling and Calendar drop targeting remain view-specific.
+- Structural improvement: Close the domain extraction at the shared behavior boundary instead of moving view-specific interaction code into the domain module.
+- Files changed: `REFACTORING_TRACKER.md` and `docs/work/schedule-refactor.md` only for this audit.
+- Validation: `npm run check` passed 51 tests covering unscheduled, flexible, fixed-time, all-day, multi-day, invalid ranges, timezone/DST edges, duration, and canonical-to-compatibility serialization. The isolated webpack build and the prior disposable-database API fixture passed.
+- Status: Complete. View interaction refinement remains in Pass 5/7; legacy API field removal remains separate.
+
+### 2026-09-25 — Shared visible schedule label
+
+- Pass: `Pass 7 — Shared view primitives`.
+- Intent/current behavior: Day cards, Itinerary drag previews, and Map popups independently label all-day and confirmed-time items. Flexible fallbacks differ by view.
+- Structural improvement: Share the all-day/fixed-time label calculation while letting each view supply its existing flexible fallback and styling.
+- Validation planned: Focused label test, `npm run check`, isolated webpack build, and `git diff --check`.
+- Files changed: `lib/schedule-domain.ts`, `components/views/DayJourneyView.tsx`, `components/views/TripDaysView.tsx`, `components/views/LeafletMap.tsx`, and `tests/schedule-domain.test.mjs`.
+- Result: Day card badges, Itinerary previews, and Map popups share the same all-day/fixed-time text. Flexible items still omit the badge and popup time; the Itinerary preview still says `Unscheduled time`.
+- Validation: `npm run check` passed 51 tests with six existing image warnings; isolated webpack build and `git diff --check` passed.
+- Status: Complete for this extraction; other Pass 7 view primitives remain.
+
+### 2026-09-25 — Remove unreachable additive-selection branch
+
+- Pass: `Pass 5 — AppShell decomposition` cleanup.
+- Intent/current behavior: Additive selection toggles membership and primary selection but does not open the inspector. The hook contains an `inspect && !additive` condition inside the additive-only branch, so that statement is unreachable.
+- Structural improvement: Remove the dead conditional while retaining additive selection and inspector behavior.
+- Validation planned: `npm run check` and `git diff --check`.
+- Files changed: `components/layout/useItemSelection.ts`, `REFACTORING_TRACKER.md`, and `docs/work/schedule-refactor.md`.
+- Result: Additive selection still toggles selected IDs and primary ID without opening the inspector; the unreachable inspector write is gone.
+- Validation: `npm run check` passed 50 tests with six existing image warnings; `git diff --check` passed.
+- Status: Complete for this cleanup; Pass 5 still needs its remaining action and keyboard parity audit.
+
+### 2026-09-25 — Shared selected-item action targets
+
+- Pass: `Pass 5 — AppShell decomposition`.
+- Intent/current behavior: Grouped moves, day moves, unscheduling, and type changes each act on the current selection when the dragged item is selected, or on that item alone otherwise.
+- Structural improvement: Compute that target list once in AppShell and reuse it in the four action paths.
+- Validation planned: `npm run check`, isolated webpack build, and `git diff --check`.
+- Files changed: `components/layout/AppShell.tsx`, `REFACTORING_TRACKER.md`, and `docs/work/schedule-refactor.md`.
+- Result: Four action handlers reuse one selected-or-single target calculation. API calls, mutation order, and view callbacks are unchanged.
+- Validation: `npm run check` passed 50 tests with six existing image warnings; isolated webpack build and `git diff --check` passed.
+- Status: Complete for this extraction; Pass 5 remains open for remaining action ownership and manual parity review.
+
+### 2026-09-25 — Pass 4 ordering-service audit
+
+- Pass: `Pass 4 — Schedule ordering service`.
+- Intent/current behavior: Create, PATCH, reorder, and delete normalize affected start dates through `writeDateOrder`; the reorder route delegates its transaction to `reorderTravelObject`. View-specific drop targets remain in their respective views.
+- Structural improvement: Close the extraction pass after confirming that the shared service owns every persisted order mutation and its required parity cases are covered.
+- Files changed: `REFACTORING_TRACKER.md` and `docs/work/schedule-refactor.md` only for this audit.
+- Validation: The database-backed order fixture passed again with the final Pass 3 build. It covers initial insert, same-day forward/backward insertion, cross-day fixed moves, flexible placement, clear-time drops, multi-day all-day moves and rejections, gap compaction after deletion, and preservation of explicit gaps. The synthetic legacy-schema migration fixture and browser checks across Week, Day, Kanban, and Itinerary are recorded in this tracker and handoff. `npm run check` passed 50 tests, and the isolated webpack build passed.
+- Status: Complete. Remaining UI refinements are view-specific work; the public compatibility-field removal remains a separate API migration.
+
+### 2026-09-25 — Shared title and type request parsing
+
+- Pass: `Pass 3 — Shared API parsing and serialization`.
+- Intent/current behavior: POST requires a title and defaults missing type to `unclassified`; PATCH parses either field only when supplied. The two routes run these checks at different points relative to schedule parsing.
+- Structural improvement: Share the title/type parser while calling it at each route's existing point.
+- Validation planned: Focused parser tests, `npm run check`, isolated webpack build, and `git diff --check`.
+- Files changed: `lib/api-validation.ts`, both travel-object route handlers, and `tests/api-validation.test.mjs`.
+- Result: POST retains required title and default `unclassified` type; PATCH still omits untouched identity fields. Each route invokes the parser at its original point relative to schedule validation.
+- Validation: `npm run check` passed 50 tests with six existing image warnings; isolated webpack build, database-backed API and ordering HTTP fixtures, and `git diff --check` passed.
+- Status: Complete. Pass 3's shared parsing and serialization objectives are satisfied; legacy API field removal remains a separate contract migration.
+
+### 2026-09-25 — Shared travel-object content parsing
+
+- Pass: `Pass 3 — Shared API parsing and serialization`.
+- Intent/current behavior: POST and PATCH separately parse header image, location, cost, notes, and tags. POST supplies creation defaults; PATCH omits untouched fields. POST validates cost and location before looking up the trip, while PATCH checks header image before those fields.
+- Structural improvement: Share the content-field parser with an explicit create/update mode, retaining the route-specific validation sequence and response contract.
+- Validation planned: Focused parser tests, `npm run check`, isolated webpack build, disposable-database HTTP contract fixtures, and `git diff --check`.
+- Files changed: `lib/api-validation.ts`, both travel-object route handlers, `tests/api-validation.test.mjs`, and `tests/api-contract.integration.mjs`.
+- Result: POST still supplies content defaults and checks cost/location before trip lookup; PATCH still omits untouched fields. Null JSON, header URLs, notes, and tags retain their existing validation and error precedence.
+- Validation: Focused parser tests, `npm run check` (49 tests; six existing image warnings), isolated webpack build, and database-backed API and ordering HTTP fixtures passed. `git diff --check` passed. The first HTTP attempt hit an unrelated PostgreSQL listener on the IPv4 port; the isolated app's IPv6 listener passed both fixtures.
+- Status: Complete for this extraction; broader Pass 3 request and response boundaries remain.
+- Next recommended pass: Review remaining route parsing and serialization, then assess Pass 4 ordering and Pass 5 AppShell parity. Keep compatibility-field removal as a separate API migration.
+
+### 2026-09-25 — Pure item-move schedule patch
+
+- Pass: `Pass 2 — Pure schedule-domain helpers` and `Pass 5 — AppShell decomposition`.
+- Intent/current behavior: AppShell classifies all-day, flexible/undated, and fixed items before applying immediate move patches. All-day moves preserve the span, flexible placement retains its visual time, and fixed moves preserve duration.
+- Structural improvement: Build the canonical move patch in `lib/schedule-domain.ts`; AppShell only queues the result.
+- Validation planned: Focused schedule-shape tests, `npm run check`, and `git diff --check`.
+- Files changed: `lib/schedule-domain.ts`, `components/layout/AppShell.tsx`, and `tests/schedule-domain.test.mjs`.
+- Result: AppShell now queues the pure patch. All-day spans, flexible placement, and fixed-time duration retain their existing fields and defaults.
+- Validation: `npm run check` passed 47 tests with six existing image warnings; a fresh isolated webpack production build and `git diff --check` passed. The database-backed HTTP fixtures preceded this extraction and were not rerun for it.
+- Status: Complete for this extraction; broader Pass 2 and Pass 5 work remains.
+
+### 2026-09-25 — One AppShell item-creation path
+
+- Pass: `Pass 5 — AppShell decomposition`.
+- Intent/current behavior: Undated, flexible, and fixed-time creation each build the same base request and repeat selection, list insertion, error handling, and active-trip guards. Flexible creation alone may reorder into a requested day gap.
+- Structural improvement: Compute the schedule-specific fields once, then use a single create, optional reorder, insertion, and selection path.
+- Validation planned: `npm run check`, isolated webpack build, and `git diff --check`; retain an HTTP/browser follow-up if a local server is available.
+- Files changed: `components/layout/AppShell.tsx`.
+- Result: Undated, flexible, and fixed creation retain their distinct schedule defaults; flexible gap insertion still reorders before selection. Creation, trip-switch guards, insertion, selection, and error handling now share one path.
+- Validation: `npm run check` passed 46 tests with six existing image warnings. An isolated webpack production build, the database-backed API and ordering HTTP fixtures, and `git diff --check` passed.
+- Status: Complete for this extraction; broader Pass 5 view actions remain.
+- Next recommended pass: Review remaining AppShell mutation paths and Pass 3 field parsing. Keep the public compatibility-field removal as a separately approved API contract change.
+
+### 2026-09-25 — Shared canonical date span
+
+- Pass: `Pass 2 — Pure schedule-domain helpers` and `Pass 7 — Shared view primitives`.
+- Intent/current behavior: Calendar and Day each slice canonical date fields to form an inclusive visible date span. A missing end date means a one-day span; an undated item has no span.
+- Structural improvement: Share the pure date-span projection while leaving each view's existing item inclusion rules intact.
+- Validation planned: Focused span fixture, `npm run check`, and `git diff --check`.
+- Files changed: `lib/schedule-domain.ts`, `components/views/CalendarView.tsx`, `components/views/DayJourneyView.tsx`, and `tests/schedule-domain.test.mjs`.
+- Result: Both views use the same canonical inclusive span projection. Calendar's span placement and Day's inclusion rule remain separate.
+- Validation: `npm run check` passed 46 tests with six existing image warnings; the isolated webpack build, database-backed API and ordering HTTP fixtures, and `git diff --check` passed.
+- Status: Complete for this extraction; broader Pass 2 and Pass 7 work remains.
+
+### 2026-09-25 — Shared optional JSON field parsing
+
+- Pass: `Pass 3 — Shared API parsing and serialization`.
+- Intent/current behavior: Travel-object POST and PATCH each convert nullable JSON fields to Prisma JSON null and reject non-object values. Their errors differ slightly for omitted versus explicit null values.
+- Structural improvement: Move the common conversion into API validation with an explicit create/update option, retaining both routes' current responses.
+- Validation planned: API validation checks, `npm run check`, `git diff --check`, and the isolated HTTP contract fixture if a disposable database is available.
+- Files changed: `lib/api-validation.ts`, `app/api/travel-objects/route.ts`, and `app/api/travel-objects/[objectId]/route.ts`.
+- Result: POST still allows omitted location/cost and retains its non-object error; PATCH still accepts explicit null and retains its non-object error. Both use the same Prisma JSON-null conversion.
+- Validation: `npm run check` passed 46 tests with six existing image warnings; the isolated webpack build, database-backed API and ordering HTTP fixtures, and `git diff --check` passed.
+- Status: Complete for this extraction; broader Pass 3 route parity remains.
+
+### 2026-09-25 — Day drop constraints and Week overlap presentation
+
+- Pass: `Pass 4 — Schedule ordering service` and `Pass 7 — Shared view primitives` behavior fixes.
+- Intent/current behavior: Day currently accepts timed items dragged ahead of earlier timed items and flexible items dropped between overlapping timed items. Week timed overlaps share the same left edge and arbitrary paint order; flexible groups require a click to open.
+- Files changed: `lib/schedule-order.ts`, `components/views/CalendarView.tsx`, `tests/schedule-order.test.mjs`, `REFACTORING_TRACKER.md`, and `docs/work/schedule-refactor.md`.
+- Structural improvement: Validate Day drops before calling the reorder route, layer overlapping Week cards with visible color bars, and expand Week flexible groups on hover.
+- Behavior preserved: Valid Day gap moves still use the reorder route; overlapping fixed-time events remain visible and draggable in Week; the flexible group remains clickable and keyboard focusable.
+- Validation run: Focused pure tests, disposable browser interaction and visual checks, `npm run check` (45 passing tests), `git diff --check`, Linux AMD64 Docker app production build, and Docker Hub manifest inspection for app and migrator.
+- Results: Day rejected a 10:30 item before a 09:00 item and rejected a flexible item between 09:00–12:00 and 10:00–11:00; API readback retained the original order. A flexible item moved successfully before the timed group. Week showed three distinct left color bars for overlapping cards, and its flexible group opened on hover and closed on pointer leave. The disposable app and database were removed.
+- Delivery: Pushed `hokusaik/travel-planner-app:latest` at `sha256:507c412ad9af3f6dc1b1f4dfcbc03db5eddcaafa6f1afac2b881828ca47ba473` and `hokusaik/travel-planner-migrator:latest` at `sha256:0d9368b8907a2a3b8013f26464feb3e4fc38dacf78f2468ebb76d4bde7de18ad`. Both published manifests contain `linux/amd64`; no migration files changed.
+- Next recommended pass: Continue the broader refactor parity work.
 
 ### 2026-09-25 — Keep late action errors with their source trip
 

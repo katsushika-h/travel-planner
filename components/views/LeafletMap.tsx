@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import L, { type Map as LeafletMapInstance, type Marker } from "leaflet";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
+import { itemScheduleLabel } from "@/lib/schedule-domain";
 import { defaultTypeColor, typeColor } from "@/lib/type-color";
 import type { TravelObject, Trip } from "@/types/travel";
 
@@ -31,7 +32,7 @@ function popupContent(item: TravelObject, number?: number) {
   const details = document.createElement("div");
   details.style.margin = "4px 0 8px";
   details.style.color = "#57534e";
-  const fixedTime = item.startTime && item.endTime && !item.isAllDay ? `${item.startTime}–${item.endTime}` : item.isAllDay ? "All day" : null;
+  const fixedTime = itemScheduleLabel(item);
   details.textContent = [item.type, item.location?.name ?? item.location?.address, fixedTime].filter(Boolean).join(" · ");
   content.appendChild(details);
   const action = document.createElement("button");

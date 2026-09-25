@@ -21,7 +21,6 @@ export function useItemSelection() {
       const next = new Set(current);
       if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
       setPrimarySelectedId((primary) => next.has(item.id) ? item.id : primary === item.id ? next.values().next().value ?? null : primary);
-      if (inspect && !additive) setInspectedItemId(next.has(item.id) ? item.id : next.values().next().value ?? null);
       return next;
     });
   }

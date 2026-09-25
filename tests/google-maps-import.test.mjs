@@ -20,7 +20,7 @@ test("CSV import keeps resolved and unresolved Maps links through object creatio
   try {
     const csv = "Title,Note,URL,Category,Date,End Date\nResolved,ok,https://maps.example/resolved,Food,2026-09-24,2026-09-25\nNo coordinates,ok,https://maps.example/without,New Type,2026-09-25,\nResolver failed,ok,https://maps.example/failed,Food,invalid,\n";
     const result = await importGoogleMapsCsv(csv, { id: "trip-1", timezone: "Asia/Singapore" }, ["food"], (complete, total) => progress.push([complete, total]));
-    assert.deepEqual([result.created.length, result.unresolvedCount, result.invalidDates, result.skipped], [3, 2, 1, 0]);
+    assert.deepEqual([result.created.length, result.failed.length, result.unresolvedCount, result.invalidDates, result.skipped], [3, 0, 2, 1, 0]);
     assert.deepEqual(result.newTypes, ["New Type"]);
     assert.deepEqual(progress, [[0, 3], [1, 3], [2, 3], [3, 3]]);
     assert.deepEqual(created.map(({ type, location }) => [type, location.googleMapsUrl, location.lat ?? null, location.lng ?? null]), [
@@ -36,7 +36,7 @@ test("CSV import keeps resolved and unresolved Maps links through object creatio
   }
 });
 
-test("CSV import reports a create failure after other rows were created", async () => {
+test("CSV import returns successes and failed rows together", async () => {
   const originalFetch = globalThis.fetch;
   const createdTitles = [];
   globalThis.fetch = async (url, init) => {
@@ -49,12 +49,12 @@ test("CSV import reports a create failure after other rows were created", async 
   };
 
   try {
-    const csv = "Title,Note,URL\nFirst,note,https://maps.example/first\nSecond,note,https://maps.example/second\nThird,note,https://maps.example/third\n";
-    await assert.rejects(
-      importGoogleMapsCsv(csv, { id: "trip-1", timezone: "Asia/Singapore" }, [], () => {}),
-      /Create failed/,
-    );
+    const csv = "Title,Note,URL,Category\nFirst,note,https://maps.example/first,Food\nSecond,note,https://maps.example/second,Failed Type\nThird,note,https://maps.example/third,Food\n";
+    const result = await importGoogleMapsCsv(csv, { id: "trip-1", timezone: "Asia/Singapore" }, [], () => {});
     assert.deepEqual(createdTitles, ["First", "Third"]);
+    assert.deepEqual(result.created.map((item) => item.title), ["First", "Third"]);
+    assert.deepEqual(result.failed, [{ title: "Second", reason: "Create failed" }]);
+    assert.deepEqual(result.newTypes, ["Food"]);
   } finally {
     globalThis.fetch = originalFetch;
   }
