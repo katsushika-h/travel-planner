@@ -1,32 +1,26 @@
-# Expense management implementation plan
+# Expense management
 
-**Status:** Planned; scope pending confirmation.
+**Status:** Complete (2026-09-28).
 
-**Goal:** Record actual trip spending and see where it went, while preserving itinerary item `cost` as a planned estimate.
+**Goal:** Track actual trip spending independently of planned itinerary-item costs.
 
-**Scope:** A trip-level Expenses view with create, edit, delete, filtering, and totals. Expenses can optionally link to an itinerary item. No currency conversion, shared payments, or receipt uploads in the first release.
+**Scope:** A trip-level Expenses view with create, edit, delete, search, category/currency filters, sorting, optional itinerary-item links, and per-currency/category summaries. Budget targets, exchange rates, split payments, refunds, and receipt uploads are outside this release.
 
-## Proposed behavior
+## Checklist
 
-- Each expense has a description, date, amount, currency, category, optional notes, and optional linked itinerary item. Dates may fall outside the trip range for advance bookings.
-- Show total actual spending by currency and category. Show the existing itinerary cost totals separately as planned amounts; never add planned and actual figures together.
-- Default a new expense to the trip currency. Display separate totals for each currency; do not imply that mixed-currency values are directly comparable.
-- Start with accommodation, transport, food, activities, shopping, and other categories. Do not backfill expenses from item costs: those values do not establish that money was spent.
-- Deleting an itinerary item leaves its expenses in place and clears their link. Deleting a trip deletes its expenses.
-- The Expenses view remains trip-specific and handles empty, loading, save-error, and delete-confirmation states.
+- [x] Add the `Expense` Prisma model and migration with trip cascade deletion, optional item link with `SetNull`, date-only storage, indexes, and precise decimal amount.
+- [x] Validate and serialize decimal-string amounts, dates, currency, category, notes, and same-trip item links in the expense API.
+- [x] Add trip-scoped list/create and expense-ID read/update/delete routes, client calls, and a trip-keyed view whose pending load cannot replace another trip's data.
+- [x] Add a responsive Expenses workspace tab, entry form, list controls, summaries, error states, and delete confirmation.
+- [x] Keep planned item costs separate, with no backfill or cross-currency conversion. Record the contract in [ADR 0003](../decisions/0003-expense-records.md).
+- [x] Add unit tests and an HTTP integration fixture; apply the full migration chain and manually check create, edit, reload, filtering, and trip switching in the browser.
 
-## Executable checklist
+**Current state:** Actual expenses are persisted as `Decimal(13,3)` and exposed as strings with three fractional digits. The view groups actual totals by currency and category; planned costs come from all itinerary items and appear in a separate card. Expense dates may precede the trip for advance bookings. Deleting a linked item retains the expense and clears its link.
 
-- [ ] Confirm the first-release scope: actual expenses plus existing planned costs, actual expenses only, or full budgeting.
-- [ ] Add an `Expense` Prisma model and migration with trip cascade deletion, optional travel-object link with `SetNull`, date-only storage, indexed trip/date queries, and a precise decimal amount. Add an ADR if the amount representation or accounting semantics become a durable cross-feature contract.
-- [ ] Add shared expense request/response types and validation. Accept a decimal string for amount and return it as a string to avoid floating-point rounding; validate sign, precision, currency, category, date, and linked item belonging to the active trip.
-- [ ] Add trip-scoped list/create routes and expense-ID read/update/delete routes. Return consistent 400/404 errors and date-only API values. Keep database writes authoritative; do not use persisted Zustand state for expenses.
-- [ ] Extend `lib/api-client.ts` and add a trip-keyed expense loading/mutation hook so a pending response from a previous trip cannot overwrite the active trip's data.
-- [ ] Add an Expenses workspace tab and a focused view with summary, entry form, sortable/filterable list, editing, and deletion. Reuse existing dialog/input patterns and support narrow screens.
-- [ ] Add pure aggregation and formatting helpers for per-currency totals and category breakdowns. Keep planned item costs visually distinct from actual expenses and follow Table's existing per-currency grouping without inheriting its filtered-visible total.
-- [ ] Add behavioral tests for amount precision, currency grouping, filters, linked-item validation, trip isolation, deletion behavior, and API CRUD. Verify a fresh migration and a manual browser flow across two trips.
-- [ ] Run `npm run check`, `npx next build --webpack`, and `git diff --check`; record only checks actually run. Do not build or push Docker images unless deployment is requested.
+**Findings:** `TravelObject.cost` cannot be treated as a payment record. The existing Table total is filtered to visible items, so the Expenses view calculates whole-trip planned costs independently. This release uses the recommended first-release scope from the plan when implementation was requested.
 
-**Current state:** `Trip.defaultCurrency` exists; itinerary objects have a nullable JSON `cost` with numeric amount/currency; Table shows filtered cost totals by currency. There is no Expense table, expense API, or expense view. Current uncommitted ICS export/import changes are unrelated and must be preserved.
+**Verification:** `npx prisma validate`, `npx prisma generate`, `npm run check` (60 tests; six existing image warnings), `npx next build --webpack`, and `git diff --check` passed. All 11 migrations applied to a disposable PostgreSQL database. `API_BASE_URL=http://127.0.0.1:<port> node tests/expense-contract.integration.mjs` passed against that database and the production build. In a disposable browser trip, expense creation, editing, reload persistence, search filtering, and switching to an empty second trip and back behaved as expected. A narrow viewport was not browser-tested.
 
-**Remaining work / next step:** Confirm scope, then implement the data model and API before the workspace view. Update this handoff after each completed pass.
+**Docker delivery (2026-09-28):** Built and pushed `hokusaik/travel-planner-app:latest` (digest `sha256:57381e4650e8fde06d9ec40d7f305f3812056645ca4fbddd167804a75f27bd39`) and `hokusaik/travel-planner-migrator:latest` (digest `sha256:8d38e81d431e94affd0977c0e42889889b8050962e37e45cfbca906f1356b5c4`). Local image inspection and remote `docker buildx imagetools inspect` confirmed `linux/amd64` for both. The existing “MacOS Test Trip” had 28 items with empty costs; random SGD costs between 10 and 500 were saved on exactly 14 items. No NAS deployment was performed.
+
+**Remaining work / next step:** None for this release. If budgeting or refunds are requested, define their accounting rules before extending the model.

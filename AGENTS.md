@@ -2,7 +2,7 @@
 
 Paths in this guide are relative to the repository root unless stated otherwise.
 
-Travel Planner is a single-user itinerary app built with Next.js 16, React 19, TypeScript, Tailwind CSS, Zustand, Prisma, and PostgreSQL. The current workspace has Calendar, Kanban, Itinerary, Table, and Map views. Treat current code as the source of truth; `docs/README.md` is an older product specification, and `docs/HANDOFF_REPORT.md` records historical work.
+Travel Planner is a single-user itinerary app built with Next.js 16, React 19, TypeScript, Tailwind CSS, Zustand, Prisma, and PostgreSQL. The current workspace has Calendar, Kanban, Itinerary, Table, Map, and Expenses views. Treat current code as the source of truth; `docs/README.md` is an older product specification, and `docs/HANDOFF_REPORT.md` records historical work.
 
 ## Start a task
 
@@ -27,6 +27,7 @@ Travel Planner is a single-user itinerary app built with Next.js 16, React 19, T
 - The app has no authentication or per-user trip ownership. Do not assume either exists when changing routes.
 - Map coordinates are extracted from supported Google Maps URLs. Preserve URLs without coordinates; they cannot be plotted. Do not introduce Google API billing unless requested. Keep visible OpenStreetMap attribution and comply with tile/geocoding usage policies.
 - Attachments are stored as PostgreSQL `Bytes`. The repository tracks some `.next` artifacts despite `.gitignore`; avoid including generated output in source changes.
+- Actual `Expense` records are separate from planned itinerary-item `cost` values. Expense API amounts are decimal strings; group totals by currency without conversion or double-counting planned costs.
 
 ## Commands and deployment
 

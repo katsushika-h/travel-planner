@@ -7,37 +7,39 @@ datasource db {
 }
 
 model Trip {
-  id            String         @id @default(uuid())
-  title         String
-  startDate     DateTime
-  endDate       DateTime
-  timezone      String
-  defaultCurrency String @default("USD")
-  createdAt     DateTime       @default(now())
-  travelObjects TravelObject[]
+  id              String         @id @default(uuid())
+  title           String
+  startDate       DateTime
+  endDate         DateTime
+  timezone        String
+  defaultCurrency String         @default("USD")
+  createdAt       DateTime       @default(now())
+  travelObjects   TravelObject[]
+  expenses        Expense[]
 }
 
 model TravelObject {
-  id            String   @id @default(uuid())
+  id            String             @id @default(uuid())
   tripId        String
-  trip          Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip          Trip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
   title         String
-  type          String   @default("activity")
-  date          DateTime? @db.Date
-  endDate       DateTime? @db.Date
+  type          String             @default("activity")
+  date          DateTime?          @db.Date
+  endDate       DateTime?          @db.Date
   startTime     String?
   endTime       String?
   placementTime String?
   dayOrder      Int?
-  isAllDay      Boolean  @default(false)
+  isAllDay      Boolean            @default(false)
   headerImage   String?
   location      Json?
   cost          Json?
   notes         String?
-  tags          String[] @default([])
+  tags          String[]           @default([])
   attachments   TravelAttachment[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  expenses      Expense[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   @@index([tripId, date, endDate, startTime])
   @@index([tripId, date, placementTime, dayOrder])
@@ -45,15 +47,35 @@ model TravelObject {
   @@index([tripId, type])
 }
 
+model Expense {
+  id             String        @id @default(uuid())
+  tripId         String
+  trip           Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  travelObjectId String?
+  travelObject   TravelObject? @relation(fields: [travelObjectId], references: [id], onDelete: SetNull)
+  description    String
+  date           DateTime      @db.Date
+  amount         Decimal       @db.Decimal(13, 3)
+  currency       String
+  category       String
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([tripId, date])
+  @@index([tripId, category])
+  @@index([travelObjectId])
+}
+
 model TravelAttachment {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   travelObjectId String
   travelObject   TravelObject @relation(fields: [travelObjectId], references: [id], onDelete: Cascade)
   fileName       String
   contentType    String
   size           Int
   data           Bytes
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
 
   @@index([travelObjectId, createdAt])
 }

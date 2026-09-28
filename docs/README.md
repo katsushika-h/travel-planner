@@ -1,12 +1,13 @@
 # Travel Planner
 
-Travel Planner is a single-user itinerary app for organizing trips across Calendar, Kanban, Itinerary, Table, and Map views. It runs on Next.js 16, React 19, TypeScript, Tailwind CSS, Prisma, and PostgreSQL. There is no login or per-user trip ownership.
+Travel Planner is a single-user itinerary app for organizing trips across Calendar, Kanban, Itinerary, Table, Map, and Expenses views. It runs on Next.js 16, React 19, TypeScript, Tailwind CSS, Prisma, and PostgreSQL. There is no login or per-user trip ownership.
 
 ## What it does
 
 - **Calendar:** Month, Week, and Day modes. Month shows a date grid; Week shows timed events, flexible items, and overlapping events; Day combines the itinerary with a map. All-day events appear above timed content in Week and Day and retain their multi-day span when moved. On narrow screens, Month scrolls sideways so day cells remain readable, and the sidebar becomes a compact icon rail that can expand over the workspace.
 - **Kanban, Itinerary, and Table:** Organize by event type, arrange visit order, and edit item details, dates, times, and lengths. All-day length is an inclusive count of calendar days.
 - **Ideas and inspector:** Keep items unscheduled, drag them onto a date, or return them to Ideas. Select an item to edit notes, tags, cost, location, header image URL, and attachments. Header images use remote HTTP(S) URLs; attachment bytes are stored in PostgreSQL, with a 20 MB upload limit.
+- **Expenses:** Record actual trip spending by date, category, and currency, optionally linked to an itinerary item. The Expenses view shows actual totals and planned item costs separately. Amounts are exact decimal strings in the expense API; totals are never converted between currencies.
 - **Maps and CSV import:** Plot items with coordinates on a Leaflet/OpenStreetMap map. Google Maps links without extractable coordinates stay saved but do not appear as markers. Google Maps saved-list CSV import converts recognized date/time columns to the app's schedule fields. If some rows fail to create, confirmed successes appear immediately and the UI names rows whose result could not be confirmed; check the trip before retrying them.
 
 ## Schedule model
@@ -22,7 +23,7 @@ The travel-object API uses these canonical fields. It rejects the removed `start
 3. Run `npx prisma migrate deploy` against the configured database.
 4. Run `npm run dev` and open the URL printed by Next.js.
 
-`npm run check` runs lint, TypeScript checking, and Node tests. `npx next build --webpack` verifies the production build used by the Dockerfile. The database-backed API and ordering fixtures require an isolated migrated database and a running app; see [the refactor handoff](work/schedule-refactor.md) for their commands.
+`npm run check` runs lint, TypeScript checking, and Node tests. `npx next build --webpack` verifies the production build used by the Dockerfile. The database-backed API, ordering, and expense fixtures require an isolated migrated database and a running app; see [the refactor handoff](work/schedule-refactor.md) and [expense handoff](work/expense-management.md) for their commands.
 
 ## Deployment and project notes
 

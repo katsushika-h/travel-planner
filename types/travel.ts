@@ -24,6 +24,26 @@ export interface CostData {
   currency: string;
 }
 
+export type ExpenseCategory = "accommodation" | "transport" | "food" | "activities" | "shopping" | "other";
+
+export interface Expense {
+  id: string;
+  tripId: string;
+  travelObjectId: string | null;
+  description: string;
+  date: string;
+  /** Exact decimal string with three fractional digits. */
+  amount: string;
+  currency: string;
+  category: ExpenseCategory;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateExpenseInput = Pick<Expense, "description" | "date" | "amount" | "currency" | "category" | "notes" | "travelObjectId">;
+export type UpdateExpenseInput = Partial<CreateExpenseInput>;
+
 export interface TravelAttachment {
   id: string;
   fileName: string;

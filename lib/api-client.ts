@@ -1,4 +1,4 @@
-import type { CreateTravelObjectInput, TravelAttachment, TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
+import type { CreateExpenseInput, CreateTravelObjectInput, Expense, TravelAttachment, TravelObject, Trip, UpdateExpenseInput, UpdateTravelObjectInput } from "@/types/travel";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   let response: Response;
@@ -30,6 +30,14 @@ export const api = {
     request<Trip>(`/api/trips/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }),
   objects: (tripId: string) =>
     request<TravelObject[]>(`/api/travel-objects?tripId=${encodeURIComponent(tripId)}`),
+  expenses: (tripId: string) =>
+    request<Expense[]>(`/api/trips/${encodeURIComponent(tripId)}/expenses`),
+  createExpense: (tripId: string, data: CreateExpenseInput) =>
+    request<Expense>(`/api/trips/${encodeURIComponent(tripId)}/expenses`, { method: "POST", body: JSON.stringify(data) }),
+  updateExpense: (id: string, data: UpdateExpenseInput) =>
+    request<Expense>(`/api/expenses/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteExpense: (id: string) =>
+    request<void>(`/api/expenses/${encodeURIComponent(id)}`, { method: "DELETE" }),
   createObject: (data: CreateTravelObjectInput) =>
     request<TravelObject>("/api/travel-objects", { method: "POST", body: JSON.stringify(data) }),
   updateObject: (id: string, data: UpdateTravelObjectInput) =>
