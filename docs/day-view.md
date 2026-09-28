@@ -5,7 +5,7 @@ First off, remove the Flexible plan UI from the top of the week tab and page tab
 ### Day View
 - Rather than a truncated version of the week view, the day view will be a full-width view that shows all items for the day in a scrollable list.
 - The list will be similar to the itinerary page, but with more detailed information about each event.
-- A good reference will be Wanderlog, which has a similar day view. I have included a reference in wanderlog.jpg. Refer to it.
+- A good reference will be Wanderlog, which has a similar day view. See the [Wanderlog reference](images/wanderlog.jpg).
 - The important parts to replicate is the numbered list of places to visit. 
   - Replicate it with the same visual design as the rest of the app.
 - As well as the lack of fixed timing grid.

@@ -13,7 +13,7 @@ Travel Planner is a single-user itinerary app for organizing trips across Calend
 
 An item has a `date` and `endDate` range, optional confirmed `startTime` and `endTime`, optional flexible `placementTime`, `dayOrder`, and `isAllDay`. `placementTime` is a 15-minute visual position, not a confirmed booking time. Unscheduled ideas have no date. The trip's IANA timezone is used for date/time calculations.
 
-The travel-object API uses these canonical fields. It rejects the removed `startDateTime`, `endDateTime`, and `dayIndex` request keys and omits them from responses. Google Maps CSV input can still contain combined date/time columns; the importer converts them before creation. See [the API migration note](docs/work/api-schedule-release-note.md) and [schedule decisions](docs/decisions/0001-canonical-schedule-fields.md).
+The travel-object API uses these canonical fields. It rejects the removed `startDateTime`, `endDateTime`, and `dayIndex` request keys and omits them from responses. Google Maps CSV input can still contain combined date/time columns; the importer converts them before creation. See [the API migration note](work/api-schedule-release-note.md) and [schedule decisions](decisions/0001-canonical-schedule-fields.md).
 
 ## Local development
 
@@ -22,8 +22,8 @@ The travel-object API uses these canonical fields. It rejects the removed `start
 3. Run `npx prisma migrate deploy` against the configured database.
 4. Run `npm run dev` and open the URL printed by Next.js.
 
-`npm run check` runs lint, TypeScript checking, and Node tests. `npx next build --webpack` verifies the production build used by the Dockerfile. The database-backed API and ordering fixtures require an isolated migrated database and a running app; see [the refactor handoff](docs/work/schedule-refactor.md) for their commands.
+`npm run check` runs lint, TypeScript checking, and Node tests. `npx next build --webpack` verifies the production build used by the Dockerfile. The database-backed API and ordering fixtures require an isolated migrated database and a running app; see [the refactor handoff](work/schedule-refactor.md) for their commands.
 
 ## Deployment and project notes
 
-`Dockerfile` contains separate app and migrator stages. `docker-compose.nas.yml` runs PostgreSQL, the one-shot migrator, and the app. Deployment targets Linux AMD64; see [AGENTS.md](AGENTS.md) for image build and push rules. This README describes the current app. The [original v3 POC specification](docs/archive/original-spec-v3.md) is retained for historical context; [architecture](docs/architecture.md), [feature ideas](FEATURES.md), and the [refactoring tracker](REFACTORING_TRACKER.md) provide further detail.
+`Dockerfile` contains separate app and migrator stages. `docker-compose.nas.yml` runs PostgreSQL, the one-shot migrator, and the app. Deployment targets Linux AMD64; see [AGENTS.md](../AGENTS.md) for image build and push rules. This README describes the current app. The [original v3 POC specification](archive/original-spec-v3.md) is retained for historical context; [architecture](architecture.md), [feature ideas](FEATURES.md), and the [refactoring tracker](REFACTORING_TRACKER.md) provide further detail.

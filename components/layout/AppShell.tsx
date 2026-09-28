@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CreateTripDialog } from "@/components/trip/CreateTripDialog";
 import { DeleteTripButton } from "@/components/trip/DeleteTripButton";
 import { EditTripDialog } from "@/components/trip/EditTripDialog";
+import { ExportIcsButton } from "@/components/trip/ExportIcsButton";
 import { ImportGoogleMapsCsvButton } from "@/components/trip/ImportGoogleMapsCsvButton";
 import { ObjectInspectorPanel } from "@/components/inspector/ObjectInspectorPanel";
 import { CalendarView } from "@/components/views/CalendarView";
@@ -227,6 +228,7 @@ export function AppShell() {
       <div className={`mt-auto border-t p-3 ${sidebarCollapsed ? "px-2" : ""}`}>
         <div className="mb-2 space-y-1 border-b pb-2">
           {activeTrip && <ImportGoogleMapsCsvButton compact={sidebarCollapsed} trip={activeTrip} eventTypes={eventTypes} onAddType={(type) => addEventType(activeTrip.id, type)} onImported={(imported) => { if (activeTripKeyRef.current === activeTrip.id) setItems((current) => sortTravelObjects([...current, ...imported])); }} onError={(message) => { if (activeTripKeyRef.current === activeTrip.id) setError(message); }} />}
+          {activeTrip && itemsTripId === activeTrip.id && <ExportIcsButton compact={sidebarCollapsed} trip={activeTrip} items={items} />}
           <Button type="button" variant="ghost" size={sidebarCollapsed ? "icon" : "sm"} className={sidebarCollapsed ? "mx-auto flex" : "w-full justify-start"} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={sidebarCollapsed ? theme === "dark" ? "Switch to light mode" : "Switch to dark mode" : undefined} onClick={toggleTheme}>{theme === "dark" ? <Sun /> : <Moon />}{!sidebarCollapsed && (theme === "dark" ? "Light mode" : "Dark mode")}</Button>
         </div>
         <div className={`flex items-center gap-1 rounded-lg p-2 ${sidebarCollapsed ? "justify-center" : ""}`}><div className="grid size-8 shrink-0 place-items-center rounded-full bg-orange-100 text-xs font-semibold text-orange-800">{activeTrip?.title.slice(0, 1).toUpperCase() ?? "T"}</div>{!sidebarCollapsed && <span className="min-w-0 flex-1 truncate text-xs font-medium">{tripLabel}</span>}{activeTrip && <DeleteTripButton trip={activeTrip} compact onDeleted={() => onTripDeleted(activeTrip.id)} onError={(message) => { if (activeTripKeyRef.current === activeTrip.id) setError(message); }} />}</div>

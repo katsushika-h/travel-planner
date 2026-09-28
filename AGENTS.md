@@ -1,12 +1,14 @@
 # Travel Planner agent guide
 
-Travel Planner is a single-user itinerary app built with Next.js 16, React 19, TypeScript, Tailwind CSS, Zustand, Prisma, and PostgreSQL. The current workspace has Calendar, Kanban, Itinerary, Table, and Map views. Treat current code as the source of truth; `README.md` is an older product specification, and `HANDOFF_REPORT.md` records historical work.
+Paths in this guide are relative to the repository root unless stated otherwise.
+
+Travel Planner is a single-user itinerary app built with Next.js 16, React 19, TypeScript, Tailwind CSS, Zustand, Prisma, and PostgreSQL. The current workspace has Calendar, Kanban, Itinerary, Table, and Map views. Treat current code as the source of truth; `docs/README.md` is an older product specification, and `docs/HANDOFF_REPORT.md` records historical work.
 
 ## Start a task
 
 - Inspect `git status` and preserve unrelated changes. Never reset or discard them without an explicit request.
 - Read this file, then search only relevant implementation, tests, and documentation. Check applicable records in `docs/decisions/` and overlapping work in `docs/work/` before substantial changes.
-- Read `docs/architecture.md` only when architectural context is needed. Read `FEATURES.md` for backlog work, `README.md` for original product intent, and `HANDOFF_REPORT.md` for historical context only when relevant.
+- Read `docs/architecture.md` only when architectural context is needed. Read `docs/FEATURES.md` for backlog work, `docs/README.md` for original product intent, and `docs/HANDOFF_REPORT.md` for historical context only when relevant.
 - Prefer the smallest coherent change. Preserve behavior unless the task changes it; reuse existing patterns, avoid unrelated edits and one-use abstractions, and avoid unnecessary API, schema, or persisted-format changes. Add or update behavioral tests when behavior changes and a practical test seam exists.
 
 ## Code map
@@ -38,8 +40,8 @@ For substantial multi-step work, create or update one concise handoff in `docs/w
 
 # This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in the repository root's `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+This block is written and re-added by `next dev` — verify at the repository root's `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->

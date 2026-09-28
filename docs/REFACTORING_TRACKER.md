@@ -24,7 +24,7 @@ Keep each change reviewable. Prefer one pass per commit or pull request when pra
 
 ## Current status (2026-09-25)
 
-Passes 0 through 9 are complete. The separately approved API migration removed legacy schedule request and response fields; [ADR 0002](docs/decisions/0002-canonical-schedule-api.md) and the [release note](docs/work/api-schedule-release-note.md) describe the contract. Historical work-log entries below record the earlier compatibility period. The refactoring effort requires no further pass. The CSV partial-import and narrow Month density follow-ups are addressed in [the product follow-up handoff](docs/work/csv-calendar-followups.md).
+Passes 0 through 9 are complete. The separately approved API migration removed legacy schedule request and response fields; [ADR 0002](decisions/0002-canonical-schedule-api.md) and the [release note](work/api-schedule-release-note.md) describe the contract. Historical work-log entries below record the earlier compatibility period. The refactoring effort requires no further pass. The CSV partial-import and narrow Month density follow-ups are addressed in [the product follow-up handoff](work/csv-calendar-followups.md).
 
 ## Current baseline
 
@@ -198,7 +198,7 @@ Before declaring the refactor complete, verify these behaviors:
 
 Do not combine these with ordinary refactoring:
 
-- Removing legacy API request/response fields or changing public route contracts: completed as the approved 2026-09-25 API migration; see [ADR 0002](docs/decisions/0002-canonical-schedule-api.md) and [release note](docs/work/api-schedule-release-note.md).
+- Removing legacy API request/response fields or changing public route contracts: completed as the approved 2026-09-25 API migration; see [ADR 0002](decisions/0002-canonical-schedule-api.md) and [release note](work/api-schedule-release-note.md).
 - Rewriting or squashing Prisma migration history.
 - Changing schedule columns, constraints, or attachment storage.
 - Moving attachments from PostgreSQL bytes to object storage.

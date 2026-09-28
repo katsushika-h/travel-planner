@@ -15,10 +15,10 @@ export function ImportGoogleMapsCsvButton({ trip, eventTypes, onAddType, onImpor
     if (!file) return;
     setImporting(true); onError("");
     try {
-      const { created, failed, newTypes, skipped, invalidDates, unresolvedCount } = await importGoogleMapsCsv(await file.text(), trip, eventTypes, (complete, total) => setImportProgress({ complete, total }));
+      const { created, failed, newTypes, skipped, duplicateCount, invalidDates, unresolvedCount } = await importGoogleMapsCsv(await file.text(), trip, eventTypes, (complete, total) => setImportProgress({ complete, total }));
       for (const type of newTypes) onAddType(type);
       onImported(created);
-      if (failed.length || skipped || invalidDates || unresolvedCount) onError(`Imported ${created.length} places.${failed.length ? ` ${failed.length} could not be confirmed: ${failed.slice(0, 3).map(({ title, reason }) => `${title} (${reason})`).join("; ")}${failed.length > 3 ? `; and ${failed.length - 3} more` : ""}. Check the trip before retrying.` : ""}${unresolvedCount ? ` ${unresolvedCount} ${unresolvedCount === 1 ? "link did" : "links did"} not contain resolvable coordinates.` : ""}${skipped ? ` Skipped ${skipped} empty rows.` : ""}${invalidDates ? ` ${invalidDates} rows had an unrecognized date or time and were left unscheduled.` : ""}`);
+      if (failed.length || skipped || duplicateCount || invalidDates || unresolvedCount) onError(`Imported ${created.length} places.${failed.length ? ` ${failed.length} could not be confirmed: ${failed.slice(0, 3).map(({ title, reason }) => `${title} (${reason})`).join("; ")}${failed.length > 3 ? `; and ${failed.length - 3} more` : ""}. Check the trip before retrying.` : ""}${duplicateCount ? ` Skipped ${duplicateCount} ${duplicateCount === 1 ? "duplicate name" : "duplicate names"}.` : ""}${unresolvedCount ? ` ${unresolvedCount} ${unresolvedCount === 1 ? "link did" : "links did"} not contain resolvable coordinates.` : ""}${skipped ? ` Skipped ${skipped} empty rows.` : ""}${invalidDates ? ` ${invalidDates} rows had an unrecognized date or time and were left unscheduled.` : ""}`);
     } catch (error) { onError(error instanceof Error ? error.message : "Could not import the Google Maps CSV."); }
     finally { setImporting(false); setImportProgress(null); if (inputRef.current) inputRef.current.value = ""; }
   }
