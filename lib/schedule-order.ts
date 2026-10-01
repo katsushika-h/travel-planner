@@ -77,6 +77,14 @@ export function compareDayDisplayOrder(a: OrderableItem, b: OrderableItem) {
   return Number(b.isAllDay) - Number(a.isAllDay) || compareScheduleOrder(a, b);
 }
 
+/** Show confirmed bookings by time while retaining the saved slots for flexible ideas. */
+export function sortDayDisplayItems<T extends OrderableItem>(items: readonly T[]) {
+  const ordered = [...items].sort(compareDayDisplayOrder);
+  const timed = ordered.filter(isTimedItem).sort((a, b) => a.startTime!.localeCompare(b.startTime!) || a.endTime!.localeCompare(b.endTime!) || compareScheduleOrder(a, b));
+  let nextTimed = 0;
+  return ordered.map((item) => isTimedItem(item) ? timed[nextTimed++] : item);
+}
+
 export function sortScheduleItems<T extends OrderableItem>(items: readonly T[]) {
   return [...items].sort(compareScheduleOrder);
 }
@@ -96,14 +104,14 @@ export function itineraryDropPosition<T extends Pick<TravelObject, "id" | "date"
 
 /** Week time-slot drops use the original order expected by the reorder route. */
 export function weekFlexibleDropOrder<T extends OrderableItem & { date: string | null }>(items: readonly T[], date: string, targetTime: string) {
-  const ordered = items.filter((item) => item.date?.slice(0, 10) === date).sort(compareScheduleOrder);
+  const ordered = sortDayDisplayItems(items.filter((item) => item.date?.slice(0, 10) === date));
   const nextFixed = ordered.findIndex((item) => isTimedItem(item) && item.startTime! >= targetTime);
   return nextFixed < 0 ? ordered.length : nextFixed;
 }
 
 /** Reject Day placements that contradict confirmed times or split overlapping bookings. */
 export function canDropInDayOrder<T extends OrderableItem & { date: string | null; endDate: string | null }>(items: readonly T[], moving: T, date: string, requestedOrder: number) {
-  const ordered = items.filter((item) => item.date?.slice(0, 10) === date).sort(compareScheduleOrder);
+  const ordered = sortDayDisplayItems(items.filter((item) => item.date?.slice(0, 10) === date));
   const sourceIndex = ordered.findIndex((item) => item.id === moving.id);
   const gap = Number.isFinite(requestedOrder) ? Math.min(Math.max(Math.trunc(requestedOrder), 0), ordered.length) : ordered.length;
   const insertionIndex = gap - (sourceIndex >= 0 && sourceIndex < gap ? 1 : 0);

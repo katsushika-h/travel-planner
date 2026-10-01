@@ -41,7 +41,7 @@ export function createTripIcs(trip: Pick<Trip, "id" | "title" | "timezone">, ite
   const stamp = utcStamp(generatedAt.toISOString());
 
   for (const item of items) {
-    if (!item.date || item.tripId !== trip.id) continue;
+    if (item.kind === "note" || !item.date || item.tripId !== trip.id) continue;
     const startDate = item.date.slice(0, 10);
     const endDate = item.endDate?.slice(0, 10) ?? startDate;
     const timed = !item.isAllDay && item.startTime !== null && item.endTime !== null;

@@ -18,5 +18,5 @@ export function ExportIcsButton({ trip, items, compact = false }: { trip: Trip; 
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  return <Button type="button" variant="ghost" size={compact ? "icon" : "sm"} className={compact ? "mx-auto" : "w-full justify-start"} aria-label="Export calendar (.ics)" title={compact ? "Export calendar (.ics)" : undefined} onClick={download}><Download />{!compact && "Export calendar (.ics)"}</Button>;
+  return <Button type="button" variant="ghost" size={compact ? "icon" : "sm"} className={compact ? "mx-auto size-11 sm:size-8" : "min-h-11 w-full justify-start sm:min-h-0"} aria-label="Export calendar (.ics)" title={compact ? "Export calendar (.ics)" : undefined} onClick={download}><Download />{!compact && "Export calendar (.ics)"}</Button>;
 }

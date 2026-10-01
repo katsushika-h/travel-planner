@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { compactDayOrder, normalizeAfterScheduleChange, normalizeDayOrder, sortScheduleItems } from "./schedule-order.ts";
+import { compactDayOrder, normalizeAfterScheduleChange, normalizeDayOrder, sortDayDisplayItems } from "./schedule-order.ts";
 
 type OrderMode = "initial" | "schedule-change" | "compact";
 
@@ -35,8 +35,11 @@ export async function reorderTravelObject(tx: Prisma.TransactionClient, { tripId
   const durationDays = sourceDate && sourceEndDate ? Math.max(0, Math.round((sourceEndDate.getTime() - sourceDate.getTime()) / 86_400_000)) : 0;
   const destinationEndDate = new Date(date.getTime() + durationDays * 86_400_000);
   const siblings = await tx.travelObject.findMany({ where: { tripId, date, id: { not: objectId } } });
-  const ordered = sortScheduleItems(siblings);
-  const sourceOrder = sourceDate?.getTime() === date.getTime() ? item.dayOrder : null;
+  const sameDate = sourceDate?.getTime() === date.getTime();
+  const current = sameDate ? [...siblings, item] : siblings;
+  const visibleOrder = sortDayDisplayItems(current);
+  const ordered = visibleOrder.filter((sibling) => sibling.id !== objectId);
+  const sourceOrder = sameDate ? visibleOrder.findIndex((sibling) => sibling.id === objectId) : null;
   const insertionOrder = sourceOrder != null && sourceOrder < requestedOrder ? requestedOrder - 1 : requestedOrder;
   ordered.splice(Math.min(Math.max(insertionOrder, 0), siblings.length), 0, item);
   for (const [index, sibling] of ordered.entries()) {
@@ -53,7 +56,7 @@ export async function reorderTravelObject(tx: Prisma.TransactionClient, { tripId
       },
     });
   }
-  await writeDateOrder(tx, tripId, date, "initial");
+  await writeDateOrder(tx, tripId, date, "schedule-change");
   if (sourceDate !== null && sourceDate.getTime() !== date.getTime()) {
     await writeDateOrder(tx, tripId, sourceDate, "compact");
   }

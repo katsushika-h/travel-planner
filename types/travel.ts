@@ -63,6 +63,8 @@ export interface Trip {
 }
 
 export interface TravelObject {
+  kind: "event" | "note";
+  noteBody: string | null;
   id: string;
   tripId: string;
   title: string;
@@ -85,13 +87,13 @@ export interface TravelObject {
 }
 
 type TravelObjectWriteFields = Pick<TravelObject,
-  "title" | "type" | "date" | "endDate" | "startTime" | "endTime" | "placementTime" |
+  "title" | "type" | "noteBody" | "date" | "endDate" | "startTime" | "endTime" | "placementTime" |
   "dayOrder" | "isAllDay" |
   "headerImage" | "location" | "cost" | "notes" | "tags"
 >;
 
 /** Client request shape using canonical schedule fields. */
-export type CreateTravelObjectInput = Pick<TravelObject, "tripId" | "title" | "type" | "isAllDay"> & Partial<TravelObjectWriteFields>;
+export type CreateTravelObjectInput = Pick<TravelObject, "tripId" | "title" | "type" | "isAllDay"> & Partial<TravelObjectWriteFields> & { kind?: "event" | "note" };
 
 /** Excludes server-owned response fields. */
 export type UpdateTravelObjectInput = Partial<TravelObjectWriteFields>;

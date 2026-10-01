@@ -24,5 +24,5 @@ export function ImportGoogleMapsCsvButton({ trip, eventTypes, onAddType, onImpor
   }
 
   const label = importProgress ? `Resolving ${importProgress.complete}/${importProgress.total}` : "Import Maps CSV";
-  return <><input ref={inputRef} type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => void importFile(event.target.files?.[0])} /><Button type="button" variant="ghost" size={compact ? "icon" : "sm"} className={compact ? "mx-auto" : "w-full justify-start"} aria-label={label} title={compact ? label : undefined} disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? <LoaderCircle className="animate-spin" /> : <FileUp />}{!compact && label}</Button></>;
+  return <><input ref={inputRef} type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => void importFile(event.target.files?.[0])} /><Button type="button" variant="ghost" size={compact ? "icon" : "sm"} className={compact ? "mx-auto size-11 sm:size-8" : "min-h-11 w-full justify-start sm:min-h-0"} aria-label={label} title={compact ? label : undefined} disabled={importing} onClick={() => inputRef.current?.click()}>{importing ? <LoaderCircle className="animate-spin" /> : <FileUp />}{!compact && label}</Button></>;
 }

@@ -94,6 +94,8 @@ export function LeafletMap({ trip, items, typeColors, onSelect, markerNumbers, s
       mapRef.current = null;
       layerRef.current = null;
       markers.clear();
+      lastFitRef.current = "";
+      lastSelectedItemRef.current = undefined;
     };
   }, []);
 
@@ -131,7 +133,9 @@ export function LeafletMap({ trip, items, typeColors, onSelect, markerNumbers, s
     if (!selected) return;
     const point: [number, number] = [selected.location!.lat!, selected.location!.lng!];
     programmaticMoveRef.current = true;
-    map.flyTo(point, Math.max(map.getZoom(), 16), { animate: true, duration: 0.55 });
+    const size = map.getSize();
+    if (size.x > 0 && size.y > 0) map.flyTo(point, Math.max(map.getZoom(), 16), { animate: true, duration: 0.55 });
+    else map.setView(point, 16, { animate: false });
     markersRef.current.get(selectedItemId)?.openPopup();
   }, [items, selectedItemId]);
 

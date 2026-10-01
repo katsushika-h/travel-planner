@@ -23,13 +23,13 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  trips: () => request<Trip[]>("/api/trips"),
+  trips: (signal?: AbortSignal) => request<Trip[]>("/api/trips", { signal }),
   createTrip: (data: Pick<Trip, "title" | "startDate" | "endDate" | "timezone"> & Partial<Pick<Trip, "defaultCurrency">>) =>
     request<Trip>("/api/trips", { method: "POST", body: JSON.stringify(data) }),
   updateTrip: (id: string, data: Partial<Pick<Trip, "title" | "startDate" | "endDate" | "timezone" | "defaultCurrency">>) =>
     request<Trip>(`/api/trips/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }),
-  objects: (tripId: string) =>
-    request<TravelObject[]>(`/api/travel-objects?tripId=${encodeURIComponent(tripId)}`),
+  objects: (tripId: string, signal?: AbortSignal) =>
+    request<TravelObject[]>(`/api/travel-objects?tripId=${encodeURIComponent(tripId)}`, { signal }),
   expenses: (tripId: string) =>
     request<Expense[]>(`/api/trips/${encodeURIComponent(tripId)}/expenses`),
   createExpense: (tripId: string, data: CreateExpenseInput) =>
