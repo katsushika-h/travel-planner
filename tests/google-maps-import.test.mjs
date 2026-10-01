@@ -7,6 +7,7 @@ test("CSV import keeps resolved and unresolved Maps links through object creatio
   const created = [];
   const progress = [];
   globalThis.fetch = async (url, init) => {
+    if (url === "/api/travel-objects?tripId=trip-1") return Response.json([]);
     const body = JSON.parse(init.body);
     if (url === "/api/maps/resolve") {
       if (body.url.endsWith("/failed")) throw new TypeError("resolver unavailable");
@@ -40,6 +41,7 @@ test("CSV import returns successes and failed rows together", async () => {
   const originalFetch = globalThis.fetch;
   const createdTitles = [];
   globalThis.fetch = async (url, init) => {
+    if (url === "/api/travel-objects?tripId=trip-1") return Response.json([]);
     const body = JSON.parse(init.body);
     if (url === "/api/maps/resolve") return Response.json({ lat: null, lng: null });
     assert.equal(url, "/api/travel-objects");
@@ -55,6 +57,45 @@ test("CSV import returns successes and failed rows together", async () => {
     assert.deepEqual(result.created.map((item) => item.title), ["First", "Third"]);
     assert.deepEqual(result.failed, [{ title: "Second", reason: "Create failed" }]);
     assert.deepEqual(result.newTypes, ["Food"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("CSV import skips saved names and repeated names in the same file", async () => {
+  const originalFetch = globalThis.fetch;
+  const createdTitles = [];
+  const progress = [];
+  globalThis.fetch = async (url, init) => {
+    if (url === "/api/travel-objects?tripId=trip-1") return Response.json([{ title: "Museum" }, { title: "A".repeat(100) }]);
+    const body = JSON.parse(init.body);
+    if (url === "/api/maps/resolve") return Response.json({ lat: null, lng: null });
+    assert.equal(url, "/api/travel-objects");
+    createdTitles.push(body.title);
+    return Response.json({ ...body, id: body.title }, { status: 201 });
+  };
+
+  try {
+    const longTitle = "A".repeat(101);
+    const csv = `Title,Note,URL,Category\nmuseum,note,https://maps.example/museum,Old\n${longTitle},note,https://maps.example/long,Old\nCafe,note,https://maps.example/cafe,Food\n CAFE ,note,https://maps.example/repeat,Food\nPark,note,https://maps.example/park,Outdoors\n`;
+    const result = await importGoogleMapsCsv(csv, { id: "trip-1", timezone: "Asia/Singapore" }, [], (complete, total) => progress.push([complete, total]));
+    assert.deepEqual(createdTitles, ["Cafe", "Park"]);
+    assert.deepEqual([result.created.length, result.duplicateCount, result.failed.length], [2, 3, 0]);
+    assert.deepEqual(result.newTypes, ["Food", "Outdoors"]);
+    assert.deepEqual(progress, [[0, 2], [1, 2], [2, 2]]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("CSV import does not create rows when existing items cannot be checked", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.equal(url, "/api/travel-objects?tripId=trip-1");
+    return Response.json({ error: "Trip unavailable" }, { status: 500 });
+  };
+  try {
+    await assert.rejects(importGoogleMapsCsv("Title,Note,URL\nCafe,note,https://maps.example/cafe", { id: "trip-1", timezone: "Asia/Singapore" }, [], () => {}), /Trip unavailable/);
   } finally {
     globalThis.fetch = originalFetch;
   }

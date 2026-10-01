@@ -1,3 +1,4 @@
+import { readNoteBody, readNoteTitle, validateNoteInput } from "@/lib/note-validation";
 import {
   readJsonBody,
   rejectLegacyScheduleFields,
@@ -28,29 +29,36 @@ export async function PATCH(request: Request, { params }: Context) {
     const { objectId } = await params;
     const body = await readJsonBody(request);
     rejectLegacyScheduleFields(body);
+    if (body.kind !== undefined) throw new Error("An entry's kind cannot be changed.");
+    const existing = await prisma.travelObject.findUnique({ where: { id: objectId } });
+    if (!existing) return Response.json({ error: "Travel object not found." }, { status: 404 });
+    if (existing.kind === "note") validateNoteInput(body);
+    else if (body.noteBody !== undefined) throw new Error("noteBody is only supported for notes.");
     const data: Record<string, unknown> = {};
 
-    Object.assign(data, readTravelObjectIdentity(body, "update"));
+    if (existing.kind === "note") {
+      if (body.title !== undefined) data.title = readNoteTitle(body.title);
+      if (body.noteBody !== undefined) data.noteBody = readNoteBody(body.noteBody);
+    } else Object.assign(data, readTravelObjectIdentity(body, "update"));
     Object.assign(data, readUpdateScheduleFields(body));
     if (body.dayOrder !== undefined) data.dayOrder = body.dayOrder === null ? null : readNonNegativeInteger(body.dayOrder, "dayOrder");
     if (body.isAllDay !== undefined) {
       if (typeof body.isAllDay !== "boolean") throw new Error("isAllDay must be a boolean.");
       data.isAllDay = body.isAllDay;
     }
-    Object.assign(data, readTravelObjectContent(body, "update"));
-
-    const existing = await prisma.travelObject.findUnique({ where: { id: objectId } });
-
-    if (!existing) {
-      return Response.json({ error: "Travel object not found." }, { status: 404 });
-    }
+    if (existing.kind !== "note") Object.assign(data, readTravelObjectContent(body, "update"));
 
     if (Object.keys(data).length === 0) {
       return Response.json({ error: "Provide at least one field to update." }, { status: 400 });
     }
 
     const scheduleChanged = ["date", "endDate", "startTime", "endTime", "placementTime", "isAllDay", "dayOrder"].some((field) => Object.hasOwn(data, field));
-    normalizeUpdatedScheduleData(data, existing);
+    if (existing.kind === "note") {
+      const date = data.date !== undefined ? data.date as Date | null : existing.date;
+      if (data.endDate !== undefined && (data.endDate as Date | null)?.getTime() !== date?.getTime()) throw new Error("Notes belong to a single date.");
+      if (scheduleChanged) data.endDate = date;
+    }
+    if (scheduleChanged) normalizeUpdatedScheduleData(data, existing);
 
     const travelObject = await prisma.$transaction(async (tx) => {
       const updated = await tx.travelObject.update({

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canDropInDayOrder, compactDayOrder, compareDayDisplayOrder, itineraryDropPosition, mergeCreatedTravelObject, normalizeDayOrder, sortTravelObjects, weekFixedLayers, weekFlexibleDropOrder } from "../lib/schedule-order.ts";
+import { canDropInDayOrder, compactDayOrder, compareDayDisplayOrder, itineraryDropPosition, mergeCreatedTravelObject, normalizeDayOrder, sortDayDisplayItems, sortTravelObjects, weekFixedLayers, weekFlexibleDropOrder } from "../lib/schedule-order.ts";
 
 test("Day blocks out-of-time fixed drops and flexible gaps inside overlaps", () => {
   const date = "2026-09-24";
@@ -75,6 +75,22 @@ test("Day displays all-day items first without changing order within either grou
     { id: "all-day-earlier", dayOrder: 2, startTime: null, endTime: null, isAllDay: true, createdAt },
   ];
   assert.deepEqual(items.sort(compareDayDisplayOrder).map((item) => item.id), ["all-day-earlier", "all-day-later", "fixed", "flexible"]);
+});
+
+test("Day puts fixed bookings in time order while keeping flexible ideas in their saved gaps", () => {
+  const createdAt = "2026-11-29T00:00:00.000Z";
+  const item = (id, dayOrder, startTime, endTime, isAllDay = false) => ({ id, dayOrder, startTime, endTime, isAllDay, createdAt });
+  const items = [
+    item("flexible", 0, null, null),
+    item("morning", 1, "10:00", "12:00"),
+    item("evening", 2, "18:00", "19:00"),
+    item("noon", 3, "12:00", "13:00"),
+    item("afternoon", 4, "14:00", "15:00"),
+  ];
+  assert.deepEqual(sortDayDisplayItems(items).map(({ id }) => id), ["flexible", "morning", "noon", "afternoon", "evening"]);
+  assert.deepEqual(items.map(({ id }) => id), ["flexible", "morning", "evening", "noon", "afternoon"]);
+  const dated = items.map((entry) => ({ ...entry, date: "2026-11-29", endDate: "2026-11-29" }));
+  assert.equal(canDropInDayOrder(dated, dated[0], "2026-11-29", 2), true);
 });
 
 test("compacting after deletion preserves the remaining explicit order", () => {
