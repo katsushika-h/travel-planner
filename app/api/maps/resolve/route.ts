@@ -34,19 +34,29 @@ function coordinatesFromMapsUrl(url: URL): Coordinates | null {
   let decodedUrl = url.toString();
   try { decodedUrl = decodeURIComponent(decodedUrl); } catch { /* inspect the URL as-is */ }
 
-  const atCoordinates = decodedUrl.match(/@(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)(?:[,/?&#]|$)/);
-  if (atCoordinates) {
-    const result = coordinates(atCoordinates[1], atCoordinates[2]);
-    if (result) return result;
-  }
-
+  // Place coordinates describe the pin; @ and center describe the map camera.
   const dataCoordinates = decodedUrl.match(/!3d(-?\d{1,3}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)(?:[!/?&#]|$)/);
   if (dataCoordinates) {
     const result = coordinates(dataCoordinates[1], dataCoordinates[2]);
     if (result) return result;
   }
 
-  const coordinateParams = ["query", "q", "center", "ll", "sll", "destination", "origin", "daddr"];
+  const placeParams = ["query", "q", "destination", "daddr"];
+  for (const key of placeParams) {
+    for (const [param, value] of url.searchParams) {
+      if (param.toLowerCase() !== key) continue;
+      const result = coordinatesFromValue(value);
+      if (result) return result;
+    }
+  }
+
+  const atCoordinates = decodedUrl.match(/@(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)(?:[,/?&#]|$)/);
+  if (atCoordinates) {
+    const result = coordinates(atCoordinates[1], atCoordinates[2]);
+    if (result) return result;
+  }
+
+  const coordinateParams = ["center", "ll", "sll", "origin"];
   for (const [key, value] of url.searchParams) {
     if (!coordinateParams.includes(key.toLowerCase())) continue;
     const result = coordinatesFromValue(value);
