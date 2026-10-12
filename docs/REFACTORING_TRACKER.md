@@ -179,6 +179,16 @@ Structural improvement: Introduce explicit create/update input types, update `RE
 
 Validation: TypeScript rejects invalid request shapes; docs match the current implementation; lint/build remain stable.
 
+### Pass 10 — UI readability
+
+Status: **Complete — Prettier enforced, Calendar split, shell actions extracted**
+
+Current behavior: Unchanged. Component files previously held JSX on single lines of up to 5,400 characters, `CalendarView.tsx` held the Month, Week, Ideas, and shell code in 1,637 formatted lines, and `AppShell.tsx` defined every item action inline.
+
+Structural improvement: Add Prettier (`printWidth` 120) and enforce it in `npm run check`; split `CalendarView` into `components/views/calendar/` (`MonthView`, `WeekPlanner`, `IdeasPanel`, `calendar-shared`); move item actions from `AppShell` into `components/layout/useItemActions.ts`.
+
+Validation: AST comparison of all source files before and after formatting; `npm run check`; webpack build; API and item-note fixtures; browser smoke test of Month/Week/Day, Ideas, drag, create, and delete.
+
 ## Required parity matrix
 
 Before declaring the refactor complete, verify these behaviors:
@@ -208,6 +218,18 @@ Do not combine these with ordinary refactoring:
 - Replacing the current Leaflet/OpenStreetMap or Google Maps integration.
 
 ## Work log
+
+### 2026-10-13 — UI readability
+
+- Pass: `Pass 10 — UI readability`
+- Intent/current behavior: Formatting and module boundaries only; no product behavior, API, or schema change.
+- Files changed: `.prettierrc.json`, `.prettierignore`, `package.json`, all formatted sources, `components/views/CalendarView.tsx`, `components/views/calendar/*`, `components/layout/AppShell.tsx`, `components/layout/useItemActions.ts`, `tests/week-create.test.mjs`, `AGENTS.md`, `docs/architecture.md`.
+- Structural improvement: Longest source line fell from 5,401 to about 400 characters (remaining long lines are Tailwind class strings). `CalendarView.tsx` fell from 1,637 to 541 lines; `AppShell.tsx` from 944 to 746.
+- Behavior preserved: A TypeScript AST comparison of all 84 TS/TSX/MJS files before and after formatting, ignoring layout, parentheses, trailing commas, and JSX whitespace encoding, found no differences. Calendar code was moved without edits except for passing `onOpenDay` into `MonthView` and replacing the `agendaSort` alias with `compareScheduleOrder`.
+- Validation run: `npm run check`; `npx next build --webpack`; `api-contract` and `item-note-contract` fixtures against a disposable database; browser check of Month, Week, Day, Ideas, month drag, double-click create, and keyboard delete.
+- Results: All passed. Lint retains six existing image warnings. `tests/week-create.test.mjs` now loads `calendar/WeekPlanner.tsx` directly.
+- Risks or follow-up: Month drops resolve against the 256px drag preview, so drops can land one column to the right of the pointer; this predates the pass. `tests/order-contract.integration.mjs` fails on a forward reorder; this also predates the pass.
+- Next recommended pass: Consider extracting the sidebar and view switcher from `AppShell` only if they gain behavior; their current prop surface would be wide.
 
 ### 2026-09-25 — CSV partial imports and narrow Month layout
 
