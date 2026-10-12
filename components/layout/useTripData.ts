@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "@/lib/api-client";
 import type { TravelObject, Trip } from "@/types/travel";
 
@@ -16,6 +16,9 @@ export function useTripData(activeTripId: string | null, setActiveTripId: (id: s
   const [itemsReloadNonce, setItemsReloadNonce] = useState(0);
   const activeTrip = trips.find((trip) => trip.id === activeTripId) ?? null;
   const activeTripKey = activeTrip?.id;
+  // Read the selection when trips arrive without refetching the list on every trip switch.
+  const activeTripIdRef = useRef(activeTripId);
+  useLayoutEffect(() => { activeTripIdRef.current = activeTripId; }, [activeTripId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -25,7 +28,7 @@ export function useTripData(activeTripId: string | null, setActiveTripId: (id: s
       if (cancelled) return;
       setTrips(result);
       setTripsLoadError(null);
-      if (!result.some((trip) => trip.id === activeTripId)) setActiveTripId(result[0]?.id ?? null);
+      if (!result.some((trip) => trip.id === activeTripIdRef.current)) setActiveTripId(result[0]?.id ?? null);
     }).catch((cause) => {
       if (!cancelled) setTripsLoadError(controller.signal.aborted ? "The trip request timed out. Check your connection and try again." : cause instanceof Error ? cause.message : "Could not load trips.");
     }).finally(() => {
@@ -33,7 +36,7 @@ export function useTripData(activeTripId: string | null, setActiveTripId: (id: s
       if (!cancelled) setLoadingTrips(false);
     });
     return () => { cancelled = true; controller.abort(); window.clearTimeout(timeout); };
-  }, [activeTripId, setActiveTripId, tripsReloadNonce]);
+  }, [setActiveTripId, tripsReloadNonce]);
 
   useEffect(() => {
     if (!activeTripKey) return;
