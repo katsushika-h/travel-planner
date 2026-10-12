@@ -1,3 +1,4 @@
+import { attachmentContentType } from "@/lib/attachment-types";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,8 @@ export async function GET(request: Request, { params }: Context) {
   const download = new URL(request.url).searchParams.get("download") === "1";
   return new Response(new Uint8Array(attachment.data), {
     headers: {
-      "Content-Type": attachment.contentType || "application/octet-stream",
+      // Older rows stored the uploader-declared type; serve by extension instead.
+      "Content-Type": attachmentContentType(attachment.fileName),
       "Content-Disposition": `${download ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`,
       "Content-Length": String(attachment.size),
       "X-Content-Type-Options": "nosniff",

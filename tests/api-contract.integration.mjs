@@ -136,15 +136,16 @@ try {
   const attachmentPath = `/api/travel-objects/${fixed.body.id}/attachments`;
   const uploaded = await uploadAttachment(attachmentPath, "notes.txt", "fixture attachment", "text/plain");
   assert.equal(uploaded.status, 201);
-  assert.deepEqual([uploaded.body.fileName, uploaded.body.contentType, uploaded.body.size], ["notes.txt", "text/plain", 18]);
+  assert.deepEqual([uploaded.body.fileName, uploaded.body.contentType, uploaded.body.size], ["notes.txt", "text/plain; charset=utf-8", 18]);
   const attachments = await request(attachmentPath);
   assert.equal(attachments.status, 200);
-  assert.deepEqual(attachments.body.map(({ id, fileName, contentType, size }) => ({ id, fileName, contentType, size })), [{ id: uploaded.body.id, fileName: "notes.txt", contentType: "text/plain", size: 18 }]);
+  assert.deepEqual(attachments.body.map(({ id, fileName, contentType, size }) => ({ id, fileName, contentType, size })), [{ id: uploaded.body.id, fileName: "notes.txt", contentType: "text/plain; charset=utf-8", size: 18 }]);
   const attachmentUrl = `${attachmentPath}/${uploaded.body.id}`;
   const preview = await fetch(new URL(attachmentUrl, baseUrl));
   assert.equal(preview.status, 200);
   assert.equal(preview.headers.get("content-disposition"), "inline; filename*=UTF-8''notes.txt");
   assert.equal(await preview.text(), "fixture attachment");
+  assert.equal(preview.headers.get("content-type"), "text/plain; charset=utf-8");
   const download = await fetch(new URL(`${attachmentUrl}?download=1`, baseUrl));
   assert.equal(download.headers.get("content-disposition"), "attachment; filename*=UTF-8''notes.txt");
   assert.equal(download.headers.get("x-content-type-options"), "nosniff");

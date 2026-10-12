@@ -12,6 +12,21 @@ export function useItemSaveQueue(activeTripId: string | undefined, setItems: Dis
   const saveQueues = useRef(new Map<string, UpdateTravelObjectInput>());
   const saveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const savingIds = useRef(new Set<string>());
+  const refreshTripId = useRef<string | null>(null);
+
+  /** Reload once after the last concurrent save, since schedule writes can reorder siblings. */
+  async function refreshAfterScheduleSaves() {
+    const tripId = refreshTripId.current;
+    if (!tripId || savingIds.current.size) return;
+    refreshTripId.current = null;
+    if (activeTripIdRef.current !== tripId) return;
+    try {
+      const refreshed = await api.objects(tripId);
+      setItems((current) => activeTripIdRef.current === tripId ? sortTravelObjects(refreshed) : current);
+    } catch (cause) {
+      if (activeTripIdRef.current === tripId) onError(cause instanceof Error ? cause.message : "Could not refresh the itinerary.");
+    }
+  }
 
   async function flushItemSave(id: string) {
     if (savingIds.current.has(id)) return;
@@ -31,11 +46,9 @@ export function useItemSaveQueue(activeTripId: string | undefined, setItems: Dis
           break;
         }
       }
-      if (scheduleChanged && activeTripId && activeTripIdRef.current === activeTripId) {
-        const refreshed = await api.objects(activeTripId);
-        setItems((current) => activeTripIdRef.current === activeTripId ? sortTravelObjects(refreshed) : current);
-      }
+      if (scheduleChanged && activeTripId && activeTripIdRef.current === activeTripId) refreshTripId.current = activeTripId;
     } finally { savingIds.current.delete(id); }
+    await refreshAfterScheduleSaves();
   }
 
   function changeItem(id: string, patch: UpdateTravelObjectInput, immediate = false) {
