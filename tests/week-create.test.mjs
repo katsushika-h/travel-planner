@@ -10,8 +10,8 @@ import { compareScheduleOrder, isTimedItem, weekFixedLayers } from "../lib/sched
 // Render the Week component tree without a DOM or drag sensor. Exercise the
 // actual slot handlers and callback wiring rather than matching source text.
 const require = createRequire(import.meta.url);
-const source = readFileSync(new URL("../components/views/CalendarView.tsx", import.meta.url), "utf8");
-const compiled = ts.transpileModule(`${source}\nexport { WeekPlanner };`, {
+const source = readFileSync(new URL("../components/views/calendar/WeekPlanner.tsx", import.meta.url), "utf8");
+const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
 const compiledModule = { exports: {} };
@@ -27,6 +27,7 @@ vm.runInNewContext(compiled, {
     if (name === "@/lib/date-utils") return { formatTripDate: () => "Date" };
     if (name === "@/lib/schedule-domain") return { occursOnItineraryDate: (item, date) => item.date === date };
     if (name === "@/lib/type-color") return { typeColor: () => "#000000" };
+    if (name === "./calendar-shared") return { selectionRing: () => "" };
     return {};
   },
 });
