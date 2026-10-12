@@ -15,7 +15,13 @@ async function request(path, method = "GET", body) {
 const tripIds = [];
 try {
   const makeTrip = async (title) => {
-    const response = await request("/api/trips", "POST", { title, startDate: "2026-10-01", endDate: "2026-10-05", timezone: "Asia/Singapore", defaultCurrency: "SGD" });
+    const response = await request("/api/trips", "POST", {
+      title,
+      startDate: "2026-10-01",
+      endDate: "2026-10-05",
+      timezone: "Asia/Singapore",
+      defaultCurrency: "SGD",
+    });
     assert.equal(response.status, 201);
     tripIds.push(response.body.id);
     return response.body.id;
@@ -26,12 +32,40 @@ try {
   const secondPath = `/api/trips/${secondTrip}/expenses`;
   assert.deepEqual(await request(firstPath), { status: 200, body: [] });
 
-  const item = await request("/api/travel-objects", "POST", { tripId: firstTrip, title: "Museum", type: "activity", date: null, isAllDay: false, location: null, cost: { amount: 25, currency: "SGD" }, notes: null, tags: [] });
-  const otherItem = await request("/api/travel-objects", "POST", { tripId: secondTrip, title: "Other trip", type: "activity", date: null, isAllDay: false, location: null, cost: null, notes: null, tags: [] });
+  const item = await request("/api/travel-objects", "POST", {
+    tripId: firstTrip,
+    title: "Museum",
+    type: "activity",
+    date: null,
+    isAllDay: false,
+    location: null,
+    cost: { amount: 25, currency: "SGD" },
+    notes: null,
+    tags: [],
+  });
+  const otherItem = await request("/api/travel-objects", "POST", {
+    tripId: secondTrip,
+    title: "Other trip",
+    type: "activity",
+    date: null,
+    isAllDay: false,
+    location: null,
+    cost: null,
+    notes: null,
+    tags: [],
+  });
   assert.equal(item.status, 201);
   assert.equal(otherItem.status, 201);
 
-  const input = { description: "Advance tickets", date: "2026-09-20", amount: "12.345", currency: "SGD", category: "activities", notes: "Bought before departure", travelObjectId: item.body.id };
+  const input = {
+    description: "Advance tickets",
+    date: "2026-09-20",
+    amount: "12.345",
+    currency: "SGD",
+    category: "activities",
+    notes: "Bought before departure",
+    travelObjectId: item.body.id,
+  };
   const created = await request(firstPath, "POST", input);
   assert.equal(created.status, 201);
   assert.equal(created.body.amount, "12.345");
@@ -46,10 +80,20 @@ try {
     assert.equal(invalid.status, 400);
   }
   assert.equal((await request(firstPath, "POST", { ...input, date: "2026-02-30" })).status, 400);
-  assert.deepEqual(await request(firstPath, "POST", { ...input, travelObjectId: otherItem.body.id }), { status: 400, body: { error: "Linked item must belong to this trip." } });
-  assert.deepEqual(await request(`/api/expenses/${created.body.id}`, "PATCH", { travelObjectId: otherItem.body.id }), { status: 400, body: { error: "Linked item must belong to this trip." } });
+  assert.deepEqual(await request(firstPath, "POST", { ...input, travelObjectId: otherItem.body.id }), {
+    status: 400,
+    body: { error: "Linked item must belong to this trip." },
+  });
+  assert.deepEqual(await request(`/api/expenses/${created.body.id}`, "PATCH", { travelObjectId: otherItem.body.id }), {
+    status: 400,
+    body: { error: "Linked item must belong to this trip." },
+  });
 
-  const updated = await request(`/api/expenses/${created.body.id}`, "PATCH", { amount: "0.1", category: "transport", notes: null });
+  const updated = await request(`/api/expenses/${created.body.id}`, "PATCH", {
+    amount: "0.1",
+    category: "transport",
+    notes: null,
+  });
   assert.equal(updated.status, 200);
   assert.deepEqual([updated.body.amount, updated.body.category, updated.body.notes], ["0.100", "transport", null]);
   assert.equal((await request(`/api/travel-objects/${item.body.id}`, "DELETE")).status, 204);

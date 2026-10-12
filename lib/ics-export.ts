@@ -2,7 +2,12 @@ import { shiftDate, zonedDateTimeToUtc } from "./date-utils.ts";
 import type { TravelObject, Trip } from "../types/travel.ts";
 
 function escapeText(value: string) {
-  return value.replace(/\r\n?/g, "\n").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/;/g, "\\;").replace(/,/g, "\\,");
+  return value
+    .replace(/\r\n?/g, "\n")
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,");
 }
 
 function foldLine(line: string) {
@@ -30,7 +35,11 @@ function calendarDate(value: string) {
 }
 
 /** Export only dated items; a flexible visual placement is never a booked time. */
-export function createTripIcs(trip: Pick<Trip, "id" | "title" | "timezone">, items: readonly TravelObject[], generatedAt = new Date()) {
+export function createTripIcs(
+  trip: Pick<Trip, "id" | "title" | "timezone">,
+  items: readonly TravelObject[],
+  generatedAt = new Date(),
+) {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -51,7 +60,9 @@ export function createTripIcs(trip: Pick<Trip, "id" | "title" | "timezone">, ite
     const end = timed
       ? `DTEND:${utcStamp(zonedDateTimeToUtc(endDate, item.endTime!, trip.timezone))}`
       : `DTEND;VALUE=DATE:${calendarDate(shiftDate(endDate, 1))}`;
-    const location = [item.location?.name?.trim(), item.location?.address?.trim()].filter(Boolean).join(", ") || item.location?.googleMapsUrl?.trim();
+    const location =
+      [item.location?.name?.trim(), item.location?.address?.trim()].filter(Boolean).join(", ") ||
+      item.location?.googleMapsUrl?.trim();
 
     lines.push(
       "BEGIN:VEVENT",

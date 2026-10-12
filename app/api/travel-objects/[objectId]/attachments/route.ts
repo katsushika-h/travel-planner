@@ -6,7 +6,11 @@ export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ objectId: string }> };
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
-const safeFileName = (name: string) => name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").trim().slice(0, 180);
+const safeFileName = (name: string) =>
+  name
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_")
+    .trim()
+    .slice(0, 180);
 
 export async function GET(_request: Request, { params }: Context) {
   const { objectId } = await params;
@@ -29,14 +33,24 @@ export async function POST(request: Request, { params }: Context) {
     if (!(file instanceof File) || file.size === 0) throw new Error("Choose a non-empty file to attach.");
     if (file.size > MAX_FILE_SIZE) throw new Error("Attachments must be 20 MB or smaller.");
     const fileName = safeFileName(file.name);
-    if (!fileName || !attachmentExtension(fileName)) throw new Error("Supported formats: JPG, PNG, PDF, DOCX, spreadsheets, presentations, TXT, and CSV.");
+    if (!fileName || !attachmentExtension(fileName))
+      throw new Error("Supported formats: JPG, PNG, PDF, DOCX, spreadsheets, presentations, TXT, and CSV.");
 
     const attachment = await prisma.travelAttachment.create({
-      data: { travelObjectId: objectId, fileName, contentType: attachmentContentType(fileName), size: file.size, data: new Uint8Array(await file.arrayBuffer()) },
+      data: {
+        travelObjectId: objectId,
+        fileName,
+        contentType: attachmentContentType(fileName),
+        size: file.size,
+        data: new Uint8Array(await file.arrayBuffer()),
+      },
       select: { id: true, fileName: true, contentType: true, size: true, createdAt: true },
     });
     return Response.json(attachment, { status: 201 });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Could not upload attachment." }, { status: 400 });
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Could not upload attachment." },
+      { status: 400 },
+    );
   }
 }

@@ -9,9 +9,7 @@ export async function GET(_request: Request, { params }: Context) {
   const { tripId } = await params;
   const trip = await prisma.trip.findUnique({ where: { id: tripId } });
 
-  return trip
-    ? Response.json(trip)
-    : Response.json({ error: "Trip not found." }, { status: 404 });
+  return trip ? Response.json(trip) : Response.json({ error: "Trip not found." }, { status: 404 });
 }
 
 export async function PATCH(request: Request, { params }: Context) {
@@ -25,7 +23,8 @@ export async function PATCH(request: Request, { params }: Context) {
     if (body.endDate !== undefined) data.endDate = readDate(body.endDate, "endDate", true);
     if (body.timezone !== undefined) data.timezone = readTimeZone(body.timezone);
     if (body.defaultCurrency !== undefined) {
-      if (typeof body.defaultCurrency !== "string" || !/^[A-Z]{3}$/.test(body.defaultCurrency)) throw new Error("defaultCurrency must be a three-letter currency code.");
+      if (typeof body.defaultCurrency !== "string" || !/^[A-Z]{3}$/.test(body.defaultCurrency))
+        throw new Error("defaultCurrency must be a three-letter currency code.");
       data.defaultCurrency = body.defaultCurrency;
     }
 
@@ -43,10 +42,7 @@ export async function PATCH(request: Request, { params }: Context) {
     const endDate = (data.endDate as Date | undefined) ?? existing.endDate;
 
     if (endDate < startDate) {
-      return Response.json(
-        { error: "endDate must be on or after startDate." },
-        { status: 400 },
-      );
+      return Response.json({ error: "endDate must be on or after startDate." }, { status: 400 });
     }
 
     const trip = await prisma.trip.update({
@@ -56,10 +52,7 @@ export async function PATCH(request: Request, { params }: Context) {
 
     return Response.json(trip);
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Invalid trip data." },
-      { status: 400 },
-    );
+    return Response.json({ error: error instanceof Error ? error.message : "Invalid trip data." }, { status: 400 });
   }
 }
 

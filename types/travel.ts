@@ -1,10 +1,4 @@
-export type DefaultEventType =
-  | "commute"
-  | "food"
-  | "hotel"
-  | "flight"
-  | "activity"
-  | "sightseeing";
+export type DefaultEventType = "commute" | "food" | "hotel" | "flight" | "activity" | "sightseeing";
 
 export type EventType = DefaultEventType | (string & {});
 
@@ -41,7 +35,10 @@ export interface Expense {
   updatedAt: string;
 }
 
-export type CreateExpenseInput = Pick<Expense, "description" | "date" | "amount" | "currency" | "category" | "notes" | "travelObjectId">;
+export type CreateExpenseInput = Pick<
+  Expense,
+  "description" | "date" | "amount" | "currency" | "category" | "notes" | "travelObjectId"
+>;
 export type UpdateExpenseInput = Partial<CreateExpenseInput>;
 
 export interface TravelAttachment {
@@ -86,14 +83,28 @@ export interface TravelObject {
   updatedAt: string;
 }
 
-type TravelObjectWriteFields = Pick<TravelObject,
-  "title" | "type" | "noteBody" | "date" | "endDate" | "startTime" | "endTime" | "placementTime" |
-  "dayOrder" | "isAllDay" |
-  "headerImage" | "location" | "cost" | "notes" | "tags"
+type TravelObjectWriteFields = Pick<
+  TravelObject,
+  | "title"
+  | "type"
+  | "noteBody"
+  | "date"
+  | "endDate"
+  | "startTime"
+  | "endTime"
+  | "placementTime"
+  | "dayOrder"
+  | "isAllDay"
+  | "headerImage"
+  | "location"
+  | "cost"
+  | "notes"
+  | "tags"
 >;
 
 /** Client request shape using canonical schedule fields. */
-export type CreateTravelObjectInput = Pick<TravelObject, "tripId" | "title" | "type" | "isAllDay"> & Partial<TravelObjectWriteFields> & { kind?: "event" | "note" };
+export type CreateTravelObjectInput = Pick<TravelObject, "tripId" | "title" | "type" | "isAllDay"> &
+  Partial<TravelObjectWriteFields> & { kind?: "event" | "note" };
 
 /** Excludes server-owned response fields. */
 export type UpdateTravelObjectInput = Partial<TravelObjectWriteFields>;

@@ -3,10 +3,21 @@ import { dateParts, endDateTimeFor, startDateTimeFor, zonedDateTimeToUtc } from 
 const MINUTE_MS = 60_000;
 const DAY_MS = 86_400_000;
 
-type ScheduleRange = { date: string | null; endDate: string | null; startTime: string | null; endTime: string | null; isAllDay: boolean };
+type ScheduleRange = {
+  date: string | null;
+  endDate: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  isAllDay: boolean;
+};
 
 /** Project imported timestamp values into the canonical schedule fields. */
-export function canonicalScheduleFromInstants(startIso: string | null, endIso: string | null, isAllDay: boolean, timezone: string) {
+export function canonicalScheduleFromInstants(
+  startIso: string | null,
+  endIso: string | null,
+  isAllDay: boolean,
+  timezone: string,
+) {
   if (!startIso || !endIso) return { date: null, endDate: null, startTime: null, endTime: null, isAllDay: false };
   const start = dateParts(startIso, timezone);
   const end = dateParts(endIso, timezone);
@@ -42,7 +53,10 @@ export function scheduleKind(item: Pick<ScheduleRange, "date" | "startTime" | "e
 }
 
 /** Short label shared by views that show an item's all-day or confirmed time. */
-export function itemScheduleLabel(item: Pick<ScheduleRange, "startTime" | "endTime" | "isAllDay">, flexibleLabel: string | null = null) {
+export function itemScheduleLabel(
+  item: Pick<ScheduleRange, "startTime" | "endTime" | "isAllDay">,
+  flexibleLabel: string | null = null,
+) {
   if (item.isAllDay) return "All day";
   return item.startTime && item.endTime ? `${item.startTime}–${item.endTime}` : flexibleLabel;
 }
@@ -61,12 +75,26 @@ export function allDayDropStartDate(startDate: string, draggedDate: string, targ
 }
 
 /** Place an undated or flexible item, retaining saved times when present. */
-export function placeUnfixedItem(item: { startTime: string | null; endTime: string | null; placementTime: string | null }, targetDate: string, targetTime?: string) {
+export function placeUnfixedItem(
+  item: { startTime: string | null; endTime: string | null; placementTime: string | null },
+  targetDate: string,
+  targetTime?: string,
+) {
   if (!targetTime && !item.startTime && !item.endTime) {
-    return { kind: "flexible" as const, date: targetDate, endDate: targetDate, startTime: null, endTime: null, placementTime: item.placementTime ?? "09:00", isAllDay: false };
+    return {
+      kind: "flexible" as const,
+      date: targetDate,
+      endDate: targetDate,
+      startTime: null,
+      endTime: null,
+      placementTime: item.placementTime ?? "09:00",
+      isAllDay: false,
+    };
   }
   const startTime = targetTime ?? item.startTime ?? "09:00";
-  const defaultEnd = item.endTime ? null : new Date(Date.parse(`${targetDate}T${startTime}:00Z`) + 60 * MINUTE_MS).toISOString();
+  const defaultEnd = item.endTime
+    ? null
+    : new Date(Date.parse(`${targetDate}T${startTime}:00Z`) + 60 * MINUTE_MS).toISOString();
   return {
     kind: "fixed" as const,
     date: targetDate,
@@ -79,19 +107,37 @@ export function placeUnfixedItem(item: { startTime: string | null; endTime: stri
 }
 
 /** Canonical PATCH fields for moving one item to a date or confirmed time. */
-export function schedulePatchForMove(item: ScheduleRange & { placementTime: string | null }, date: string, time?: string) {
+export function schedulePatchForMove(
+  item: ScheduleRange & { placementTime: string | null },
+  date: string,
+  time?: string,
+) {
   const kind = scheduleKind(item);
   if (kind === "all-day") {
     const sourceDate = item.date?.slice(0, 10) ?? date;
     const sourceEndDate = item.endDate?.slice(0, 10) ?? sourceDate;
-    return { ...moveAllDayRange(sourceDate, sourceEndDate, date), startTime: null, endTime: null, placementTime: null, dayOrder: null, isAllDay: true };
+    return {
+      ...moveAllDayRange(sourceDate, sourceEndDate, date),
+      startTime: null,
+      endTime: null,
+      placementTime: null,
+      dayOrder: null,
+      isAllDay: true,
+    };
   }
   if (kind !== "fixed") {
     const { kind: placedKind, ...schedule } = placeUnfixedItem(item, date, time);
     return { ...schedule, ...(placedKind === "flexible" ? { dayOrder: null } : {}) };
   }
   if (!item.date || !item.startTime || !item.endTime) return null;
-  const moved = moveFixedTimeRange(item.date.slice(0, 10), item.endDate?.slice(0, 10) ?? item.date.slice(0, 10), item.startTime, item.endTime, date, time);
+  const moved = moveFixedTimeRange(
+    item.date.slice(0, 10),
+    item.endDate?.slice(0, 10) ?? item.date.slice(0, 10),
+    item.startTime,
+    item.endTime,
+    date,
+    time,
+  );
   return { ...moved, isAllDay: false, placementTime: null };
 }
 
@@ -133,9 +179,19 @@ export function endForElapsedDuration(schedule: ScheduleRange, durationMinutes: 
 }
 
 /** Move a Table start edit while retaining each item's elapsed duration. */
-export function scheduleAtTableStart(schedule: ScheduleRange, targetDate: string, targetTime: string, timeZone: string) {
+export function scheduleAtTableStart(
+  schedule: ScheduleRange,
+  targetDate: string,
+  targetTime: string,
+  timeZone: string,
+) {
   if (schedule.isAllDay && schedule.date) {
-    return { ...moveAllDayRange(schedule.date, schedule.endDate ?? schedule.date, targetDate), startTime: null, endTime: null, placementTime: null };
+    return {
+      ...moveAllDayRange(schedule.date, schedule.endDate ?? schedule.date, targetDate),
+      startTime: null,
+      endTime: null,
+      placementTime: null,
+    };
   }
   const durationMinutes = Math.max(15, elapsedDurationMinutes(schedule, timeZone) ?? 60);
   const start = zonedDateTimeToUtc(targetDate, targetTime, timeZone);
@@ -152,7 +208,10 @@ export function scheduleAtTableStart(schedule: ScheduleRange, targetDate: string
 
 /** Keep an all-day item's inclusive date span when moving it to another date. */
 export function moveAllDayRange(sourceDate: string, sourceEndDate: string, targetDate: string) {
-  const durationDays = Math.max(0, Math.round((Date.parse(`${sourceEndDate}T00:00:00Z`) - Date.parse(`${sourceDate}T00:00:00Z`)) / DAY_MS));
+  const durationDays = Math.max(
+    0,
+    Math.round((Date.parse(`${sourceEndDate}T00:00:00Z`) - Date.parse(`${sourceDate}T00:00:00Z`)) / DAY_MS),
+  );
   const endDate = new Date(Date.parse(`${targetDate}T00:00:00Z`) + durationDays * DAY_MS).toISOString().slice(0, 10);
   return {
     date: targetDate,
@@ -161,7 +220,14 @@ export function moveAllDayRange(sourceDate: string, sourceEndDate: string, targe
 }
 
 /** Preserve the displayed wall-clock span, rather than elapsed UTC hours, across DST moves. */
-export function moveFixedTimeRange(sourceDate: string, sourceEndDate: string, sourceStartTime: string, sourceEndTime: string, targetDate: string, targetTime?: string) {
+export function moveFixedTimeRange(
+  sourceDate: string,
+  sourceEndDate: string,
+  sourceStartTime: string,
+  sourceEndTime: string,
+  targetDate: string,
+  targetTime?: string,
+) {
   const wallStart = Date.parse(`${sourceDate}T${sourceStartTime}:00Z`);
   const wallEnd = Date.parse(`${sourceEndDate}T${sourceEndTime}:00Z`);
   const durationMinutes = Math.max(15, Math.round((wallEnd - wallStart) / MINUTE_MS));
@@ -179,7 +245,14 @@ export function moveFixedTimeRange(sourceDate: string, sourceEndDate: string, so
 }
 
 /** Change one confirmed time edge without changing the stored date range. */
-export function resizeFixedTimeRange(date: string, endDate: string | null, startTime: string, endTime: string, edge: "start" | "end", time: string) {
+export function resizeFixedTimeRange(
+  date: string,
+  endDate: string | null,
+  startTime: string,
+  endTime: string,
+  edge: "start" | "end",
+  time: string,
+) {
   return {
     date,
     endDate: endDate ?? date,
@@ -196,7 +269,13 @@ function wallStart(item: WallStart, timeZone: string) {
 }
 
 /** Keep selected items' displayed offsets from the dragged item. */
-export function groupedMoveTarget(anchor: WallStart, item: WallStart, targetDate: string, timeZone: string, targetTime?: string) {
+export function groupedMoveTarget(
+  anchor: WallStart,
+  item: WallStart,
+  targetDate: string,
+  timeZone: string,
+  targetTime?: string,
+) {
   const anchorStart = wallStart(anchor, timeZone);
   const itemStart = wallStart(item, timeZone);
   const destinationTime = targetTime ?? anchorStart?.time ?? "09:00";

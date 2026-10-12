@@ -1,6 +1,13 @@
 import type { Expense, ExpenseCategory } from "../types/travel.ts";
 
-export const EXPENSE_CATEGORIES: ExpenseCategory[] = ["accommodation", "transport", "food", "activities", "shopping", "other"];
+export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
+  "accommodation",
+  "transport",
+  "food",
+  "activities",
+  "shopping",
+  "other",
+];
 
 export function decimalToThousandths(amount: string): bigint {
   const [whole, fraction = ""] = amount.split(".");
@@ -21,11 +28,15 @@ export function expenseTotals(expenses: Expense[]) {
     categories.set(categoryKey, (categories.get(categoryKey) ?? BigInt(0)) + value);
   }
   return {
-    currencies: [...currencies].sort(([left], [right]) => left.localeCompare(right)).map(([currency, amount]) => ({ currency, amount: thousandthsToDecimal(amount) })),
-    categories: [...categories].sort(([left], [right]) => left.localeCompare(right)).map(([key, amount]) => {
-      const [currency, category] = key.split(":") as [string, ExpenseCategory];
-      return { currency, category, amount: thousandthsToDecimal(amount) };
-    }),
+    currencies: [...currencies]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([currency, amount]) => ({ currency, amount: thousandthsToDecimal(amount) })),
+    categories: [...categories]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, amount]) => {
+        const [currency, category] = key.split(":") as [string, ExpenseCategory];
+        return { currency, category, amount: thousandthsToDecimal(amount) };
+      }),
   };
 }
 
@@ -35,12 +46,16 @@ export function plannedCostTotals(items: { cost?: { amount: number; currency: st
     if (!item.cost || !Number.isFinite(item.cost.amount)) continue;
     totals.set(item.cost.currency, (totals.get(item.cost.currency) ?? 0) + item.cost.amount);
   }
-  return [...totals].sort(([left], [right]) => left.localeCompare(right)).map(([currency, amount]) => ({ currency, amount }));
+  return [...totals]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([currency, amount]) => ({ currency, amount }));
 }
 
 export function formatExpenseAmount(amount: string | number, currency: string) {
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 3 }).format(Number(amount));
+    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 3 }).format(
+      Number(amount),
+    );
   } catch {
     return `${amount} ${currency}`;
   }

@@ -18,10 +18,7 @@ export async function POST(request: Request) {
     const endDate = readDate(body.endDate, "endDate", true);
 
     if (endDate < startDate) {
-      return Response.json(
-        { error: "endDate must be on or after startDate." },
-        { status: 400 },
-      );
+      return Response.json({ error: "endDate must be on or after startDate." }, { status: 400 });
     }
 
     const trip = await prisma.trip.create({
@@ -30,15 +27,15 @@ export async function POST(request: Request) {
         startDate,
         endDate,
         timezone: readTimeZone(body.timezone)!,
-        defaultCurrency: typeof body.defaultCurrency === "string" && /^[A-Z]{3}$/.test(body.defaultCurrency) ? body.defaultCurrency : "SGD",
+        defaultCurrency:
+          typeof body.defaultCurrency === "string" && /^[A-Z]{3}$/.test(body.defaultCurrency)
+            ? body.defaultCurrency
+            : "SGD",
       },
     });
 
     return Response.json(trip, { status: 201 });
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Invalid trip data." },
-      { status: 400 },
-    );
+    return Response.json({ error: error instanceof Error ? error.message : "Invalid trip data." }, { status: 400 });
   }
 }

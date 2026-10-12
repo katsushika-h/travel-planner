@@ -1,6 +1,8 @@
 import type { TravelObject } from "@/types/travel";
 
-type OrderableItem = Omit<Pick<TravelObject, "id" | "dayOrder" | "startTime" | "endTime" | "isAllDay">, never> & { createdAt: string | Date };
+type OrderableItem = Omit<Pick<TravelObject, "id" | "dayOrder" | "startTime" | "endTime" | "isAllDay">, never> & {
+  createdAt: string | Date;
+};
 
 const LAST = Number.MAX_SAFE_INTEGER;
 
@@ -17,16 +19,15 @@ function createdAtValue(item: OrderableItem) {
 }
 
 function byExistingOrder(a: OrderableItem, b: OrderableItem) {
-  return stableOrder(a) - stableOrder(b)
-    || createdAtValue(a) - createdAtValue(b)
-    || a.id.localeCompare(b.id);
+  return stableOrder(a) - stableOrder(b) || createdAtValue(a) - createdAtValue(b) || a.id.localeCompare(b.id);
 }
 
 function byInitialSchedule(a: OrderableItem, b: OrderableItem) {
   const aTimed = isTimedItem(a);
   const bTimed = isTimedItem(b);
   if (aTimed !== bTimed) return aTimed ? -1 : 1;
-  if (aTimed && bTimed) return a.startTime!.localeCompare(b.startTime!) || a.endTime!.localeCompare(b.endTime!) || byExistingOrder(a, b);
+  if (aTimed && bTimed)
+    return a.startTime!.localeCompare(b.startTime!) || a.endTime!.localeCompare(b.endTime!) || byExistingOrder(a, b);
   return byExistingOrder(a, b);
 }
 
@@ -46,9 +47,14 @@ export function normalizeDayOrder<T extends OrderableItem>(items: readonly T[]) 
   const missing = ordered.filter((item) => item.dayOrder == null);
   if (missing.length && existing.every((item, index) => item.dayOrder === index)) {
     for (const item of missing.sort(byInitialSchedule)) {
-      if (!isTimedItem(item)) { existing.push(item); continue; }
-      const nextTimed = existing.findIndex((candidate) => isTimedItem(candidate) && byInitialSchedule(item, candidate) < 0);
-      const lastTimedEnd = existing.reduce((end, candidate, index) => isTimedItem(candidate) ? index + 1 : end, 0);
+      if (!isTimedItem(item)) {
+        existing.push(item);
+        continue;
+      }
+      const nextTimed = existing.findIndex(
+        (candidate) => isTimedItem(candidate) && byInitialSchedule(item, candidate) < 0,
+      );
+      const lastTimedEnd = existing.reduce((end, candidate, index) => (isTimedItem(candidate) ? index + 1 : end), 0);
       existing.splice(nextTimed >= 0 ? nextTimed : lastTimedEnd, 0, item);
     }
     return existing.map((item, dayOrder) => ({ item, dayOrder }));
@@ -61,8 +67,13 @@ export function normalizeAfterScheduleChange<T extends OrderableItem>(items: rea
   const current = [...items].sort(byExistingOrder);
   const complete = current.every((item, index) => item.dayOrder === index);
   if (!complete) return normalizeDayOrder(items);
-  const timed = current.filter(isTimedItem).sort((a, b) => a.startTime!.localeCompare(b.startTime!) || a.endTime!.localeCompare(b.endTime!) || byExistingOrder(a, b));
-  const timedPositions = current.flatMap((item, index) => isTimedItem(item) ? [index] : []);
+  const timed = current
+    .filter(isTimedItem)
+    .sort(
+      (a, b) =>
+        a.startTime!.localeCompare(b.startTime!) || a.endTime!.localeCompare(b.endTime!) || byExistingOrder(a, b),
+    );
+  const timedPositions = current.flatMap((item, index) => (isTimedItem(item) ? [index] : []));
   const replacement = new Map(timedPositions.map((position, index) => [position, timed[index]]));
   return current.map((item, index) => ({ item: replacement.get(index) ?? item, dayOrder: index }));
 }
@@ -80,9 +91,14 @@ export function compareDayDisplayOrder(a: OrderableItem, b: OrderableItem) {
 /** Show confirmed bookings by time while retaining the saved slots for flexible ideas. */
 export function sortDayDisplayItems<T extends OrderableItem>(items: readonly T[]) {
   const ordered = [...items].sort(compareDayDisplayOrder);
-  const timed = ordered.filter(isTimedItem).sort((a, b) => a.startTime!.localeCompare(b.startTime!) || a.endTime!.localeCompare(b.endTime!) || compareScheduleOrder(a, b));
+  const timed = ordered
+    .filter(isTimedItem)
+    .sort(
+      (a, b) =>
+        a.startTime!.localeCompare(b.startTime!) || a.endTime!.localeCompare(b.endTime!) || compareScheduleOrder(a, b),
+    );
   let nextTimed = 0;
-  return ordered.map((item) => isTimedItem(item) ? timed[nextTimed++] : item);
+  return ordered.map((item) => (isTimedItem(item) ? timed[nextTimed++] : item));
 }
 
 export function sortScheduleItems<T extends OrderableItem>(items: readonly T[]) {
@@ -90,30 +106,46 @@ export function sortScheduleItems<T extends OrderableItem>(items: readonly T[]) 
 }
 
 /** Translate an Itinerary gap in the visible list into the reorder route's index. */
-export function itineraryDropPosition<T extends Pick<TravelObject, "id" | "date" | "startTime" | "endTime" | "isAllDay">>(visibleItems: readonly T[], moving: T, targetDate: string, gap: number) {
-  const visibleGap = Number.isFinite(gap) ? Math.min(Math.max(Math.trunc(gap), 0), visibleItems.length) : visibleItems.length;
+export function itineraryDropPosition<
+  T extends Pick<TravelObject, "id" | "date" | "startTime" | "endTime" | "isAllDay">,
+>(visibleItems: readonly T[], moving: T, targetDate: string, gap: number) {
+  const visibleGap = Number.isFinite(gap)
+    ? Math.min(Math.max(Math.trunc(gap), 0), visibleItems.length)
+    : visibleItems.length;
   const movingIndex = visibleItems.findIndex((item) => item.id === moving.id);
   const insertionIndex = visibleGap - (movingIndex >= 0 && movingIndex < visibleGap ? 1 : 0);
   const remaining = visibleItems.filter((item) => item.id !== moving.id);
   return {
     requestedOrder: moving.date === targetDate ? visibleGap : insertionIndex,
-    betweenTimedAnchors: Boolean(remaining[insertionIndex - 1] && isTimedItem(remaining[insertionIndex - 1]))
-      && Boolean(remaining[insertionIndex] && isTimedItem(remaining[insertionIndex])),
+    betweenTimedAnchors:
+      Boolean(remaining[insertionIndex - 1] && isTimedItem(remaining[insertionIndex - 1])) &&
+      Boolean(remaining[insertionIndex] && isTimedItem(remaining[insertionIndex])),
   };
 }
 
 /** Week time-slot drops use the original order expected by the reorder route. */
-export function weekFlexibleDropOrder<T extends OrderableItem & { date: string | null }>(items: readonly T[], date: string, targetTime: string) {
+export function weekFlexibleDropOrder<T extends OrderableItem & { date: string | null }>(
+  items: readonly T[],
+  date: string,
+  targetTime: string,
+) {
   const ordered = sortDayDisplayItems(items.filter((item) => item.date?.slice(0, 10) === date));
   const nextFixed = ordered.findIndex((item) => isTimedItem(item) && item.startTime! >= targetTime);
   return nextFixed < 0 ? ordered.length : nextFixed;
 }
 
 /** Reject Day placements that contradict confirmed times or split overlapping bookings. */
-export function canDropInDayOrder<T extends OrderableItem & { date: string | null; endDate: string | null }>(items: readonly T[], moving: T, date: string, requestedOrder: number) {
+export function canDropInDayOrder<T extends OrderableItem & { date: string | null; endDate: string | null }>(
+  items: readonly T[],
+  moving: T,
+  date: string,
+  requestedOrder: number,
+) {
   const ordered = sortDayDisplayItems(items.filter((item) => item.date?.slice(0, 10) === date));
   const sourceIndex = ordered.findIndex((item) => item.id === moving.id);
-  const gap = Number.isFinite(requestedOrder) ? Math.min(Math.max(Math.trunc(requestedOrder), 0), ordered.length) : ordered.length;
+  const gap = Number.isFinite(requestedOrder)
+    ? Math.min(Math.max(Math.trunc(requestedOrder), 0), ordered.length)
+    : ordered.length;
   const insertionIndex = gap - (sourceIndex >= 0 && sourceIndex < gap ? 1 : 0);
   const result = ordered.filter((item) => item.id !== moving.id);
   result.splice(insertionIndex, 0, moving);
@@ -132,10 +164,17 @@ export function canDropInDayOrder<T extends OrderableItem & { date: string | nul
 
 /** Week cards with later starts sit in front; a shorter card wins a shared start. */
 export function weekFixedLayers<T extends OrderableItem>(items: readonly T[]) {
-  const ordered = items.filter(isTimedItem).sort((a, b) => a.startTime!.localeCompare(b.startTime!) || b.endTime!.localeCompare(a.endTime!) || compareScheduleOrder(a, b));
+  const ordered = items
+    .filter(isTimedItem)
+    .sort(
+      (a, b) =>
+        a.startTime!.localeCompare(b.startTime!) || b.endTime!.localeCompare(a.endTime!) || compareScheduleOrder(a, b),
+    );
   const layers = new Map<string, { left: number; zIndex: number }>();
   for (const [index, item] of ordered.entries()) {
-    const depth = ordered.slice(0, index).filter((previous) => previous.startTime! < item.endTime! && previous.endTime! > item.startTime!).length;
+    const depth = ordered
+      .slice(0, index)
+      .filter((previous) => previous.startTime! < item.endTime! && previous.endTime! > item.startTime!).length;
     layers.set(item.id, { left: 4 + depth * 8, zIndex: 10 + index });
   }
   return layers;
@@ -148,15 +187,22 @@ export function compactDayOrder<T extends OrderableItem>(items: readonly T[]) {
 
 /** Order a complete trip collection, with undated ideas after dated items. */
 export function sortTravelObjects<T extends OrderableItem & { date: string | null }>(items: readonly T[]) {
-  return [...items].sort((a, b) => (a.date ?? "9999-12-31").localeCompare(b.date ?? "9999-12-31") || compareScheduleOrder(a, b));
+  return [...items].sort(
+    (a, b) => (a.date ?? "9999-12-31").localeCompare(b.date ?? "9999-12-31") || compareScheduleOrder(a, b),
+  );
 }
 
 /** Apply a create response that may have shifted later siblings' stored order. */
-export function mergeCreatedTravelObject<T extends OrderableItem & { date: string | null }>(items: readonly T[], created: T) {
+export function mergeCreatedTravelObject<T extends OrderableItem & { date: string | null }>(
+  items: readonly T[],
+  created: T,
+) {
   if (created.date === null || created.dayOrder === null) return sortTravelObjects([...items, created]);
   const createdOrder = created.dayOrder;
-  const shifted = items.map((item) => item.date === created.date && item.dayOrder !== null && item.dayOrder >= createdOrder
-    ? { ...item, dayOrder: item.dayOrder + 1 }
-    : item);
+  const shifted = items.map((item) =>
+    item.date === created.date && item.dayOrder !== null && item.dayOrder >= createdOrder
+      ? { ...item, dayOrder: item.dayOrder + 1 }
+      : item,
+  );
   return sortTravelObjects([...shifted, created]);
 }

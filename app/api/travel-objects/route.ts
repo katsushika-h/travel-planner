@@ -23,10 +23,13 @@ export async function GET(request: Request) {
     return Response.json({ error: "tripId is required." }, { status: 400 });
   }
 
-  const [trip, travelObjects] = await Promise.all([prisma.trip.findUnique({ where: { id: tripId }, select: { id: true } }), prisma.travelObject.findMany({
-    where: { tripId },
-    orderBy: [{ date: "asc" }, { dayOrder: "asc" }, { createdAt: "asc" }],
-  })]);
+  const [trip, travelObjects] = await Promise.all([
+    prisma.trip.findUnique({ where: { id: tripId }, select: { id: true } }),
+    prisma.travelObject.findMany({
+      where: { tripId },
+      orderBy: [{ date: "asc" }, { dayOrder: "asc" }, { createdAt: "asc" }],
+    }),
+  ]);
 
   if (!trip) return Response.json({ error: "Trip not found." }, { status: 404 });
 
@@ -51,27 +54,43 @@ export async function POST(request: Request) {
 
     const { date, endDate, startTime, endTime, placementTime, isAllDay } = readCreateSchedule(body);
     if (kind === "note" && date?.getTime() !== endDate?.getTime()) throw new Error("Notes belong to a single date.");
-    const noteOrder = kind === "note" && body.dayOrder !== undefined ? readNonNegativeInteger(body.dayOrder, "dayOrder") : undefined;
+    const noteOrder =
+      kind === "note" && body.dayOrder !== undefined ? readNonNegativeInteger(body.dayOrder, "dayOrder") : undefined;
     const travelObject = await prisma.$transaction(async (tx) => {
       const created = await tx.travelObject.create({
-      data: {
-        tripId,
-        ...(kind === "note" ? { title: readNoteTitle(body.title), type: "unclassified", noteBody: readNoteBody(body.noteBody === undefined ? "" : body.noteBody) } : readTravelObjectIdentity(body, "create")),
-        kind,
-        date,
-        endDate: date === null ? null : endDate ?? date,
-        startTime,
-        endTime,
-        placementTime: date !== null && !isAllDay && startTime === null && endTime === null ? placementTime ?? "09:00" : null,
-        dayOrder: null,
-        isAllDay,
-        ...(kind === "note" ? {} : readTravelObjectContent(body, "create")),
-      },
+        data: {
+          tripId,
+          ...(kind === "note"
+            ? {
+                title: readNoteTitle(body.title),
+                type: "unclassified",
+                noteBody: readNoteBody(body.noteBody === undefined ? "" : body.noteBody),
+              }
+            : readTravelObjectIdentity(body, "create")),
+          kind,
+          date,
+          endDate: date === null ? null : (endDate ?? date),
+          startTime,
+          endTime,
+          placementTime:
+            date !== null && !isAllDay && startTime === null && endTime === null ? (placementTime ?? "09:00") : null,
+          dayOrder: null,
+          isAllDay,
+          ...(kind === "note" ? {} : readTravelObjectContent(body, "create")),
+        },
       });
       if (date !== null) {
         await writeDateOrder(tx, tripId, date, "initial");
       }
-      if (date && noteOrder !== undefined) await reorderTravelObject(tx, { tripId, objectId: created.id, date, requestedOrder: noteOrder, clearTime: false, placementTime: undefined });
+      if (date && noteOrder !== undefined)
+        await reorderTravelObject(tx, {
+          tripId,
+          objectId: created.id,
+          date,
+          requestedOrder: noteOrder,
+          clearTime: false,
+          placementTime: undefined,
+        });
       return tx.travelObject.findUniqueOrThrow({ where: { id: created.id } });
     });
 

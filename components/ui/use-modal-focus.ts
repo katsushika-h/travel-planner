@@ -2,7 +2,8 @@
 
 import { useEffect, type RefObject } from "react";
 
-const FOCUSABLE_SELECTOR = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function useModalFocus<T extends HTMLElement>(open: boolean, dialogRef: RefObject<T | null>) {
   useEffect(() => {
@@ -12,7 +13,10 @@ export function useModalFocus<T extends HTMLElement>(open: boolean, dialogRef: R
     if (!dialog) return;
     const activeDialog = dialog;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const focusable = () => [...activeDialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)].filter((element) => element.getClientRects().length > 0);
+    const focusable = () =>
+      [...activeDialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)].filter(
+        (element) => element.getClientRects().length > 0,
+      );
     (focusable()[0] ?? activeDialog).focus();
 
     function keepFocusInDialog(event: KeyboardEvent) {

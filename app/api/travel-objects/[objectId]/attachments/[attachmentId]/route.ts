@@ -25,5 +25,7 @@ export async function GET(request: Request, { params }: Context) {
 export async function DELETE(_request: Request, { params }: Context) {
   const { objectId, attachmentId } = await params;
   const result = await prisma.travelAttachment.deleteMany({ where: { id: attachmentId, travelObjectId: objectId } });
-  return result.count ? new Response(null, { status: 204 }) : Response.json({ error: "Attachment not found." }, { status: 404 });
+  return result.count
+    ? new Response(null, { status: 204 })
+    : Response.json({ error: "Attachment not found." }, { status: 404 });
 }

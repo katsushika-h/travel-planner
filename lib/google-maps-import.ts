@@ -18,14 +18,22 @@ async function mapWithConcurrency<T, R>(values: T[], concurrency: number, worker
 }
 
 /** Resolve locations and create the parsed rows while preserving links without coordinates. */
-export async function importGoogleMapsCsv(text: string, trip: Pick<Trip, "id" | "timezone">, eventTypes: readonly string[], onProgress: (complete: number, total: number) => void) {
+export async function importGoogleMapsCsv(
+  text: string,
+  trip: Pick<Trip, "id" | "timezone">,
+  eventTypes: readonly string[],
+  onProgress: (complete: number, total: number) => void,
+) {
   const { records, newTypes, skipped } = parseGoogleMapsCsv(text, trip.timezone, eventTypes);
   const existing = await api.objects(trip.id);
   const names = new Set(existing.map((item) => item.title.trim().toLocaleLowerCase()));
   let duplicateCount = 0;
   const newRecords = records.filter((record) => {
     const name = record.title.slice(0, 100).trim().toLocaleLowerCase();
-    if (names.has(name)) { duplicateCount += 1; return false; }
+    if (names.has(name)) {
+      duplicateCount += 1;
+      return false;
+    }
     names.add(name);
     return true;
   });
@@ -38,7 +46,14 @@ export async function importGoogleMapsCsv(text: string, trip: Pick<Trip, "id" | 
       const result = await api.resolveMapsUrl(record.url);
       const hasCoordinates = result.lat != null && result.lng != null;
       if (!hasCoordinates) unresolvedCount += 1;
-      return { ...record, location: { name: record.title.slice(0, 300), googleMapsUrl: record.url, ...(hasCoordinates ? { lat: result.lat!, lng: result.lng! } : {}) } };
+      return {
+        ...record,
+        location: {
+          name: record.title.slice(0, 300),
+          googleMapsUrl: record.url,
+          ...(hasCoordinates ? { lat: result.lat!, lng: result.lng! } : {}),
+        },
+      };
     } catch {
       unresolvedCount += 1;
       return { ...record, location: { name: record.title.slice(0, 300), googleMapsUrl: record.url } };
@@ -47,9 +62,43 @@ export async function importGoogleMapsCsv(text: string, trip: Pick<Trip, "id" | 
       onProgress(resolvedCount, newRecords.length);
     }
   });
-  const outcomes = await Promise.allSettled(resolvedRecords.map((record) => api.createObject({ tripId: trip.id, title: record.title.slice(0, 100), type: record.type, date: record.schedule.date, endDate: record.schedule.endDate, startTime: record.schedule.startTime, endTime: record.schedule.endTime, isAllDay: record.schedule.isAllDay, location: record.location, cost: null, notes: truncateUtf8(record.notes, 2500) || null, tags: [] })));
-  const created = outcomes.flatMap((outcome) => outcome.status === "fulfilled" ? [outcome.value] : []);
-  const failed = outcomes.flatMap((outcome, index) => outcome.status === "rejected" ? [{ title: resolvedRecords[index].title, reason: outcome.reason instanceof Error ? outcome.reason.message : "Could not create place." }] : []);
+  const outcomes = await Promise.allSettled(
+    resolvedRecords.map((record) =>
+      api.createObject({
+        tripId: trip.id,
+        title: record.title.slice(0, 100),
+        type: record.type,
+        date: record.schedule.date,
+        endDate: record.schedule.endDate,
+        startTime: record.schedule.startTime,
+        endTime: record.schedule.endTime,
+        isAllDay: record.schedule.isAllDay,
+        location: record.location,
+        cost: null,
+        notes: truncateUtf8(record.notes, 2500) || null,
+        tags: [],
+      }),
+    ),
+  );
+  const created = outcomes.flatMap((outcome) => (outcome.status === "fulfilled" ? [outcome.value] : []));
+  const failed = outcomes.flatMap((outcome, index) =>
+    outcome.status === "rejected"
+      ? [
+          {
+            title: resolvedRecords[index].title,
+            reason: outcome.reason instanceof Error ? outcome.reason.message : "Could not create place.",
+          },
+        ]
+      : [],
+  );
   const createdTypes = new Set(created.map((item) => item.type));
-  return { created, failed, newTypes: newTypes.filter((type) => createdTypes.has(type)), skipped, duplicateCount, invalidDates, unresolvedCount };
+  return {
+    created,
+    failed,
+    newTypes: newTypes.filter((type) => createdTypes.has(type)),
+    skipped,
+    duplicateCount,
+    invalidDates,
+    unresolvedCount,
+  };
 }

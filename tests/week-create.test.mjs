@@ -16,7 +16,8 @@ const compiled = ts.transpileModule(`${source}\nexport { WeekPlanner };`, {
 }).outputText;
 const compiledModule = { exports: {} };
 vm.runInNewContext(compiled, {
-  module: compiledModule, exports: compiledModule.exports,
+  module: compiledModule,
+  exports: compiledModule.exports,
   require(name) {
     if (name === "react/jsx-runtime") return require(name);
     if (name === "react") return { useState: (initial) => [initial, () => {}], useRef: (current) => ({ current }) };
@@ -39,20 +40,39 @@ function flatten(element) {
 const date = "2026-10-10";
 function renderWeek(items) {
   const calls = [];
-  const nodes = flatten(compiledModule.exports.WeekPlanner({
-    dates: [date], items, trip: { timezone: "Asia/Singapore" }, typeColors: {},
-    selectedIds: new Set(), primarySelectedId: null, expandedDate: null, draggedItemId: null,
-    onExpandedChange() {}, onSelect() {}, onResize() {}, onSelectDay() {},
-    onCreateItem: (...args) => calls.push(args),
-  }));
-  return { nodes, calls, slots: nodes.filter((node) => node.props?.title === "Double-click to add an item at this time") };
+  const nodes = flatten(
+    compiledModule.exports.WeekPlanner({
+      dates: [date],
+      items,
+      trip: { timezone: "Asia/Singapore" },
+      typeColors: {},
+      selectedIds: new Set(),
+      primarySelectedId: null,
+      expandedDate: null,
+      draggedItemId: null,
+      onExpandedChange() {},
+      onSelect() {},
+      onResize() {},
+      onSelectDay() {},
+      onCreateItem: (...args) => calls.push(args),
+    }),
+  );
+  return {
+    nodes,
+    calls,
+    slots: nodes.filter((node) => node.props?.title === "Double-click to add an item at this time"),
+  };
 }
 function doubleClick(slot, offset) {
   slot.props.onDoubleClick({ clientY: 100 + offset, currentTarget: { getBoundingClientRect: () => ({ top: 100 }) } });
 }
 
 test("Week blank slots create timed items even when the day already has plans", () => {
-  for (const existing of [[], [{ id: "fixed", kind: "event", date, endDate: date, startTime: "09:00", endTime: "10:00", dayOrder: 0 }], [{ id: "flexible", kind: "event", date, endDate: date, startTime: null, endTime: null, dayOrder: 0 }]]) {
+  for (const existing of [
+    [],
+    [{ id: "fixed", kind: "event", date, endDate: date, startTime: "09:00", endTime: "10:00", dayOrder: 0 }],
+    [{ id: "flexible", kind: "event", date, endDate: date, startTime: null, endTime: null, dayOrder: 0 }],
+  ]) {
     const { slots, calls } = renderWeek(existing);
     assert.equal(slots.length, 24);
     doubleClick(slots[14], 22);
@@ -64,7 +84,10 @@ test("Week creation snaps to quarter hours and bounds the last slot", () => {
   const { slots, calls } = renderWeek([]);
   for (const offset of [0, 11, 22, 33]) doubleClick(slots[8], offset);
   doubleClick(slots[23], 43);
-  assert.deepEqual(calls.map((call) => call[2]), ["08:00", "08:15", "08:30", "08:45", "23:45"]);
+  assert.deepEqual(
+    calls.map((call) => call[2]),
+    ["08:00", "08:15", "08:30", "08:45", "23:45"],
+  );
 });
 
 test("Week empty-day Add item still creates a flexible item", () => {
