@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canDropInDayOrder, compactDayOrder, compareDayDisplayOrder, itineraryDropPosition, mergeCreatedTravelObject, normalizeDayOrder, sortDayDisplayItems, sortTravelObjects, weekFixedLayers, weekFlexibleDropOrder } from "../lib/schedule-order.ts";
+import { canDropInDayOrder, compactDayOrder, compareDayDisplayOrder, itineraryDropPosition, mergeCreatedTravelObject, normalizeDayOrder, sortDayDisplayItems, sortTravelObjects, weekFixedLayers, weekFlexibleDropOrder, weekFlexibleWindows } from "../lib/schedule-order.ts";
 
 test("Day blocks out-of-time fixed drops and flexible gaps inside overlaps", () => {
   const date = "2026-09-24";
@@ -113,4 +113,26 @@ test("complete trip sorting keeps date and explicit order with undated ideas las
     { ...base, id: "first", date: "2026-09-24", dayOrder: 0 },
   ];
   assert.deepEqual(sortTravelObjects(items).map((item) => item.id), ["first", "second", "later", "idea"]);
+});
+
+test("Week groups flexible items into the free window between fixed neighbours", () => {
+  const date = "2026-09-24";
+  const createdAt = "2026-09-24T00:00:00.000Z";
+  const item = (id, dayOrder, startTime = null, endTime = null, endDate = date) => ({ id, date, endDate, dayOrder, startTime, endTime, isAllDay: false, createdAt });
+  const early = item("early", 0);
+  const temple = item("temple", 1, "09:15", "11:00");
+  const lunch = item("lunch", 2);
+  const shops = item("shops", 3);
+  const garden = item("garden", 4, "13:30", "15:00");
+  const stroll = item("stroll", 5);
+  const windows = weekFlexibleWindows([early, temple, lunch, shops, garden, stroll]);
+  assert.deepEqual(windows.map(({ key, start, end, items }) => ({ key, start, end, ids: items.map((entry) => entry.id) })), [
+    { key: "before-temple", start: null, end: "09:15", ids: ["early"] },
+    { key: "temple-garden", start: "11:00", end: "13:30", ids: ["lunch", "shops"] },
+    { key: "garden-after", start: "15:00", end: null, ids: ["stroll"] },
+  ]);
+  assert.deepEqual(weekFlexibleWindows([temple, garden]), []);
+  assert.deepEqual(weekFlexibleWindows([lunch, shops]).map(({ start, end }) => ({ start, end })), [{ start: null, end: null }]);
+  const overnight = item("overnight", 0, "22:00", "06:00", "2026-09-25");
+  assert.equal(weekFlexibleWindows([overnight, lunch])[0].start, "24:00");
 });
