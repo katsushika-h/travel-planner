@@ -1,10 +1,10 @@
 "use client";
 
 import { eventItems, weekDropPositions } from "@/lib/note-domain";
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { formatTripDate } from "@/lib/date-utils";
-import { compareScheduleOrder, isTimedItem, weekFixedLayers } from "@/lib/schedule-order";
+import { compareScheduleOrder, weekFixedLayers, weekFlexibleWindows } from "@/lib/schedule-order";
 import { occursOnItineraryDate } from "@/lib/schedule-domain";
 import { typeColor } from "@/lib/type-color";
 import type { TravelObject, Trip } from "@/types/travel";
@@ -202,19 +202,15 @@ function WeekClusterItem({
       {...attributes}
       {...listeners}
       type="button"
+      title={item.title}
       onClick={(event) => onSelect(item, event.shiftKey)}
-      style={{
-        borderLeftColor: color,
-        ...(transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : {}),
-      }}
-      className={`flex min-w-0 items-center gap-1 rounded border border-dashed px-1.5 py-1 text-left text-[9px] ${selectionRing(selected, primary)} ${isDragging ? "opacity-40" : ""}`}
+      style={transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : undefined}
+      className={`flex min-h-6 w-full min-w-0 items-center gap-1.5 rounded border bg-background px-1.5 text-left text-[10px] font-medium shadow-sm ${selectionRing(selected, primary)} ${isDragging ? "opacity-40" : ""}`}
     >
-      <span
-        className="grid size-3 shrink-0 place-items-center rounded-full text-[7px] font-bold text-white"
-        style={{ backgroundColor: color }}
-      >
+      <span className="shrink-0 font-mono text-[9px] font-normal text-muted-foreground">
         {item.dayOrder != null ? item.dayOrder + 1 : "·"}
       </span>
+      <span aria-hidden className="size-1.5 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
       <span className="min-w-0 flex-1 truncate">{item.title}</span>
     </button>
   );
@@ -297,87 +293,112 @@ function WeekAllDayLane({
   );
 }
 
-function WeekFlexibleChunk({
+const weekWindowHatch: CSSProperties = {
+  backgroundImage: "repeating-linear-gradient(135deg, rgba(120, 113, 108, 0.08) 0 6px, transparent 6px 12px)",
+};
+const weekWindowCompactHeight = 22;
+
+// Flexible items fill the free time between their fixed neighbours; a gap too short for the list collapses to one line.
+function WeekFlexibleWindow({
   date,
+  label,
+  description,
   anchor,
   top,
+  height,
+  compact,
   items,
   expanded,
   dropOrder,
   typeColors,
   selectedIds,
   primarySelectedId,
-  onExpand,
+  onToggle,
   onCollapse,
   onSelect,
 }: {
   date: string;
+  label: string;
+  description: string;
   anchor: string;
   top: number;
+  height: number;
+  compact: boolean;
   items: TravelObject[];
   expanded: boolean;
   dropOrder: Map<string, number>;
   typeColors: Record<string, string>;
   selectedIds: ReadonlySet<string>;
   primarySelectedId: string | null;
-  onExpand: () => void;
+  onToggle: () => void;
   onCollapse: () => void;
   onSelect: (item: TravelObject, additive?: boolean) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `week-cluster:${date}:${anchor.replace(":", "")}:${dropOrder.get(items[0]?.id) ?? 0}`,
   });
+  const frame = `rounded-md border border-dashed ${isOver ? "border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/60" : "border-stone-300 bg-stone-50/90 dark:border-neutral-600 dark:bg-neutral-900/90"}`;
+  const list = items.map((item) => (
+    <div key={item.id}>
+      <WeekFlexibleGap date={date} order={dropOrder.get(item.id) ?? 0} />
+      <WeekClusterItem
+        item={item}
+        color={typeColor(item.type, typeColors)}
+        selected={selectedIds.has(item.id)}
+        primary={primarySelectedId === item.id}
+        onSelect={onSelect}
+      />
+    </div>
+  ));
+  if (!compact)
+    return (
+      <div
+        ref={setNodeRef}
+        role="group"
+        aria-label={`Flexible: ${description}`}
+        title={description}
+        className={`absolute inset-x-1 z-20 flex flex-col overflow-hidden p-1 ${frame}`}
+        style={{ top, height, ...weekWindowHatch }}
+      >
+        <span className="truncate px-0.5 text-[9px] text-muted-foreground">{label}</span>
+        {list}
+      </div>
+    );
   return (
     <div
       ref={setNodeRef}
-      onMouseEnter={onExpand}
-      onMouseLeave={onCollapse}
-      onFocusCapture={onExpand}
+      className="absolute inset-x-1 z-30"
+      style={{ top }}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onCollapse();
       }}
-      className={`absolute inset-x-1 z-30 ${isOver ? "rounded-md ring-2 ring-emerald-400" : ""}`}
-      style={{ top }}
     >
       <button
         type="button"
-        onClick={onExpand}
-        className="flex h-12 w-full flex-col items-start justify-center rounded-md border border-dashed border-emerald-500 bg-emerald-950/90 px-2 text-left text-[9px] text-emerald-50 shadow-sm"
+        aria-expanded={expanded}
+        aria-label={`${items.length} flexible ${items.length === 1 ? "item" : "items"}, ${description}`}
+        title={description}
+        onClick={onToggle}
+        className={`flex w-full min-w-0 items-center gap-1 px-1.5 text-left text-[10px] text-muted-foreground shadow-sm ${frame}`}
+        style={{ height: weekWindowCompactHeight, ...weekWindowHatch }}
       >
-        <span className="font-semibold">
-          {items.length} Flexible idea{items.length === 1 ? "" : "s"}
-        </span>
-        <span className="text-[8px] text-emerald-200">
-          {anchor} · {expanded ? "Close to dismiss" : "ordered · select to expand"}
-        </span>
+        <span className="shrink-0 font-semibold text-foreground">+{items.length} flexible</span>
+        <span className="min-w-0 truncate">· {items.map((item) => item.title).join(", ")}</span>
       </button>
       {expanded && (
-        <div className="absolute left-full top-0 z-[100] w-48 rounded-lg border border-stone-600 bg-neutral-900 p-2 shadow-2xl">
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <p className="text-[10px] font-semibold text-stone-100">Flexible ideas · ordered</p>
+        <div className="absolute inset-x-0 top-full z-50 mt-1 rounded-md border bg-background p-1.5 shadow-xl">
+          <div className="flex items-center justify-between gap-1">
+            <span className="truncate text-[9px] text-muted-foreground">{label}</span>
             <button
               type="button"
               onClick={onCollapse}
-              className="min-h-11 shrink-0 rounded px-2 text-xs text-stone-200 hover:bg-neutral-700 sm:min-h-7"
-              aria-label="Close flexible ideas"
+              className="min-h-11 shrink-0 rounded px-1.5 text-[10px] hover:bg-muted sm:min-h-6"
+              aria-label="Close flexible items"
             >
               Close
             </button>
           </div>
-          <div className="space-y-1">
-            {items.map((item) => (
-              <div key={item.id}>
-                <WeekFlexibleGap date={date} order={dropOrder.get(item.id) ?? 0} />
-                <WeekClusterItem
-                  item={item}
-                  color={typeColor(item.type, typeColors)}
-                  selected={selectedIds.has(item.id)}
-                  primary={primarySelectedId === item.id}
-                  onSelect={onSelect}
-                />
-              </div>
-            ))}
-          </div>
+          {list}
         </div>
       )}
     </div>
@@ -419,55 +440,55 @@ function WeekDayColumn({
   const allDayItems = visibleItems.filter((item) => item.isAllDay).sort(compareScheduleOrder);
   const orderedItems = visibleItems.filter((item) => !item.isAllDay).sort(compareScheduleOrder);
   const fixedItems = orderedItems.filter((item) => !item.isAllDay && item.startTime && item.endTime);
-  const flexibleItems = orderedItems.filter((item) => !item.startTime || !item.endTime);
-  const globalOrder = new Map(orderedItems.map((item, index) => [item.id, index]));
   const dropOrder = weekDropPositions(items, date);
-  const chunkGroups = [
-    ...flexibleItems.reduce((groups, item) => {
-      const position = globalOrder.get(item.id) ?? 0;
-      const previousFixed = [...orderedItems.slice(0, position)].reverse().find(isTimedItem);
-      const nextFixed = orderedItems.slice(position + 1).find(isTimedItem);
-      const anchorMinutes = previousFixed
-        ? (weekMinutes(previousFixed.endTime) ?? 0)
-        : Math.max(0, (weekMinutes(nextFixed?.startTime ?? null) ?? 15) - 15);
-      const anchor = weekTimeLabel(anchorMinutes);
-      const chunkKey = `${previousFixed?.id ?? "before"}-${nextFixed?.id ?? "after"}`;
-      const group = groups.get(chunkKey) ?? { anchor, items: [] as TravelObject[] };
-      group.items.push(item);
-      groups.set(chunkKey, group);
-      return groups;
-    }, new Map<string, { anchor: string; items: TravelObject[] }>()),
-  ];
-  const chunkHeight = 48;
   const fixedLayers = weekFixedLayers(fixedItems);
-  const fixedRects = fixedItems.map((item) => {
-    const start = weekMinutes(item.startTime) ?? 0;
-    const end = weekMinutes(item.endTime) ?? start + 60;
-    return { top: (start / 60) * weekRowHeight, bottom: (end / 60) * weekRowHeight };
-  });
-  const placedRects: Array<{ top: number; bottom: number }> = [];
-  const overlaps = (top: number, bottom: number) =>
-    [...fixedRects, ...placedRects].some((rect) => top < rect.bottom && bottom > rect.top);
-  const findFreeTop = (preferred: number) => {
-    const maxTop = 24 * weekRowHeight - chunkHeight;
-    const bounded = Math.max(0, Math.min(maxTop, preferred));
-    for (let offset = 0; offset <= maxTop; offset += 11) {
-      const upward = bounded - offset;
-      if (upward >= 0 && !overlaps(upward, upward + chunkHeight)) return upward;
-      const downward = bounded + offset;
-      if (downward <= maxTop && !overlaps(downward, downward + chunkHeight)) return downward;
-    }
-    return bounded;
-  };
-  const chunks = chunkGroups.map(([chunkKey, chunk]) => {
-    const preferred = ((weekMinutes(chunk.anchor) ?? 0) / 60) * weekRowHeight;
-    const top = findFreeTop(preferred);
-    placedRects.push({ top, bottom: top + chunkHeight });
-    return { chunkKey, ...chunk, top };
+  const toTop = (minutes: number) => (minutes / 60) * weekRowHeight;
+  const dayHeight = 24 * weekRowHeight;
+  const windows = weekFlexibleWindows(orderedItems).map((slot) => {
+    const needed = 20 + slot.items.length * 28;
+    const start = weekMinutes(slot.start);
+    const end = weekMinutes(slot.end);
+    let top: number;
+    let height = needed;
+    let compact = false;
+    if (start !== null && end !== null) {
+      top = toTop(start);
+      const gap = toTop(end) - top;
+      if (gap >= needed) height = gap;
+      else {
+        compact = true;
+        if (gap < weekWindowCompactHeight) top = toTop(end) - weekWindowCompactHeight;
+      }
+    } else if (start !== null) top = toTop(start);
+    else if (end !== null) {
+      top = toTop(end) - needed;
+      if (top < 0) {
+        compact = true;
+        top = toTop(end) - weekWindowCompactHeight;
+      }
+    } else top = toTop(weekMinutes(slot.items[0].placementTime) ?? 9 * 60);
+    top = Math.max(0, Math.min(dayHeight - (compact ? weekWindowCompactHeight : height), top));
+    const label =
+      start !== null && end !== null
+        ? `Flexible · ${slot.start}–${slot.end}`
+        : start !== null
+          ? `Flexible · after ${slot.start}`
+          : end !== null
+            ? `Flexible · before ${slot.end}`
+            : "Flexible · anytime";
+    const description =
+      slot.previous && slot.next
+        ? `between ${slot.previous.title} and ${slot.next.title}`
+        : slot.previous
+          ? `after ${slot.previous.title}`
+          : slot.next
+            ? `before ${slot.next.title}`
+            : "anytime this day";
+    return { ...slot, top, height, compact, label, description, anchor: weekTimeLabel((top / weekRowHeight) * 60) };
   });
   return (
     <section
-      className={`relative ${expandedChunk?.startsWith(`${date}:`) || chunks.some((chunk) => chunk.items.some((item) => item.id === draggedItemId)) ? "z-40" : "z-0"} min-w-0 border-l bg-white dark:bg-neutral-900`}
+      className={`relative ${expandedChunk?.startsWith(`${date}:`) || windows.some((slot) => slot.items.some((item) => item.id === draggedItemId)) ? "z-40" : "z-0"} min-w-0 border-l bg-white dark:bg-neutral-900`}
     >
       <button
         type="button"
@@ -514,23 +535,25 @@ function WeekDayColumn({
             onResize={onResize}
           />
         ))}
-        {chunks.map((chunk) => (
-          <WeekFlexibleChunk
-            key={chunk.chunkKey}
+        {windows.map((slot) => (
+          <WeekFlexibleWindow
+            key={slot.key}
             date={date}
-            anchor={chunk.anchor}
-            top={chunk.top}
-            items={chunk.items}
-            expanded={
-              expandedChunk === `${date}:${chunk.chunkKey}` || chunk.items.some((item) => item.id === draggedItemId)
-            }
+            label={slot.label}
+            description={slot.description}
+            anchor={slot.anchor}
+            top={slot.top}
+            height={slot.height}
+            compact={slot.compact}
+            items={slot.items}
+            expanded={expandedChunk === `${date}:${slot.key}` || slot.items.some((item) => item.id === draggedItemId)}
             dropOrder={dropOrder}
             typeColors={typeColors}
             selectedIds={selectedIds}
             primarySelectedId={primarySelectedId}
-            onExpand={() => onExpandedChange(`${date}:${chunk.chunkKey}`)}
+            onToggle={() => onExpandedChange(expandedChunk === `${date}:${slot.key}` ? null : `${date}:${slot.key}`)}
             onCollapse={() => {
-              if (expandedChunk === `${date}:${chunk.chunkKey}`) onExpandedChange(null);
+              if (expandedChunk === `${date}:${slot.key}`) onExpandedChange(null);
             }}
             onSelect={onSelect}
           />

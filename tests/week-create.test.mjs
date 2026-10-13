@@ -5,7 +5,7 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import { eventItems, weekDropPositions } from "../lib/note-domain.ts";
-import { compareScheduleOrder, isTimedItem, weekFixedLayers } from "../lib/schedule-order.ts";
+import { compareScheduleOrder, isTimedItem, weekFixedLayers, weekFlexibleWindows } from "../lib/schedule-order.ts";
 
 // Render the Week component tree without a DOM or drag sensor. Exercise the
 // actual slot handlers and callback wiring rather than matching source text.
@@ -23,7 +23,8 @@ vm.runInNewContext(compiled, {
     if (name === "react") return { useState: (initial) => [initial, () => {}], useRef: (current) => ({ current }) };
     if (name === "@dnd-kit/core") return { useDroppable: () => ({}), useDraggable: () => ({}) };
     if (name === "@/lib/note-domain") return { eventItems, weekDropPositions };
-    if (name === "@/lib/schedule-order") return { compareScheduleOrder, isTimedItem, weekFixedLayers };
+    if (name === "@/lib/schedule-order")
+      return { compareScheduleOrder, isTimedItem, weekFixedLayers, weekFlexibleWindows };
     if (name === "@/lib/date-utils") return { formatTripDate: () => "Date" };
     if (name === "@/lib/schedule-domain") return { occursOnItineraryDate: (item, date) => item.date === date };
     if (name === "@/lib/type-color") return { typeColor: () => "#000000" };
@@ -96,4 +97,51 @@ test("Week empty-day Add item still creates a flexible item", () => {
   const add = nodes.find((node) => node.type === "button" && node.props.children === "Add item");
   add.props.onClick();
   assert.deepEqual(calls, [[date, 0]]);
+});
+
+test("Week shows flexible items in the window between fixed neighbours", () => {
+  const createdAt = "2026-10-01T00:00:00.000Z";
+  const item = (id, dayOrder, startTime = null, endTime = null) => ({
+    id,
+    title: id,
+    kind: "event",
+    type: "food",
+    date,
+    endDate: date,
+    startTime,
+    endTime,
+    isAllDay: false,
+    dayOrder,
+    createdAt,
+    placementTime: null,
+  });
+  const roomy = renderWeek([
+    item("Temple", 0, "09:00", "10:00"),
+    item("Lunch", 1),
+    item("Shops", 2),
+    item("Garden", 3, "13:00", "14:00"),
+  ]).nodes;
+  const window = roomy.find((node) => node.props?.role === "group");
+  assert.equal(window.props["aria-label"], "Flexible: between Temple and Garden");
+  assert.equal(window.props.style.top, 10 * 44);
+  assert.equal(window.props.style.height, 3 * 44);
+  assert.deepEqual(
+    roomy
+      .filter((node) => node.props?.title === "Lunch" || node.props?.title === "Shops")
+      .map((node) => node.props.title),
+    ["Lunch", "Shops"],
+  );
+
+  const tight = renderWeek([
+    item("Temple", 0, "09:00", "10:00"),
+    item("Lunch", 1),
+    item("Shops", 2),
+    item("Garden", 3, "10:15", "11:00"),
+  ]).nodes;
+  assert.equal(
+    tight.some((node) => node.props?.role === "group"),
+    false,
+  );
+  const pill = tight.find((node) => node.type === "button" && node.props["aria-expanded"] === false);
+  assert.equal(pill.props["aria-label"], "2 flexible items, between Temple and Garden");
 });
