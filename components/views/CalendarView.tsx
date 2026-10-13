@@ -266,6 +266,11 @@ export function CalendarView({
     else requestDay(shiftDate(focusDate, direction));
   }
   function goToToday() {
+    if (mode === "week") {
+      setFocusDate(today);
+      setExpandedWeekDate(null);
+      return;
+    }
     setMode("day");
     requestDay(today >= start && today <= tripEnd ? today : start);
   }
