@@ -492,7 +492,7 @@ export function ObjectInspectorPanel({
         )}
 
         <section aria-label="When" className={sectionClass}>
-          <div role="group" aria-label="Schedule" className="flex flex-wrap gap-x-5 gap-y-1 text-[13px]">
+          <div role="group" aria-label="Schedule" className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] sm:gap-x-5">
             {scheduleKinds.map(([value, label]) => (
               <button
                 key={value}
@@ -506,7 +506,7 @@ export function ObjectInspectorPanel({
             ))}
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-            <div className={labelClass}>
+            <div className={`${labelClass} ${kind === "flexible" ? "col-span-2 w-[calc(50%-0.5rem)]" : ""}`}>
               <span>{kind === "fixed" || kind === "all-day" ? "Starts" : "Date"}</span>
               <DateFields label="Start date" value={dateValue} defaultYear={defaultYear} onChange={patchDate} />
             </div>
@@ -549,31 +549,33 @@ export function ObjectInspectorPanel({
                     className={`${fieldClass} font-mono text-lg font-light tabular-nums`}
                   />
                 </label>
-                <label className={labelClass}>
-                  End (24h)
-                  <input
-                    key={`${item.id}:end:${endTimeValue}`}
-                    aria-label="End time in 24-hour format"
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={5}
-                    placeholder="HH:MM"
-                    defaultValue={endTimeValue}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") event.currentTarget.blur();
-                    }}
-                    onBlur={(event) => {
-                      const value = normalize24HourTime(event.currentTarget.value);
-                      if (value === null) {
-                        event.currentTarget.value = endTimeValue;
-                        return;
-                      }
-                      event.currentTarget.value = value;
-                      patchTime("endTime", value);
-                    }}
-                    className={`${fieldClass} font-mono text-lg font-light tabular-nums`}
-                  />
-                </label>
+                {kind === "fixed" && (
+                  <label className={labelClass}>
+                    End (24h)
+                    <input
+                      key={`${item.id}:end:${endTimeValue}`}
+                      aria-label="End time in 24-hour format"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={5}
+                      placeholder="HH:MM"
+                      defaultValue={endTimeValue}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") event.currentTarget.blur();
+                      }}
+                      onBlur={(event) => {
+                        const value = normalize24HourTime(event.currentTarget.value);
+                        if (value === null) {
+                          event.currentTarget.value = endTimeValue;
+                          return;
+                        }
+                        event.currentTarget.value = value;
+                        patchTime("endTime", value);
+                      }}
+                      className={`${fieldClass} font-mono text-lg font-light tabular-nums`}
+                    />
+                  </label>
+                )}
               </>
             )}
           </div>
