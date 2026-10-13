@@ -1,6 +1,6 @@
 # Minimal UI rewrite
 
-**Status:** In progress (2026-10-13). WS0 Foundation merged into the integration branch. Next: user checkpoint, then batch A (WS3, WS4, WS5).
+**Status:** In progress (2026-10-13). WS0 and WS4 merged. WS3 and WS5 finished on their branches and waiting for coordinator review. See **Handoff for the next session** below.
 
 **Goal:** Rebuild the workspace UI in the Minimal design, in light and dark themes, without changing behaviour, the API, the schema or persisted client state.
 
@@ -20,9 +20,9 @@ Each workstream has its own notes file under [minimal-ui/](minimal-ui/README.md)
 | Workstream | Notes file | Batch | Status |
 | --- | --- | --- | --- |
 | WS0 Foundation | this file (below) | 0 | Merged |
-| WS3 Board + Table | [ws3-board-table.md](minimal-ui/ws3-board-table.md) | A | Not started |
-| WS4 Map + Spend | [ws4-map-spend.md](minimal-ui/ws4-map-spend.md) | A | Not started |
-| WS5 Item editor + dialogs | [ws5-editor.md](minimal-ui/ws5-editor.md) | A | Not started |
+| WS3 Board + Table | [ws3-board-table.md](minimal-ui/ws3-board-table.md) | A | Done on branch (`b8a5abd`); awaiting review |
+| WS4 Map + Spend | [ws4-map-spend.md](minimal-ui/ws4-map-spend.md) | A | Merged (`73af0eb`) |
+| WS5 Item editor + dialogs | [ws5-editor.md](minimal-ui/ws5-editor.md) | A | Done on branch (`26985cb`); awaiting review |
 | WS1 Plan view | [ws1-plan.md](minimal-ui/ws1-plan.md) | B | Not started |
 | WS2 Calendar | [ws2-calendar.md](minimal-ui/ws2-calendar.md) | B | Not started |
 | WS6 Integration, QA, docs, PR | this file (below) | C | Not started |
@@ -76,6 +76,39 @@ Running at most three workstreams at once keeps machine load and merge work mana
 - **Plan view cross-day moves** (WS1 default): drag onto a day in the day strip instead of the old multi-column layout. The user can override.
 
 ---
+
+## Handoff for the next session
+
+Written 2026-10-13 when the coordinating session was closed to save tokens (its long history made every step expensive). Start a fresh coordinator from this section, the workstream notes files and `AGENTS.md`.
+
+**State**
+
+| Item | Where | State |
+| --- | --- | --- |
+| Integration branch | `claude/minimal-ui-rewrite`, worktree `../travel-planner-ui` | WS0 + WS4 merged, pushed (`73af0eb`). `npm run check` passes. |
+| WS3 Board + Table | `claude/minimal-ui-ws3-board-table`, `../travel-planner-ws3` | Committed `b8a5abd`. Coordinator re-ran checks: lint 0 errors, 94/94 tests, webpack build OK, colour grep clean, only owned files changed. **Not yet done:** browser comparison and code review. |
+| WS5 Editor + dialogs | `claude/minimal-ui-ws5-editor`, `../travel-planner-ws5` | Committed `26985cb`. **Not yet reviewed at all.** Also changed `tests/delete-hotkey.test.mjs` (mock only) — confirm that is acceptable. Agent could not check at exactly 1440px. |
+| Batch B (WS1 Plan, WS2 Calendar) | — | Not started; needs batch A merged and the user's go-ahead. |
+
+All dev servers are stopped. Subagents run on Sonnet (user preference).
+
+**Next steps, in order**
+
+1. Review WS3 (browser at 1440 light/dark and 390, then a code review of the diff), merge `--no-ff`, re-run `npm run check`, push.
+2. Review WS5 the same way, merge, push.
+3. Coordinator follow-up commit on the integration branch for the agents' requests:
+   - `LeafletMap.tsx`: fit bounds should skip `dimmedItemIds` (and list it in the effect deps) so Map zooms to the selected day (WS4).
+   - `lib/expense-domain.ts` `formatExpenseAmount`: use `currencyDisplay: "narrowSymbol"` so amounts read `¥43,750` / `S$1,398`; update `tests/expense-domain.test.mjs` if it asserts the format (WS4).
+   - `AppShell.tsx`: pass `onDeleteSelected={(ids) => setPendingDeleteIds(ids)}` to `TableView` so the Table bulk bar shows Delete (WS3).
+   - `AppShell.tsx`: add a shadow to the editor wrapper where it floats over the Calendar (WS5).
+   - Optional (WS5): pass a save status (saving/saved/error) from the save queue so the editor footer can say "Saved"; add a `--scrim` token and use it for `ConfirmDialog` and the trip dialogs (currently `bg-black/40` vs `bg-background/80`); replace the hard-coded hex in `.travel-markdown-editor.dark-theme` in `globals.css` with tokens.
+   - No change: dark map tiles look more colourful than `map-dark.jpg` because the user chose the colour-preserving filter (green parks, blue water).
+4. Ask the user to check the app (batch A views, both themes) before starting batch B.
+5. Batch B: WS1 Plan and WS2 Calendar in parallel, same process. To save coordinator tokens, have each agent attach its own screenshots and keep coordinator browser checks targeted.
+
+**Separate bug (not part of the rewrite, also on `main`)**
+
+WS3 found that bulk Unschedule / Move to day sends one PATCH per item at the same time (`changeSelectedItems` in `components/layout/useItemActions.ts` calls `changeItem(..., immediate=true)` in a loop). With two items, the server's `dayOrder` compaction hit the `TravelObject_schedule_shape` check, one item stayed scheduled and a database error showed. The coordinator confirmed the concurrent sends in code but has not reproduced the error. Suggested fix: send the updates one after another (or add a bulk endpoint); fix in its own branch and PR, with a test.
 
 ## WS0 — Foundation (merged)
 
