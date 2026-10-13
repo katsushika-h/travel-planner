@@ -92,6 +92,7 @@ export function CreateTripDialog({
             className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-scrim p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
             role="dialog"
             aria-modal="true"
+            aria-labelledby="create-trip-title"
           >
             <form
               action={submit}
@@ -99,7 +100,9 @@ export function CreateTripDialog({
             >
               <div className="mb-5 flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-medium tracking-tight">Create a trip</h2>
+                  <h2 id="create-trip-title" className="text-lg font-medium tracking-tight">
+                    Create a trip
+                  </h2>
                   <p className="text-sm text-muted">Your destination timezone is used throughout the itinerary.</p>
                 </div>
                 <Button
