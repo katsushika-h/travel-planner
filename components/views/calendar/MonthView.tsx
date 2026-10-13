@@ -1,11 +1,11 @@
 "use client";
 
 import { eventItems } from "@/lib/note-domain";
-import { type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { GripVertical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { dateParts, formatTripDate, startDateTimeFor } from "@/lib/date-utils";
+import { dateParts, formatTripDate, shiftDate, startDateTimeFor } from "@/lib/date-utils";
 import { compareScheduleOrder, isTimedItem, sortDayDisplayItems } from "@/lib/schedule-order";
 import { itemDateSpan, occursOnItineraryDate } from "@/lib/schedule-domain";
 import { typeColor } from "@/lib/type-color";
@@ -141,9 +141,11 @@ function MultiDayBar({
   primary: boolean;
   onSelect: (item: TravelObject, additive?: boolean) => void;
 }) {
+  // The grabbed day keeps its offset under the pointer, as in Week and Day views.
+  const [draggedDate, setDraggedDate] = useState<string>();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `${item.id}:${weekStart}`,
-    data: { item },
+    data: { item, draggedDate },
     disabled: item.id.startsWith("draft:"),
   });
   const style: CSSProperties = {
@@ -161,6 +163,11 @@ function MultiDayBar({
       style={style}
       onClick={(event) => onSelect(item, event.shiftKey)}
       onDoubleClick={(event) => event.stopPropagation()}
+      onPointerDownCapture={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const column = Math.floor(((event.clientX - rect.left) / rect.width) * dayCount);
+        setDraggedDate(shiftDate(weekStart, startColumn + Math.min(Math.max(column, 0), dayCount - 1)));
+      }}
       title={item.title}
       className={`absolute z-10 flex h-5 items-center gap-1 border px-1.5 text-left text-[10px] font-medium shadow-sm hover:brightness-95 ${startsHere ? "rounded-l-md" : "border-l-0"} ${endsHere ? "rounded-r-md" : "border-r-0"} ${selectionRing(selected, primary)} ${isDragging ? "opacity-40" : ""}`}
       {...attributes}

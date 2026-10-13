@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import { dateParts } from "../lib/date-utils.ts";
 
 const require = createRequire(import.meta.url);
 class Element {
@@ -41,6 +42,7 @@ function loadComponent(path) {
       if (name === "react-dom") return { createPortal: (tree) => tree };
       if (name === "@/components/ui/use-modal-focus") return { useModalFocus() {} };
       if (name === "@/lib/type-color") return { typeColor: () => "#000000" };
+      if (name === "@/lib/date-utils") return { dateParts };
       return {};
     },
   });
