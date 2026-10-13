@@ -123,7 +123,7 @@ export function CreateTripDialog({
                   required
                   maxLength={50}
                   placeholder="Japan spring escape"
-                  className="mt-1 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
+                  className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
                 />
               </label>
               <div className="mt-4 grid grid-cols-2 gap-3">
@@ -138,7 +138,7 @@ export function CreateTripDialog({
                       setEndDate(nextDate(event.target.value));
                     }}
                     required
-                    className="mt-1 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
+                    className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
                   />
                 </label>
                 <label className="text-xs font-normal text-muted">
@@ -150,7 +150,7 @@ export function CreateTripDialog({
                     value={endDate}
                     onChange={(event) => setEndDate(event.target.value)}
                     required
-                    className="mt-1 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
+                    className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
                   />
                 </label>
               </div>
@@ -162,7 +162,7 @@ export function CreateTripDialog({
                   required
                   defaultValue={Intl.DateTimeFormat().resolvedOptions().timeZone}
                   placeholder="Type a city or region, e.g. Tokyo"
-                  className="mt-1 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
+                  className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
                 />
                 <datalist id="create-iana-timezones">
                   {[...new Set(["UTC", Intl.DateTimeFormat().resolvedOptions().timeZone, ...zones])].map((zone) => (
@@ -183,7 +183,7 @@ export function CreateTripDialog({
                   value={defaultCurrency}
                   onChange={(event) => setDefaultCurrency(event.target.value.toUpperCase())}
                   placeholder="SGD"
-                  className="mt-1 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground uppercase"
+                  className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground uppercase"
                 />
                 <span className="mt-1 block text-xs font-normal text-muted">
                   Use a three-letter currency code, such as SGD, USD, or JPY.

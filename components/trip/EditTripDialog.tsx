@@ -115,7 +115,7 @@ export function EditTripDialog({
                   required
                   maxLength={50}
                   defaultValue={trip.title}
-                  className="mt-1 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
+                  className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
                 />
               </label>
               <div className="mt-4 grid grid-cols-2 gap-3">
@@ -126,7 +126,7 @@ export function EditTripDialog({
                     type="date"
                     defaultValue={trip.startDate.slice(0, 10)}
                     required
-                    className="mt-1 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
+                    className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
                   />
                 </label>
                 <label className="text-xs font-normal text-muted">
@@ -136,7 +136,7 @@ export function EditTripDialog({
                     type="date"
                     defaultValue={trip.endDate.slice(0, 10)}
                     required
-                    className="mt-1 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
+                    className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
                   />
                 </label>
               </div>
@@ -147,7 +147,7 @@ export function EditTripDialog({
                   required
                   list="edit-iana-timezones"
                   defaultValue={trip.timezone}
-                  className="mt-1 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
+                  className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
                 />
                 <datalist id="edit-iana-timezones">
                   {[...new Set(["UTC", trip.timezone, ...zones])].map((zone) => (
@@ -163,7 +163,7 @@ export function EditTripDialog({
                   maxLength={3}
                   pattern="[A-Za-z]{3}"
                   defaultValue={trip.defaultCurrency ?? "SGD"}
-                  className="mt-1 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground uppercase"
+                  className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground uppercase"
                 />
               </label>
               {error && <p className="mt-3 text-sm text-danger">{error}</p>}
