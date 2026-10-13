@@ -50,11 +50,11 @@ export function DateFields({
 
   return (
     <div role="group" aria-label={label} className="min-w-0">
-      <div className="grid grid-cols-[minmax(0,2fr)_auto_minmax(0,2fr)_auto_minmax(0,4fr)] items-center gap-0.5">
+      <div className="grid grid-cols-[minmax(0,2fr)_auto_minmax(0,2fr)_auto_minmax(0,4fr)] items-center gap-0.5 border-b border-input-rule focus-within:border-foreground">
         {(["day", "month", "year"] as const).map((part, index) => (
           <span key={part} className="contents">
             {index > 0 && (
-              <span aria-hidden className="text-xs text-muted-foreground">
+              <span aria-hidden className="text-xs text-faint">
                 /
               </span>
             )}
@@ -76,13 +76,13 @@ export function DateFields({
                   event.currentTarget.blur();
                 }
               }}
-              className="min-h-11 min-w-0 w-full border-0 bg-transparent px-0 py-1 font-mono text-xs text-foreground outline-none focus:ring-1 focus:ring-emerald-600 sm:min-h-0 sm:text-sm"
+              className="min-h-11 min-w-0 w-full border-0 bg-transparent px-0 py-1.5 text-[15px] tabular-nums text-foreground outline-none placeholder:text-faint focus:ring-0 sm:min-h-0"
             />
           </span>
         ))}
       </div>
       {draft.error && (
-        <p id={errorId} role="alert" className="mt-1 text-[10px] text-destructive">
+        <p id={errorId} role="alert" className="mt-1 text-xs text-danger">
           {draft.error}
         </p>
       )}

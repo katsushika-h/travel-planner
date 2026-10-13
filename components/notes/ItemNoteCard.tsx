@@ -101,16 +101,16 @@ export function ItemNoteCard({
       ref={setNodeRef}
       aria-label="Day note"
       style={transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : undefined}
-      className={`rounded-xl border border-l-4 border-l-amber-500 bg-white shadow-sm dark:bg-neutral-900 ${isDragging ? "opacity-40" : ""}`}
+      className={`border border-divider border-l-2 border-l-foreground bg-surface ${isDragging ? "opacity-40" : ""}`}
     >
       <div className="flex min-w-0">
-        <div className="flex w-12 shrink-0 flex-col items-center gap-2 rounded-l-lg border-r bg-amber-50 py-3 text-amber-700 dark:bg-amber-950/20 dark:text-amber-300">
-          <StickyNote size={18} />
+        <div className="flex w-12 shrink-0 flex-col items-center gap-2 border-r border-divider py-3 text-muted">
+          <StickyNote size={18} aria-hidden />
           <button
             type="button"
             data-reorder-handle
             aria-label={`Reorder note ${item.title}`}
-            className="flex min-h-11 min-w-11 touch-none items-center justify-center rounded hover:bg-amber-100 sm:min-h-7 sm:min-w-7 dark:hover:bg-amber-950"
+            className="flex min-h-11 min-w-11 touch-none items-center justify-center hover:bg-divider sm:min-h-7 sm:min-w-7"
             {...attributes}
             {...listeners}
           >
@@ -132,7 +132,7 @@ export function ItemNoteCard({
                 event.currentTarget.parentElement?.querySelector("textarea")?.focus();
               }
             }}
-            className="min-h-11 w-full min-w-0 border-0 bg-transparent px-2 text-base font-semibold outline-none focus:ring-0 sm:min-h-8 sm:text-sm"
+            className="min-h-11 w-full min-w-0 border-0 bg-transparent px-2 text-base font-medium text-foreground outline-none placeholder:text-faint focus:ring-0 sm:min-h-8 sm:text-sm"
           />
           <textarea
             ref={bodyRef}
@@ -143,10 +143,10 @@ export function ItemNoteCard({
             value={draft.noteBody}
             onChange={(event) => change({ noteBody: event.target.value })}
             onBlur={() => void commit()}
-            className="mt-1 w-full resize-none overflow-hidden border-0 bg-transparent p-2 text-base outline-none focus:ring-0 sm:text-sm"
+            className="mt-1 w-full resize-none overflow-hidden border-0 bg-transparent p-2 text-base leading-relaxed text-foreground outline-none placeholder:text-faint focus:ring-0 sm:text-sm"
           />
           <div className="flex flex-wrap items-center justify-between gap-1">
-            <span aria-live="polite" className="text-xs text-muted-foreground">
+            <span aria-live="polite" className="text-xs text-muted">
               {status}
             </span>
             <span className="group/delete">
@@ -163,7 +163,7 @@ export function ItemNoteCard({
             </span>
           </div>
           {error && (
-            <div role="alert" className="text-xs text-rose-700 dark:text-rose-300">
+            <div role="alert" className="text-xs text-danger">
               {error}
               <Button type="button" variant="ghost" size="sm" className="ml-1 min-h-11" onClick={() => void commit()}>
                 Retry save

@@ -87,21 +87,19 @@ export function DeleteTripButton({
         createPortal(
           <div
             ref={dialogRef}
-            className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/35 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
+            className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-background/80 backdrop-blur-[2px] p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-trip-title"
           >
-            <div className="my-auto max-h-[calc(100dvh_-_2rem)] w-full max-w-md overflow-y-auto rounded-xl border bg-background p-6 shadow-2xl">
+            <div className="my-auto max-h-[calc(100dvh_-_2rem)] w-full max-w-md overflow-y-auto border-t border-foreground bg-panel p-6 text-foreground shadow-[0_24px_48px_rgb(0_0_0/0.18)]">
               <div className="flex items-start gap-3">
-                <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
-                  <Trash2 size={18} />
-                </div>
+                <Trash2 size={18} aria-hidden className="mt-1 shrink-0 text-danger" />
                 <div>
-                  <h2 id="delete-trip-title" className="text-lg font-semibold">
+                  <h2 id="delete-trip-title" className="text-lg font-medium tracking-tight">
                     {confirmationStep === 1 ? "Delete this trip?" : "Confirm permanent deletion"}
                   </h2>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  <p className="mt-1 text-sm leading-relaxed text-muted">
                     {confirmationStep === 1 ? (
                       <>
                         This will delete <span className="font-medium text-foreground">{trip.title}</span> and all of
@@ -117,7 +115,7 @@ export function DeleteTripButton({
                   </p>
                 </div>
               </div>
-              <div className="mt-6 flex justify-end gap-2">
+              <div className="mt-6 flex justify-end gap-3">
                 <Button
                   type="button"
                   variant="ghost"

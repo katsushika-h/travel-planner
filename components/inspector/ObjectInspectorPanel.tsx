@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
-import { ChevronDown, Download, ExternalLink, FileText, LoaderCircle, Paperclip, Trash2, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Check, ChevronDown, ExternalLink, FileText, LoaderCircle, X } from "lucide-react";
 import { DateFields } from "@/components/inspector/DateFields";
 import { dateParts } from "@/lib/date-utils";
+import { oneHourEnd, scheduleKind } from "@/lib/schedule-domain";
 import { MarkdownEditor } from "@/components/inspector/MarkdownEditor";
 import { api } from "@/lib/api-client";
 import { truncateUtf8 } from "@/lib/text-utils";
@@ -36,7 +36,18 @@ function formatFileSize(bytes: number) {
     ? `${Math.max(1, Math.ceil(bytes / 1024))} KB`
     : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
-const fieldClass = "min-w-0 w-full border-0 bg-transparent px-0 py-1 text-sm text-foreground outline-none focus:ring-0";
+const fieldClass =
+  "min-w-0 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] text-foreground outline-none placeholder:text-faint focus:border-foreground focus:ring-0";
+const labelClass = "flex min-w-0 flex-col gap-1 text-xs text-muted";
+const sectionClass = "flex flex-col gap-3 border-b border-divider py-[18px]";
+const popupClass = "border border-divider bg-panel shadow-[0_12px_32px_rgb(0_0_0/0.14)]";
+const scheduleKinds = [
+  ["fixed", "Fixed time"],
+  ["flexible", "Flexible"],
+  ["all-day", "All day"],
+  ["unscheduled", "Unscheduled"],
+] as const;
+type ScheduleKind = (typeof scheduleKinds)[number][0];
 function safeMapsHref(raw: string, name: string) {
   try {
     const url = new URL(raw);
@@ -50,18 +61,10 @@ function safeMapsHref(raw: string, name: string) {
   }
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}`;
 }
-function PropertyRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="grid grid-cols-1 gap-1 py-2 sm:grid-cols-[80px_minmax(0,1fr)] sm:items-center sm:gap-3">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <div className="min-w-0">{children}</div>
-    </div>
-  );
-}
-
 export function ObjectInspectorPanel({
   item,
   timeZone,
+  tripStartDate,
   defaultCurrency = "SGD",
   eventTypes,
   typeColors,
@@ -158,6 +161,50 @@ export function ObjectInspectorPanel({
     const patch: UpdateTravelObjectInput = { [which]: value || null, isAllDay: false };
     if (which === "startTime" && value && (!endTimeValue || value >= endTimeValue)) patch.endTime = oneHourAfter(value);
     onChange(currentItem!.id, patch);
+  }
+  const kind: ScheduleKind = scheduleKind({
+    date: dateValue || null,
+    startTime: startTimeValue || null,
+    endTime: endTimeValue || null,
+    isAllDay: item.isAllDay,
+  });
+  function changeScheduleKind(next: ScheduleKind) {
+    if (next === kind) return;
+    if (next === "unscheduled") {
+      onChange(currentItem!.id, { date: null, isAllDay: false }, true);
+      return;
+    }
+    const date = dateValue || tripStartDate.slice(0, 10);
+    const endDate = endDateValue && endDateValue >= date ? endDateValue : date;
+    if (next === "all-day")
+      onChange(
+        currentItem!.id,
+        { date, endDate, startTime: null, endTime: null, placementTime: null, isAllDay: true },
+        true,
+      );
+    else if (next === "flexible")
+      onChange(
+        currentItem!.id,
+        {
+          date,
+          endDate,
+          startTime: null,
+          endTime: null,
+          placementTime: currentItem!.placementTime ?? "09:00",
+          isAllDay: false,
+        },
+        true,
+      );
+    else {
+      const startTime = startTimeValue || currentItem!.placementTime || "09:00";
+      const end =
+        startTimeValue && endTimeValue ? { endDate, endTime: endTimeValue } : oneHourEnd(date, startTime, timeZone);
+      onChange(
+        currentItem!.id,
+        { date, endDate: end.endDate, startTime, endTime: end.endTime, placementTime: null, isAllDay: false },
+        true,
+      );
+    }
   }
   function saveHeaderImage(value: string | null) {
     if (value === null) {
@@ -309,6 +356,7 @@ export function ObjectInspectorPanel({
       first.focus();
     }
   }
+  const coordinates = location?.lat != null && location?.lng != null ? location : null;
   return (
     <aside
       onKeyDown={handleInspectorKeyDown}
@@ -333,74 +381,67 @@ export function ObjectInspectorPanel({
           if (sanitized !== target.value) target.value = sanitized;
         }
       }}
-      className="flex h-full min-h-0 flex-col bg-background pt-[env(safe-area-inset-top)] sm:pt-0"
+      className="flex h-full min-h-0 flex-col border-l border-divider bg-panel pt-[env(safe-area-inset-top)] text-[15px] text-foreground sm:pt-0"
     >
-      <header className="sticky top-0 z-20 flex shrink-0 items-center justify-start gap-3 border-b bg-background/95 px-4 py-2 backdrop-blur sm:justify-between sm:gap-0 sm:px-5 sm:py-3">
-        <Button
+      <div className="flex shrink-0 items-center justify-between px-6 pt-3 sm:pt-5">
+        <div className="relative">
+          <button
+            type="button"
+            aria-expanded={typeOpen}
+            aria-haspopup="listbox"
+            aria-label={`Type: ${item.type}. Change type`}
+            onClick={() => setTypeOpen(!typeOpen)}
+            className="flex min-h-11 items-center gap-2 text-[13px] capitalize text-foreground sm:min-h-9"
+          >
+            <span
+              aria-hidden
+              className="size-2 rounded-[2px]"
+              style={{ backgroundColor: typeColor(item.type, typeColors) }}
+            />
+            {item.type}
+            <ChevronDown size={12} aria-hidden className="text-muted" />
+          </button>
+          {typeOpen && (
+            <div
+              role="listbox"
+              aria-label="Type"
+              className={`absolute left-0 top-full z-30 max-h-56 w-52 overflow-y-auto p-1 ${popupClass}`}
+            >
+              {eventTypes.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  role="option"
+                  aria-selected={type === item.type}
+                  onClick={() => {
+                    onChange(item.id, { type });
+                    setTypeOpen(false);
+                  }}
+                  className={`flex min-h-11 w-full items-center gap-2 px-2 py-1.5 text-left text-[13px] capitalize hover:bg-surface sm:min-h-0 ${type === item.type ? "bg-surface-selected font-medium" : ""}`}
+                >
+                  <span
+                    aria-hidden
+                    className="size-2 rounded-[2px]"
+                    style={{ backgroundColor: typeColor(type, typeColors) }}
+                  />
+                  {type}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button
           ref={closeButtonRef}
           type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="order-1 min-h-11 min-w-11 gap-2 px-3 sm:order-2 sm:size-7 sm:min-h-0 sm:min-w-0 sm:gap-0 sm:px-0"
           onClick={onClose}
-          aria-label="Close inspector"
+          aria-label="Close editor"
+          className="grid size-11 place-items-center text-foreground hover:bg-surface sm:size-9"
         >
-          <X size={16} />
-          <span className="text-xs font-medium sm:hidden">Close</span>
-        </Button>
-        <span className="order-2 text-xs text-muted-foreground sm:order-1">Autosave is on</span>
-      </header>
-      {item.headerImage && (
-        <section aria-label="Header image" className="group relative h-48 shrink-0 overflow-hidden bg-muted">
-          <img src={item.headerImage} alt="" className="size-full object-cover" />
-          <div className="absolute inset-x-3 top-3 flex justify-end gap-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
-            <input
-              type="url"
-              defaultValue={item.headerImage}
-              key={item.id + item.headerImage}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur();
-              }}
-              onBlur={(event) => {
-                const value = event.target.value.trim();
-                if (value) saveHeaderImage(value);
-              }}
-              placeholder="Change image URL"
-              aria-label="Header image URL"
-              className="w-64 min-w-0 flex-1 rounded-md border bg-background/95 px-2 py-1 text-sm shadow-sm outline-none sm:flex-none"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="min-h-11 shrink-0 sm:min-h-0"
-              onClick={() => saveHeaderImage(null)}
-            >
-              Remove
-            </Button>
-          </div>
-        </section>
-      )}
-      <div className="group relative min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-8 sm:py-5">
-        {!item.headerImage && (
-          <div className="mb-2 flex justify-end">
-            <input
-              type="url"
-              defaultValue=""
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur();
-              }}
-              onBlur={(event) => {
-                const value = event.target.value.trim();
-                if (value) saveHeaderImage(value);
-              }}
-              placeholder="Add image URL"
-              aria-label="Add header image URL"
-              className="w-full max-w-64 rounded-md border bg-background px-2 py-1 text-sm shadow-sm outline-none"
-            />
-          </div>
-        )}
-        {imageError && <p className="mb-2 text-xs text-destructive">{imageError}</p>}
+          <X size={16} strokeWidth={1.5} aria-hidden />
+        </button>
+      </div>
+      <label className="block shrink-0 px-6 pt-1.5">
+        <span className="sr-only">Title</span>
         <input
           value={titleDraft}
           maxLength={100}
@@ -415,71 +456,63 @@ export function ObjectInspectorPanel({
             }
           }}
           aria-label="Title"
-          className="mb-4 w-full border-0 bg-transparent px-0 py-1 text-3xl font-semibold tracking-tight text-foreground outline-none placeholder:text-muted-foreground focus:ring-0"
+          className="w-full rounded-none border-0 border-b border-foreground bg-transparent px-0 pb-3 pt-1 text-[26px] font-medium tracking-[-0.02em] text-foreground outline-none placeholder:text-faint focus:ring-0"
         />
-        <div className="mb-6">
-          <PropertyRow label="Type">
-            <div className="relative">
+      </label>
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pb-4">
+        {item.headerImage && (
+          <section aria-label="Header image" className="group relative mt-4 h-40 shrink-0 overflow-hidden bg-surface">
+            <img src={item.headerImage} alt="" className="size-full object-cover" />
+            <div className="absolute inset-x-2 top-2 flex justify-end gap-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+              <input
+                type="url"
+                defaultValue={item.headerImage}
+                key={item.id + item.headerImage}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") event.currentTarget.blur();
+                }}
+                onBlur={(event) => {
+                  const value = event.target.value.trim();
+                  if (value) saveHeaderImage(value);
+                }}
+                placeholder="Change image URL"
+                aria-label="Header image URL"
+                className="min-h-11 w-64 min-w-0 flex-1 border border-divider bg-panel px-2 py-1 text-sm outline-none focus:border-foreground sm:min-h-0 sm:flex-none"
+              />
               <button
                 type="button"
-                aria-expanded={typeOpen}
-                onClick={() => setTypeOpen(!typeOpen)}
-                className="flex min-h-11 w-full items-center gap-2 py-1 text-left text-sm sm:min-h-0"
+                className="min-h-11 shrink-0 border border-divider bg-panel px-3 text-[13px] hover:bg-surface sm:min-h-0"
+                onClick={() => saveHeaderImage(null)}
               >
-                <span className="size-3 rounded-sm" style={{ backgroundColor: typeColor(item.type, typeColors) }} />
-                {item.type}
-                <ChevronDown size={14} className="ml-auto" />
+                Remove
               </button>
-              {typeOpen && (
-                <div
-                  role="listbox"
-                  className="absolute left-0 right-0 top-full z-30 max-h-56 overflow-y-auto rounded-md border bg-background p-1 shadow-xl"
-                >
-                  {eventTypes.map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      role="option"
-                      aria-selected={type === item.type}
-                      onClick={() => {
-                        onChange(item.id, { type });
-                        setTypeOpen(false);
-                      }}
-                      className="flex min-h-11 w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted sm:min-h-0"
-                    >
-                      <span className="size-3 rounded-sm" style={{ backgroundColor: typeColor(type, typeColors) }} />
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
-          </PropertyRow>
-          <PropertyRow label="All day">
-            <label className="flex min-h-11 items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={item.isAllDay}
-                onChange={(e) =>
-                  onChange(
-                    item.id,
-                    e.target.checked
-                      ? { isAllDay: true, startTime: null, endTime: null, placementTime: null }
-                      : { isAllDay: false },
-                  )
-                }
-              />{" "}
-              All day
-            </label>
-          </PropertyRow>
-          <PropertyRow label="Dates">
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2">
-              <div className="min-w-0 text-[10px] text-muted-foreground">
-                <span>Start</span>
-                <DateFields label="Start date" value={dateValue} defaultYear={defaultYear} onChange={patchDate} />
-              </div>
-              <div className="min-w-0 text-[10px] text-muted-foreground">
-                <span>End</span>
+          </section>
+        )}
+
+        <section aria-label="When" className={sectionClass}>
+          <div role="group" aria-label="Schedule" className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] sm:gap-x-5">
+            {scheduleKinds.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={kind === value}
+                onClick={() => changeScheduleKind(value)}
+                className={`min-h-11 border-b py-1 sm:min-h-0 ${kind === value ? "border-foreground font-medium text-foreground" : "border-transparent text-muted hover:text-foreground"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <div className={`${labelClass} ${kind === "flexible" ? "col-span-2 w-[calc(50%-0.5rem)]" : ""}`}>
+              <span>{kind === "fixed" || kind === "all-day" ? "Starts" : "Date"}</span>
+              <DateFields label="Start date" value={dateValue} defaultYear={defaultYear} onChange={patchDate} />
+            </div>
+            {(kind === "fixed" || kind === "all-day") && (
+              <div className={labelClass}>
+                <span>Ends</span>
                 <DateFields
                   label="End date"
                   value={endDateValue}
@@ -488,89 +521,81 @@ export function ObjectInspectorPanel({
                   onChange={patchEndDate}
                 />
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="size-11 sm:size-7"
-                disabled={!dateValue}
-                aria-label="Remove date"
-                title="Move to unscheduled while keeping saved times"
-                onClick={() => onChange(item.id, { date: null, isAllDay: false }, true)}
-              >
-                <Trash2 size={15} />
-              </Button>
-            </div>
-          </PropertyRow>
-          <PropertyRow label="Time (24h)">
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2">
-              <label className="min-w-0 text-[10px] text-muted-foreground">
-                Start
-                <input
-                  key={`${item.id}:start:${startTimeValue}`}
-                  aria-label="Start time in 24-hour format"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={5}
-                  placeholder="HH:MM"
-                  disabled={item.isAllDay}
-                  defaultValue={startTimeValue}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") event.currentTarget.blur();
-                  }}
-                  onBlur={(event) => {
-                    const value = normalize24HourTime(event.currentTarget.value);
-                    if (value === null) {
-                      event.currentTarget.value = startTimeValue;
-                      return;
-                    }
-                    event.currentTarget.value = value;
-                    patchTime("startTime", value);
-                  }}
-                  className={`${fieldClass} font-mono tabular-nums text-foreground`}
-                />
-              </label>
-              <label className="min-w-0 text-[10px] text-muted-foreground">
-                End
-                <input
-                  key={`${item.id}:end:${endTimeValue}`}
-                  aria-label="End time in 24-hour format"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={5}
-                  placeholder="HH:MM"
-                  disabled={item.isAllDay}
-                  defaultValue={endTimeValue}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") event.currentTarget.blur();
-                  }}
-                  onBlur={(event) => {
-                    const value = normalize24HourTime(event.currentTarget.value);
-                    if (value === null) {
-                      event.currentTarget.value = endTimeValue;
-                      return;
-                    }
-                    event.currentTarget.value = value;
-                    patchTime("endTime", value);
-                  }}
-                  className={`${fieldClass} font-mono tabular-nums text-foreground`}
-                />
-              </label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="size-11 sm:size-7"
-                disabled={!startTimeValue && !endTimeValue}
-                aria-label="Remove time"
-                title="Make this a flexible item"
-                onClick={() => onChange(item.id, { startTime: null, endTime: null, isAllDay: false }, true)}
-              >
-                <Trash2 size={15} />
-              </Button>
-            </div>
-          </PropertyRow>
-          <PropertyRow label="Place">
+            )}
+            {(kind === "fixed" || kind === "flexible") && (
+              <>
+                <label className={labelClass}>
+                  Start (24h)
+                  <input
+                    key={`${item.id}:start:${startTimeValue}`}
+                    aria-label="Start time in 24-hour format"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={5}
+                    placeholder="HH:MM"
+                    defaultValue={startTimeValue}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") event.currentTarget.blur();
+                    }}
+                    onBlur={(event) => {
+                      const value = normalize24HourTime(event.currentTarget.value);
+                      if (value === null) {
+                        event.currentTarget.value = startTimeValue;
+                        return;
+                      }
+                      event.currentTarget.value = value;
+                      patchTime("startTime", value);
+                    }}
+                    className={`${fieldClass} font-mono text-lg font-light tabular-nums`}
+                  />
+                </label>
+                {kind === "fixed" && (
+                  <label className={labelClass}>
+                    End (24h)
+                    <input
+                      key={`${item.id}:end:${endTimeValue}`}
+                      aria-label="End time in 24-hour format"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={5}
+                      placeholder="HH:MM"
+                      defaultValue={endTimeValue}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") event.currentTarget.blur();
+                      }}
+                      onBlur={(event) => {
+                        const value = normalize24HourTime(event.currentTarget.value);
+                        if (value === null) {
+                          event.currentTarget.value = endTimeValue;
+                          return;
+                        }
+                        event.currentTarget.value = value;
+                        patchTime("endTime", value);
+                      }}
+                      className={`${fieldClass} font-mono text-lg font-light tabular-nums`}
+                    />
+                  </label>
+                )}
+              </>
+            )}
+          </div>
+          {kind === "flexible" && (
+            <p className="text-[13px] text-muted">
+              Placed in the day without a booked time. Enter a start time to fix it.
+            </p>
+          )}
+          {kind === "unscheduled" && (
+            <p className="text-[13px] text-muted">
+              {startTimeValue && endTimeValue
+                ? `Saved time ${startTimeValue}–${endTimeValue} returns when you pick a date.`
+                : "Enter a date to schedule this item."}
+            </p>
+          )}
+        </section>
+
+        <section aria-label="Where" className={sectionClass}>
+          <label className={labelClass}>
+            Place
             <input
               value={location?.name ?? ""}
               maxLength={300}
@@ -582,36 +607,52 @@ export function ObjectInspectorPanel({
               placeholder="Place name"
               className={fieldClass}
             />
-          </PropertyRow>
-          <PropertyRow label="Maps">
-            <div>
-              {Boolean(mapsUrl || location?.name) && (
-                <a
-                  href={safeMapsHref(mapsUrl, location?.name ?? item.title)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-h-11 items-center gap-1 pb-1 text-sm text-emerald-800 hover:underline dark:text-emerald-300"
-                >
-                  {location?.name || "Open in Google Maps"}
-                  <ExternalLink size={12} />
-                </a>
-              )}
+          </label>
+          <label className={labelClass}>
+            Google Maps link
+            <input
+              type="url"
+              value={mapsUrl}
+              onChange={(e) => onChange(item.id, { location: { ...location, googleMapsUrl: e.target.value } })}
+              onBlur={() => void resolveMap()}
+              placeholder="Paste a Google Maps link"
+              className={`${fieldClass} text-sm`}
+            />
+          </label>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted">
+            <span>
+              {coordinates
+                ? `Pinned · ${coordinates.lat!.toFixed(4)}, ${coordinates.lng!.toFixed(4)}`
+                : "No location — paste a Maps link with coordinates"}
+            </span>
+            {Boolean(mapsUrl || location?.name) && (
+              <a
+                href={safeMapsHref(mapsUrl, location?.name ?? item.title)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-11 items-center gap-1 text-foreground underline underline-offset-3 hover:text-accent sm:min-h-0"
+              >
+                Open in Google Maps
+                <ExternalLink size={12} aria-hidden />
+              </a>
+            )}
+          </div>
+          {(resolvingMap || mapMessage) && (
+            <p role="status" className="text-xs text-muted">
+              {resolvingMap ? "Looking up place…" : mapMessage}
+            </p>
+          )}
+        </section>
+
+        <section
+          aria-label="Cost and tags"
+          className={`${sectionClass} min-[400px]:grid min-[400px]:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] min-[400px]:gap-5`}
+        >
+          <div className={labelClass}>
+            <label htmlFor={`cost-${item.id}`}>Planned cost</label>
+            <div className="relative flex items-baseline gap-2 border-b border-input-rule focus-within:border-foreground">
               <input
-                type="url"
-                value={mapsUrl}
-                onChange={(e) => onChange(item.id, { location: { ...location, googleMapsUrl: e.target.value } })}
-                onBlur={() => void resolveMap()}
-                placeholder="Paste a Google Maps link"
-                className={fieldClass}
-              />
-              <p className="text-[10px] text-muted-foreground">{resolvingMap ? "Looking up place…" : mapMessage}</p>
-            </div>
-          </PropertyRow>
-        </div>
-        <div className="mb-6">
-          <PropertyRow label="Cost">
-            <div className="grid grid-cols-[minmax(0,1fr)_100px] gap-3">
-              <input
+                id={`cost-${item.id}`}
                 type="number"
                 min="0"
                 step="0.01"
@@ -624,74 +665,72 @@ export function ObjectInspectorPanel({
                   })
                 }
                 placeholder="Amount"
-                className={`${fieldClass} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+                className="min-w-0 flex-1 border-0 bg-transparent py-1.5 font-mono text-lg font-light text-foreground outline-none placeholder:font-sans placeholder:text-[15px] placeholder:text-faint focus:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
-              <div className="relative">
-                <div className="flex items-center">
-                  <input
-                    value={currencySearch || cost?.currency || defaultCurrency}
-                    onChange={(e) => {
-                      setCurrencySearch(e.target.value.toUpperCase());
-                      setCurrencyOpen(true);
-                    }}
-                    onFocus={() => {
-                      setCurrencySearch("");
-                      setCurrencyOpen(true);
-                    }}
-                    maxLength={3}
-                    aria-label="Currency"
-                    className={`${fieldClass} uppercase`}
-                  />
-                  <button
-                    type="button"
-                    aria-label="Show currencies"
-                    className="grid size-11 shrink-0 place-items-center sm:size-7"
-                    onClick={() => setCurrencyOpen(!currencyOpen)}
-                  >
-                    <ChevronDown size={14} />
-                  </button>
+              <input
+                value={currencySearch || cost?.currency || defaultCurrency}
+                onChange={(e) => {
+                  setCurrencySearch(e.target.value.toUpperCase());
+                  setCurrencyOpen(true);
+                }}
+                onFocus={() => {
+                  setCurrencySearch("");
+                  setCurrencyOpen(true);
+                }}
+                maxLength={3}
+                aria-label="Currency"
+                className="w-12 border-0 bg-transparent py-1.5 text-right font-mono text-[13px] uppercase text-foreground outline-none focus:ring-0"
+              />
+              <button
+                type="button"
+                aria-label="Show currencies"
+                className="grid size-11 shrink-0 place-items-center self-center text-muted sm:size-7"
+                onClick={() => setCurrencyOpen(!currencyOpen)}
+              >
+                <ChevronDown size={12} aria-hidden />
+              </button>
+              {currencyOpen && (
+                <div
+                  role="listbox"
+                  aria-label="Currency"
+                  className={`absolute right-0 top-full z-30 max-h-48 w-28 overflow-y-auto p-1 ${popupClass}`}
+                >
+                  {currencySuggestions.map((code) => (
+                    <button
+                      key={code}
+                      type="button"
+                      role="option"
+                      aria-selected={cost?.currency === code}
+                      onClick={() => {
+                        onChange(item.id, {
+                          cost: cost?.amount != null ? { amount: cost.amount, currency: code } : null,
+                        });
+                        setCurrencySearch("");
+                        setCurrencyOpen(false);
+                      }}
+                      className="block min-h-11 w-full px-2 py-1.5 text-left font-mono text-[13px] hover:bg-surface sm:min-h-0"
+                    >
+                      {code}
+                    </button>
+                  ))}
                 </div>
-                {currencyOpen && (
-                  <div
-                    role="listbox"
-                    className="absolute right-0 top-full z-30 max-h-48 w-28 overflow-y-auto rounded-md border bg-background p-1 shadow-lg"
-                  >
-                    {currencySuggestions.map((code) => (
-                      <button
-                        key={code}
-                        type="button"
-                        role="option"
-                        aria-selected={cost?.currency === code}
-                        onClick={() => {
-                          onChange(item.id, {
-                            cost: cost?.amount != null ? { amount: cost.amount, currency: code } : null,
-                          });
-                          setCurrencySearch("");
-                          setCurrencyOpen(false);
-                        }}
-                        className="block min-h-11 w-full rounded px-2 py-1.5 text-left text-sm hover:bg-muted sm:min-h-0"
-                      >
-                        {code}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
-          </PropertyRow>
-          <PropertyRow label="Tags">
-            <div className="flex min-h-8 flex-wrap items-center gap-1.5">
+          </div>
+          <div className="flex flex-col gap-2 text-xs text-muted">
+            Tags
+            <div className="flex flex-wrap items-center gap-1.5">
               {(item.tags ?? []).map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100"
+                  className="inline-flex items-center gap-1.5 border border-input-rule py-0.5 pl-2 pr-1 text-xs text-foreground"
                 >
                   {tag}
                   <button
                     type="button"
                     aria-label={`Remove ${tag} tag`}
                     onClick={() => onChange(item.id, { tags: (item.tags ?? []).filter((entry) => entry !== tag) })}
-                    className="grid size-11 shrink-0 place-items-center rounded-full text-emerald-800/70 hover:text-rose-700 dark:text-emerald-100/70 dark:hover:text-rose-300"
+                    className="relative grid size-5 place-items-center text-muted before:absolute before:-inset-3 before:content-[''] hover:text-danger"
                   >
                     ×
                   </button>
@@ -709,15 +748,16 @@ export function ObjectInspectorPanel({
                   }
                 }}
                 onBlur={() => commitTag(tagDraft)}
-                placeholder={item.tags?.length ? "Add tag" : "Type a tag, then press Space"}
+                placeholder="+ tag"
                 aria-label="Add tag"
-                className="min-w-28 flex-1 border-0 bg-transparent py-1 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                className="min-h-8 w-20 border border-dashed border-input-rule bg-transparent px-2 py-0.5 text-xs text-foreground outline-none placeholder:text-muted focus:border-foreground focus:placeholder:text-faint"
               />
             </div>
-          </PropertyRow>
-        </div>
-        <section aria-label="Notes" className="mb-7">
-          <h2 className="mb-2 text-xs font-medium text-muted-foreground">Notes</h2>
+          </div>
+        </section>
+
+        <section aria-label="Notes" className={sectionClass}>
+          <h2 className="text-xs font-normal text-muted">Notes</h2>
           <MarkdownEditor
             key={item.id}
             darkMode={darkMode}
@@ -725,59 +765,60 @@ export function ObjectInspectorPanel({
             onChange={(notes) => onChange(item.id, { notes: truncateUtf8(notes, 2500) || null })}
           />
         </section>
-        <section aria-label="Attachments" className="mb-7">
-          <h2 className="mb-2 text-xs font-medium text-muted-foreground">Attachments</h2>
+
+        <section aria-label="Attachments" className="flex flex-col gap-2.5 py-[18px]">
+          <h2 className="text-xs font-normal text-muted">Attachments</h2>
           <input
             ref={inputRef}
             type="file"
             multiple
             className="sr-only"
+            aria-label="Attach files"
             accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
             onChange={(event) => void uploadAttachments(event.target.files ?? [])}
           />
-          <p className="mb-2 text-[11px] text-muted-foreground">
-            JPG, PNG, PDF, DOCX, spreadsheets, presentations, TXT, or CSV · up to 20 MB each
-          </p>
-          {attachmentError && <p className="mb-2 text-xs text-destructive">{attachmentError}</p>}
+          {attachmentError && (
+            <p role="alert" className="text-xs text-danger">
+              {attachmentError}
+            </p>
+          )}
           {loadingAttachments ? (
-            <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-              <LoaderCircle size={14} className="animate-spin" /> Loading attachments
+            <div className="flex items-center gap-2 py-2 text-xs text-muted">
+              <LoaderCircle size={14} className="animate-spin" aria-hidden /> Loading attachments
             </div>
           ) : attachments.length ? (
-            <ul className="mb-2 divide-y rounded-md border">
+            <ul className="divide-y divide-divider">
               {attachments.map((attachment) => {
                 const attachmentUrl = `/api/travel-objects/${encodeURIComponent(item.id)}/attachments/${encodeURIComponent(attachment.id)}`;
                 return (
-                  <li key={attachment.id} className="flex items-center gap-2 px-3 py-2">
-                    <FileText size={16} className="shrink-0 text-muted-foreground" />
+                  <li key={attachment.id} className="flex items-center gap-3 py-1.5 text-sm">
+                    <FileText size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-muted" />
                     <a
                       href={attachmentUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="min-w-0 flex-1 truncate text-sm hover:underline"
+                      className="min-w-0 flex-1 truncate underline-offset-3 hover:underline"
                       title={`Open ${attachment.fileName}`}
                     >
                       {attachment.fileName}
                     </a>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
-                      {formatFileSize(attachment.size)}
-                    </span>
+                    <span className="shrink-0 font-mono text-xs text-muted">{formatFileSize(attachment.size)}</span>
                     <a
                       href={`${attachmentUrl}?download=1`}
-                      className="grid size-11 shrink-0 place-items-center rounded p-0 hover:bg-muted sm:size-auto sm:p-1.5"
+                      className="grid min-h-11 shrink-0 place-items-center px-1.5 text-xs text-muted hover:text-foreground sm:min-h-0"
                       aria-label={`Download ${attachment.fileName}`}
                       title="Download"
                     >
-                      <Download size={15} />
+                      Download
                     </a>
                     <button
                       type="button"
-                      className="grid size-11 shrink-0 place-items-center rounded p-0 text-muted-foreground hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950"
+                      className="grid min-h-11 shrink-0 place-items-center px-1.5 text-xs text-muted hover:text-danger sm:min-h-0"
                       onClick={() => void removeAttachment(attachment)}
                       aria-label={`Remove ${attachment.fileName}`}
                       title="Remove"
                     >
-                      <Trash2 size={15} />
+                      Remove
                     </button>
                   </li>
                 );
@@ -801,26 +842,48 @@ export function ObjectInspectorPanel({
               setDragActive(false);
               if (!uploading) void uploadAttachments(event.dataTransfer.files);
             }}
-            className={`flex w-full flex-col items-center gap-1 rounded-md border border-dashed px-3 py-4 text-center text-sm text-muted-foreground transition hover:bg-muted disabled:cursor-wait ${dragActive ? "border-emerald-600 bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100" : ""}`}
+            className={`min-h-11 border border-dashed px-3 py-3.5 text-[13px] text-muted transition-colors hover:bg-surface disabled:cursor-wait ${dragActive ? "border-foreground bg-surface text-foreground" : "border-input-rule"}`}
           >
-            <Paperclip size={18} />
-            {uploading ? "Attaching files…" : "Click or drag files here to attach"}
-            <span className="text-[11px]">Keep tickets, confirmations, and documents with this item.</span>
+            {uploading ? "Attaching files…" : "Drop files here or browse"}
           </button>
+          <p className="text-xs text-faint">
+            JPG, PNG, PDF, DOCX, spreadsheets, presentations, TXT, or CSV · up to 20 MB each
+          </p>
+          {!item.headerImage && (
+            <>
+              {imageError && <p className="text-xs text-danger">{imageError}</p>}
+              <input
+                type="url"
+                defaultValue=""
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") event.currentTarget.blur();
+                }}
+                onBlur={(event) => {
+                  const value = event.target.value.trim();
+                  if (value) saveHeaderImage(value);
+                }}
+                placeholder="Add header image URL"
+                aria-label="Add header image URL"
+                className={`${fieldClass} mt-2 text-sm`}
+              />
+            </>
+          )}
         </section>
+        {item.headerImage && imageError && <p className="text-xs text-danger">{imageError}</p>}
+      </div>
 
-        <div className="flex justify-end pb-8">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-11 sm:size-8"
-            onClick={() => onRequestDelete(item.id)}
-            aria-label="Delete item"
-          >
-            <Trash2 />
-          </Button>
-        </div>
+      <div className="flex shrink-0 items-center justify-between border-t border-divider px-6 pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-3.5">
+        <span className="flex items-center gap-1.5 text-xs text-muted">
+          <Check size={12} strokeWidth={2.4} aria-hidden />
+          Autosave on
+        </span>
+        <button
+          type="button"
+          onClick={() => onRequestDelete(item.id)}
+          className="min-h-11 text-[13px] text-danger hover:underline sm:min-h-9"
+        >
+          Delete item
+        </button>
       </div>
     </aside>
   );
