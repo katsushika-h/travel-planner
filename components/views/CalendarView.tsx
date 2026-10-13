@@ -12,6 +12,8 @@ import {
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
+  rectIntersection,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import { ChevronLeft, ChevronRight, Clock, Lightbulb, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,6 +30,12 @@ import { MonthView } from "./calendar/MonthView";
 import { WeekPlanner } from "./calendar/WeekPlanner";
 
 type Mode = "month" | "week" | "day";
+
+/** Month drops follow the pointer; the wide drag preview would otherwise bias drops to the right. */
+const monthCollisionDetection: CollisionDetection = (args) => {
+  const collisions = pointerWithin(args);
+  return collisions.length ? collisions : rectIntersection(args);
+};
 function sundayOf(date: string) {
   const value = new Date(`${date}T00:00:00Z`);
   return shiftDate(date, -value.getUTCDay());
@@ -409,6 +417,7 @@ export function CalendarView({
       {mode === "month" ? (
         <DndContext
           sensors={sensors}
+          collisionDetection={monthCollisionDetection}
           onDragStart={handleDragStart}
           onDragCancel={finishDrag}
           onDragEnd={(event) => {
