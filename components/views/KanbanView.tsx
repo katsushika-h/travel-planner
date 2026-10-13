@@ -15,40 +15,62 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove, horizontalListSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarDays, GripVertical, MapPin, Plus, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { formatTripDate, startDateTimeFor } from "@/lib/date-utils";
+import { Trash2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { compareScheduleOrder } from "@/lib/schedule-order";
-import { typeColor } from "@/lib/type-color";
+import { typeColor, typeTextColor } from "@/lib/type-color";
 import { useTravelStore } from "@/store/use-travel-store";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { TravelObject, Trip } from "@/types/travel";
 
 const defaultTypes = ["unclassified", "flight", "hotel", "food", "commute", "activity", "sightseeing"];
 const emptyTypeOrder: string[] = [];
-function itemDateLabel(item: TravelObject, timezone: string) {
-  const start = startDateTimeFor(item, timezone);
-  return start
-    ? formatTripDate(start, timezone, {
-        month: "short",
-        day: "numeric",
-        ...(item.isAllDay ? {} : { hour: "numeric", minute: "2-digit" }),
-      })
-    : "Unscheduled";
+const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/** "Sat 03" for a YYYY-MM-DD date string. */
+export function shortDayLabel(date: string) {
+  const day = date.slice(0, 10);
+  const weekday = weekdays[new Date(`${day}T00:00:00Z`).getUTCDay()];
+  return `${weekday} ${day.slice(8, 10)}`;
+}
+
+/** Compact "when" label: "Idea" for unscheduled items, otherwise day plus time. */
+export function itemWhenLabel(item: TravelObject) {
+  if (!item.date) return "Idea";
+  const first = item.date.slice(0, 10);
+  const day = shortDayLabel(first);
+  const last = item.endDate?.slice(0, 10) ?? first;
+  if (item.isAllDay) return last !== first ? `${day} → ${shortDayLabel(last)}` : `${day} · All day`;
+  if (item.startTime && item.endTime) return `${day} · ${item.startTime}`;
+  if (item.startTime) return `${day} · after ${item.startTime}`;
+  if (item.endTime) return `${day} · before ${item.endTime}`;
+  return `${day} · ${item.placementTime ? `~${item.placementTime}` : "anytime"}`;
+}
+
+type BoardFilter = "all" | "scheduled" | "ideas";
+const boardFilters: { value: BoardFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "ideas", label: "Ideas only" },
+];
+
+function CardText({ item }: { item: TravelObject }) {
+  const location = item.location as { name?: string } | null;
+  return (
+    <>
+      <span className={`font-mono text-xs ${item.date ? "text-muted" : "text-accent"}`}>{itemWhenLabel(item)}</span>
+      <span className="text-[15px] font-medium leading-snug">{item.title}</span>
+      {location?.name && <span className="truncate text-xs text-muted">{location.name}</span>}
+    </>
+  );
 }
 
 function Card({
   item,
-  timezone,
-  color,
   selected,
   primary,
   onSelect,
 }: {
   item: TravelObject;
-  timezone: string;
-  color: string;
   selected: boolean;
   primary: boolean;
   onSelect: (item: TravelObject, additive: boolean) => void;
@@ -58,82 +80,30 @@ function Card({
     disabled: item.id.startsWith("draft:"),
   });
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `card:${item.id}` });
-  const location = item.location as { name?: string } | null;
-  const dateLabel = itemDateLabel(item, timezone);
   return (
     <div
       ref={setDropRef}
-      className={`relative ${isOver ? "before:absolute before:inset-x-1 before:-top-1 before:z-20 before:border-t-2 before:border-emerald-500" : ""}`}
+      className={`relative ${isOver ? "before:absolute before:inset-x-0 before:-top-px before:z-20 before:border-t-2 before:border-foreground" : ""}`}
     >
       <button
         ref={setNodeRef}
         data-travel-object-id={item.id}
-        style={{ borderLeft: `4px solid ${color}` }}
         onClick={(event) => onSelect(item, event.shiftKey)}
         onDoubleClick={(event) => event.stopPropagation()}
         {...attributes}
         {...listeners}
-        className={`w-full scroll-mx-4 touch-pan-y overflow-hidden rounded-xl border border-l-4 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-md sm:touch-none dark:bg-neutral-800 dark:hover:border-neutral-600 ${selected ? (primary ? "ring-2 ring-white ring-offset-2 ring-offset-emerald-600" : "ring-2 ring-emerald-600") : ""} ${isDragging ? "opacity-40" : ""}`}
+        className={`flex w-full scroll-mx-4 touch-pan-y cursor-grab flex-col gap-1 border-b border-divider px-2 py-3 text-left transition-colors hover:bg-surface sm:touch-none ${selected ? "bg-surface-selected" : ""} ${primary ? "shadow-[inset_2px_0_0_var(--accent)]" : ""} ${isDragging ? "opacity-40" : ""}`}
       >
-        {item.headerImage && <img src={item.headerImage} alt="" className="h-28 w-full object-cover" />}
-        <div className="flex items-start gap-2 p-3">
-          <GripVertical size={14} className="mt-0.5 shrink-0 text-stone-300" />
-          <div className="min-w-0 flex-1">
-            <p className="font-medium leading-snug">{item.title}</p>
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
-              <CalendarDays size={12} />
-              {dateLabel}
-            </p>
-            {location?.name && (
-              <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-stone-500 dark:text-stone-400">
-                <MapPin size={12} />
-                {location.name}
-              </p>
-            )}
-            {item.tags?.length ? (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {item.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] text-stone-600 dark:bg-neutral-700 dark:text-stone-200"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </div>
+        <CardText item={item} />
       </button>
     </div>
   );
 }
 
-function DragPreview({ item, timezone, color }: { item: TravelObject; timezone: string; color: string }) {
-  const location = item.location as { name?: string } | null;
-  const dateLabel = itemDateLabel(item, timezone);
+function DragPreview({ item }: { item: TravelObject }) {
   return (
-    <div
-      style={{ borderLeft: `4px solid ${color}` }}
-      className="w-[270px] overflow-hidden rounded-xl border border-l-4 bg-white text-left shadow-xl dark:bg-neutral-800"
-    >
-      {item.headerImage && <img src={item.headerImage} alt="" className="h-28 w-full object-cover" />}
-      <div className="flex items-start gap-2 p-3">
-        <GripVertical size={14} className="mt-0.5 shrink-0 text-stone-300" />
-        <div className="min-w-0 flex-1">
-          <p className="font-medium leading-snug">{item.title}</p>
-          <p className="mt-2 flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
-            <CalendarDays size={12} />
-            {dateLabel}
-          </p>
-          {location?.name && (
-            <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-stone-500 dark:text-stone-400">
-              <MapPin size={12} />
-              {location.name}
-            </p>
-          )}
-        </div>
-      </div>
+    <div className="flex w-[220px] flex-col gap-1 border border-foreground bg-background px-2 py-3 text-left shadow-md">
+      <CardText item={item} />
     </div>
   );
 }
@@ -141,25 +111,27 @@ function DragPreview({ item, timezone, color }: { item: TravelObject; timezone: 
 function Column({
   type,
   items,
-  timezone,
   color,
+  headingColor,
   selectedIds,
   primarySelectedId,
   removable,
   onColorChange,
   onRemove,
   onSelect,
+  onAdd,
 }: {
   type: string;
   items: TravelObject[];
-  timezone: string;
   color: string;
+  headingColor: string;
   selectedIds: ReadonlySet<string>;
   primarySelectedId: string | null;
   removable: boolean;
   onColorChange: (color: string) => void;
   onRemove: () => void;
   onSelect: (item: TravelObject, additive: boolean) => void;
+  onAdd?: () => void;
 }) {
   const { setNodeRef: setTypeDropRef, isOver } = useDroppable({ id: `type:${type}` });
   const {
@@ -176,15 +148,15 @@ function Column({
         setTypeDropRef(node);
         setSortableRef(node);
       }}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex min-h-[220px] w-[270px] shrink-0 flex-col rounded-xl border bg-stone-50/80 p-2.5 transition-colors dark:bg-neutral-950/80 ${isOver ? "border-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/70" : ""} ${isDragging ? "z-20 opacity-60 shadow-xl" : ""}`}
+      aria-label={type}
+      style={{ transform: CSS.Transform.toString(transform), transition, borderTopColor: color }}
+      className={`flex min-h-[160px] w-[220px] shrink-0 flex-col border-t-[3px] transition-colors sm:w-auto sm:min-w-[200px] sm:flex-1 ${isOver ? "bg-surface" : ""} ${isDragging ? "z-20 opacity-60" : ""}`}
     >
       <header
         {...attributes}
         {...listeners}
-        className="flex touch-none cursor-grab items-center gap-2 px-1 pb-3 active:cursor-grabbing"
+        className="flex touch-none cursor-grab items-center gap-2 pb-3.5 pt-3 active:cursor-grabbing"
       >
-        <GripVertical size={14} className="shrink-0 text-muted-foreground" />
         <input
           type="color"
           value={color}
@@ -192,12 +164,12 @@ function Column({
           onChange={(event) => onColorChange(event.target.value)}
           aria-label={`Change ${type} column color`}
           title="Change column color"
-          className="size-4 cursor-pointer rounded-full border-0 bg-transparent p-0"
+          className="size-2 shrink-0 cursor-pointer appearance-none rounded-[2px] border-0 bg-transparent p-0 [&::-moz-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-[2px] [&::-webkit-color-swatch]:border-0"
         />
-        <h3 className="flex-1 text-sm font-semibold capitalize">{type}</h3>
-        <span className="rounded-full bg-white px-2 py-0.5 text-xs text-stone-500 dark:bg-neutral-800 dark:text-stone-300">
-          {items.length}
-        </span>
+        <h3 className="flex-1 text-[15px] font-semibold capitalize" style={{ color: headingColor }}>
+          {type}
+        </h3>
+        <span className="font-mono text-xs text-muted">{items.length}</span>
         {removable && (
           <button
             type="button"
@@ -205,30 +177,34 @@ function Column({
             onClick={onRemove}
             aria-label={`Remove ${type} type`}
             title="Remove type"
-            className="rounded p-1 text-muted-foreground hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950"
+            className="p-1 text-muted hover:bg-surface hover:text-danger"
           >
             <Trash2 size={14} />
           </button>
         )}
       </header>
-      <div className="flex flex-1 flex-col gap-2">
+      <div className="flex flex-col">
         {items.map((item) => (
           <Card
             key={item.id}
             item={item}
-            timezone={timezone}
-            color={color}
             selected={selectedIds.has(item.id)}
             primary={primarySelectedId === item.id}
             onSelect={onSelect}
           />
         ))}
-        {items.length === 0 && (
-          <div className="grid flex-1 place-items-center rounded-lg border border-dashed text-xs text-stone-400 dark:text-stone-500">
-            No items
-          </div>
-        )}
       </div>
+      {onAdd && (
+        <button
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={onAdd}
+          aria-label={`Add ${type} item`}
+          className="mt-2 self-start px-2 py-2 text-[13px] text-muted hover:text-foreground"
+        >
+          + Add
+        </button>
+      )}
     </section>
   );
 }
@@ -271,6 +247,8 @@ export function KanbanView({
     ...savedTypeOrder.filter((type) => availableTypes.includes(type)),
     ...availableTypes.filter((type) => !savedTypeOrder.includes(type)),
   ];
+  const theme = useTravelStore((state) => state.theme);
+  const [filter, setFilter] = useState<BoardFilter>("all");
   const [newType, setNewType] = useState("");
   const [activeItem, setActiveItem] = useState<TravelObject | null>(null);
   const [activeType, setActiveType] = useState<string | null>(null);
@@ -374,29 +352,39 @@ export function KanbanView({
     removeEventType(trip.id, type);
     window.location.reload();
   }
+  const shownItems = items.filter((item) =>
+    filter === "all" ? true : filter === "scheduled" ? item.date !== null : item.date === null,
+  );
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-neutral-900">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-        <div>
-          <p className="text-sm font-semibold">By event type</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Drag cards between columns · timezone: {trip.timezone}</p>
-        </div>
-        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:gap-1">
-          <Button type="button" onClick={() => onAddItem?.()}>
-            <Plus /> Add item
-          </Button>
-          <form onSubmit={createType} className="flex w-full min-w-0 gap-1 sm:w-auto">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 px-4 pb-5 pt-6 sm:px-12">
+        <h1 className="text-[22px] font-medium tracking-tight">By type</h1>
+        <div className="flex flex-wrap items-baseline gap-x-7 gap-y-2 text-sm">
+          <div role="group" aria-label="Show items" className="flex gap-7">
+            {boardFilters.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={filter === value}
+                onClick={() => setFilter(value)}
+                className={`py-2 ${filter === value ? "font-medium shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted hover:text-foreground"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <form onSubmit={createType} className="flex min-w-0 items-baseline gap-3">
             <input
               aria-label="New event type"
               value={newType}
               maxLength={20}
               onChange={(event) => setNewType(event.target.value)}
               placeholder="New type"
-              className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1.5 text-sm sm:w-28"
+              className="w-28 min-w-0 border-0 border-b border-input-rule bg-transparent py-1.5 text-sm outline-none placeholder:text-faint focus:border-foreground"
             />
-            <Button type="submit" variant="outline" size="sm">
-              <Plus /> Add type
-            </Button>
+            <button type="submit" className="py-2 text-muted hover:text-foreground">
+              + Add type
+            </button>
           </form>
         </div>
       </div>
@@ -410,7 +398,7 @@ export function KanbanView({
         }}
       >
         <SortableContext items={types.map((type) => `column:${type}`)} strategy={horizontalListSortingStrategy}>
-          <div ref={boardRef} className="flex min-h-0 flex-1 items-start gap-3 overflow-auto p-4">
+          <div ref={boardRef} className="flex min-h-0 flex-1 items-start gap-6 overflow-auto px-4 pb-12 sm:px-12">
             {types.map((type) => {
               const color = typeColor(type, typeColors);
               return (
@@ -418,14 +406,15 @@ export function KanbanView({
                   key={type}
                   type={type}
                   color={color}
+                  headingColor={typeTextColor(color, theme)}
                   selectedIds={selectedIds}
                   primarySelectedId={primarySelectedId}
                   removable={!defaultTypes.includes(type)}
                   onColorChange={(nextColor) => onSetTypeColor(type, nextColor)}
                   onRemove={() => setPendingTypeRemoval(type)}
-                  items={items.filter((item) => item.type === type)}
-                  timezone={trip.timezone}
+                  items={shownItems.filter((item) => item.type === type)}
                   onSelect={selectFromClick}
+                  onAdd={onAddItem ? () => onAddItem(type) : undefined}
                 />
               );
             })}
@@ -433,9 +422,9 @@ export function KanbanView({
         </SortableContext>
         <DragOverlay dropAnimation={null}>
           {activeItem ? (
-            <DragPreview item={activeItem} timezone={trip.timezone} color={typeColor(activeItem.type, typeColors)} />
+            <DragPreview item={activeItem} />
           ) : activeType ? (
-            <div className="w-[270px] rounded-xl border bg-background px-4 py-3 text-sm font-semibold capitalize shadow-xl">
+            <div className="w-[220px] border border-foreground bg-background px-4 py-3 text-sm font-semibold capitalize shadow-md">
               {activeType}
             </div>
           ) : null}
