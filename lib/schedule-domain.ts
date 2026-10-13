@@ -193,6 +193,12 @@ export function scheduleAtTableStart(
       placementTime: null,
     };
   }
+  if (!targetTime) {
+    return {
+      ...moveAllDayRange(schedule.date ?? targetDate, schedule.endDate ?? schedule.date ?? targetDate, targetDate),
+      placementTime: null,
+    };
+  }
   const durationMinutes = Math.max(15, elapsedDurationMinutes(schedule, timeZone) ?? 60);
   const start = zonedDateTimeToUtc(targetDate, targetTime, timeZone);
   const normalizedStart = dateParts(start, timeZone);
