@@ -11,6 +11,7 @@ import {
   scheduleAtTableStart,
   schedulePatchForMove,
 } from "@/lib/schedule-domain";
+import { formatExpenseAmount } from "@/lib/expense-domain";
 import { shortDayLabel } from "@/components/views/KanbanView";
 import { typeColor } from "@/lib/type-color";
 import type { TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
@@ -237,13 +238,7 @@ export function TableView({
     return () => window.removeEventListener("keydown", selectAll);
   }, [onSelectionChange, visibleItems]);
 
-  function formatTotal(amount: number, currency: string) {
-    try {
-      return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
-    } catch {
-      return `${amount} ${currency}`;
-    }
-  }
+  const formatTotal = formatExpenseAmount;
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDirection((direction) => (direction === "asc" ? "desc" : "asc"));

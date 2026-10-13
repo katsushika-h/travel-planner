@@ -52,13 +52,14 @@ export function plannedCostTotals(items: { cost?: { amount: number; currency: st
 }
 
 export function formatExpenseAmount(amount: string | number, currency: string) {
+  const format = (currencyDisplay: "narrowSymbol" | "symbol") =>
+    new Intl.NumberFormat(undefined, { style: "currency", currency, currencyDisplay, maximumFractionDigits: 3 }).format(
+      Number(amount),
+    );
   try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      currencyDisplay: "narrowSymbol",
-      maximumFractionDigits: 3,
-    }).format(Number(amount));
+    const narrow = format("narrowSymbol");
+    // A bare "$" would read as USD for SGD, AUD and similar, so those keep the unambiguous symbol or code.
+    return narrow.includes("$") && currency.toUpperCase() !== "USD" ? format("symbol") : narrow;
   } catch {
     return `${amount} ${currency}`;
   }
