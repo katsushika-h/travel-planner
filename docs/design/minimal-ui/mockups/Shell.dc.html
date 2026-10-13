@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wayfarer, cyber HUD plan and map</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&amp;family=Share+Tech+Mono&amp;family=Noto+Sans+JP:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#020C0B}
+a{color:#5DF2C8}a:hover{color:#B5FFEA}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="position: relative; min-height: 940px; display: flex; flex-direction: column; background: radial-gradient(ellipse at 70% 20%, #072522 0%, #020C0B 60%); color: #CFEDE6; font-family: 'Chakra Petch', system-ui, sans-serif; font-size: 15px; overflow: hidden">
+  <div aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, rgba(93,242,200,0.035) 0 1px, transparent 1px 3px); z-index: 5"></div>
+
+  <!-- Header -->
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 16px 28px; border-bottom: 1px solid #0F3B35">
+    <span aria-hidden="true" style="display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid #5DF2C8; transform: rotate(45deg)">
+      <span style="width: 10px; height: 10px; background: #5DF2C8; box-shadow: 0 0 10px #5DF2C8"></span>
+    </span>
+    <button type="button" aria-label="Switch trip, current trip Kyoto and Osaka" style="display: flex; flex-direction: column; align-items: flex-start; min-height: 44px; justify-content: center; padding: 0 8px; border: 0; background: transparent; cursor: pointer">
+      <span style="font-weight: 700; font-size: 19px; letter-spacing: 0.12em; text-transform: uppercase; color: #E8FFF8">Kyoto // Osaka <span style="color: #6E9C93">▾</span></span>
+      <span style="font-family: 'Share Tech Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: #6E9C93">OP.WINDOW 04.03–04.10 · UTC+09 · JPY</span>
+    </button>
+    <nav aria-label="Views" style="flex: 1; display: flex; flex-wrap: wrap; gap: 4px">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="6">
+        <a href="#" aria-current="{{t.current}}" style="padding: 8px 12px; font-family: 'Share Tech Mono', monospace; font-size: 13px; letter-spacing: 0.12em; text-decoration: none; {{t.style}}">{{t.label}}</a>
+      </sc-for>
+    </nav>
+    <span style="font-family: 'Share Tech Mono', monospace; font-size: 12px; color: #5DF2C8"><span aria-hidden="true" style="display: inline-block; width: 7px; height: 7px; margin-right: 6px; background: #5DF2C8; box-shadow: 0 0 8px #5DF2C8"></span>SYNCED</span>
+    <button type="button" style="min-height: 40px; padding: 0 16px; border: 1px solid #FF6A3D; background: rgba(255,106,61,0.12); color: #FF8A63; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer">+ New stop</button>
+  </header>
+
+  <!-- Day strip -->
+  <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 28px 0">
+    <div style="display: flex; gap: 6px; overflow-x: auto; max-width: 100%">
+      <sc-for list="{{days}}" as="d" hint-placeholder-count="8">
+        <button type="button" aria-pressed="{{d.selected}}" aria-label="{{d.aria}}" style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 70px; padding: 6px 10px; cursor: pointer; text-align: left; {{d.style}}">
+          <span style="font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 0.14em">D-{{d.n}}</span>
+          <span style="font-family: 'Share Tech Mono', monospace; font-size: 17px">{{d.label}}</span>
+        </button>
+      </sc-for>
+    </div>
+    <span style="font-family: 'Share Tech Mono', monospace; font-size: 12px; letter-spacing: 0.08em; color: #6E9C93">D-03 · 06 WAYPOINTS · ¥18,700 ALLOCATED</span>
+  </div>
+
+  <div style="flex: 1; display: flex; flex-wrap: wrap; gap: 18px; padding: 16px 28px 28px">
+    <!-- Itinerary panel -->
+    <section aria-label="Day 3 waypoints" style="position: relative; flex: 1 1 540px; min-width: 0; align-self: flex-start; border: 1px solid #0F3B35; background: rgba(6,22,20,0.85)">
+      <span aria-hidden="true" style="position: absolute; top: -1px; left: -1px; width: 14px; height: 14px; border-top: 2px solid #5DF2C8; border-left: 2px solid #5DF2C8"></span>
+      <span aria-hidden="true" style="position: absolute; bottom: -1px; right: -1px; width: 14px; height: 14px; border-bottom: 2px solid #5DF2C8; border-right: 2px solid #5DF2C8"></span>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid #0F3B35">
+        <h2 style="margin: 0; font-weight: 600; font-size: 14px; letter-spacing: 0.2em; color: #5DF2C8">ITINERARY <span lang="ja" style="font-family: 'Noto Sans JP', sans-serif; letter-spacing: 0.1em; color: #6E9C93">旅程</span></h2>
+        <span style="font-family: 'Share Tech Mono', monospace; font-size: 11px; color: #6E9C93">MON 04.05</span>
+      </div>
+      <ol style="list-style: none; margin: 0; padding: 0">
+        <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+          <li style="border-bottom: 1px solid #0B2B27; {{r.rowStyle}}">
+            <button type="button" onClick="{{r.pick}}" aria-expanded="{{r.expanded}}" style="width: 100%; display: grid; grid-template-columns: 88px 40px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; padding: 13px 18px; border: 0; background: transparent; text-align: left; cursor: pointer">
+              <span style="font-family: 'Share Tech Mono', monospace; font-size: 24px; color: {{r.timeColor}}; text-shadow: {{r.glow}}">{{r.time}}</span>
+              <span style="font-family: 'Share Tech Mono', monospace; font-size: 12px; color: {{r.idxColor}}">[{{r.badge}}]</span>
+              <span style="min-width: 0; display: flex; flex-direction: column; gap: 2px">
+                <span style="font-weight: 600; font-size: 16px; letter-spacing: 0.06em; text-transform: uppercase; color: #E8FFF8">{{r.title}}</span>
+                <span style="font-family: 'Share Tech Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #6E9C93">{{r.meta}}</span>
+              </span>
+              <span style="padding: 2px 8px; font-family: 'Share Tech Mono', monospace; font-size: 11px; letter-spacing: 0.12em; {{r.statusStyle}}">{{r.status}}</span>
+            </button>
+            <sc-if value="{{r.expanded}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-wrap: wrap; gap: 10px 28px; padding: 0 18px 16px 158px">
+                <p style="flex: 1 1 260px; margin: 0; line-height: 1.5; color: #B4D8D0">{{r.notes}}</p>
+                <div style="display: flex; flex-direction: column; gap: 4px; font-family: 'Share Tech Mono', monospace; font-size: 12px">
+                  <span style="color: #6E9C93">{{r.coords}}</span>
+                  <a href="https://www.google.com/maps">OPEN IN MAPS</a>
+                </div>
+              </div>
+            </sc-if>
+          </li>
+        </sc-for>
+      </ol>
+    </section>
+
+    <!-- Tactical map -->
+    <section aria-label="Map of day 3" style="position: relative; flex: 1 1 440px; min-width: 0; min-height: 580px; border: 1px solid #0F3B35; background: #031412; overflow: hidden">
+      <svg aria-hidden="true" width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style="position: absolute; inset: 0">
+        <g stroke="#0B2B27" fill="none">
+          <path d="M10 0V100M20 0V100M30 0V100M40 0V100M50 0V100M60 0V100M70 0V100M80 0V100M90 0V100M0 10H100M0 20H100M0 30H100M0 40H100M0 50H100M0 60H100M0 70H100M0 80H100M0 90H100" vector-effect="non-scaling-stroke"></path>
+        </g>
+        <path d="M30 0 C 32 20, 28 40, 33 60 S 30 85, 34 100" fill="none" stroke="#0E3F4A" vector-effect="non-scaling-stroke" style="stroke-width: 10px"></path>
+        <g stroke="#12443D" fill="none"><path d="M40 12 L 80 92" vector-effect="non-scaling-stroke"></path><path d="M0 55 H100" vector-effect="non-scaling-stroke"></path><path d="M58 0 V100" vector-effect="non-scaling-stroke"></path></g>
+        <polyline points="{{routePoints}}" fill="none" stroke="#5DF2C8" stroke-width="1.5" vector-effect="non-scaling-stroke" style="filter: drop-shadow(0 0 3px #5DF2C8)"></polyline>
+      </svg>
+      <sc-if value="{{hasSel}}" hint-placeholder-val="{{ true }}">
+        <div aria-hidden="true" style="position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,106,61,0.55); top: {{selY}}"></div>
+        <div aria-hidden="true" style="position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,106,61,0.55); left: {{selX}}"></div>
+        <div aria-hidden="true" style="position: absolute; width: 120px; height: 120px; transform: translate(-50%, -50%); border: 1px dashed rgba(255,106,61,0.6); border-radius: 50%; left: {{selX}}; top: {{selY}}"></div>
+      </sc-if>
+      <sc-for list="{{pins}}" as="p" hint-placeholder-count="5">
+        <button type="button" onClick="{{p.pick}}" aria-label="{{p.label}}" style="position: absolute; transform: translate(-50%, -50%) rotate(45deg); display: grid; place-items: center; cursor: pointer; {{p.style}}"><span style="transform: rotate(-45deg); font-family: 'Share Tech Mono', monospace">{{p.n}}</span></button>
+      </sc-for>
+
+      <div style="position: absolute; top: 12px; left: 12px; padding: 10px 12px; min-width: 210px; border: 1px solid #0F3B35; background: rgba(2,12,11,0.88); font-family: 'Share Tech Mono', monospace; font-size: 12px; line-height: 1.6; color: #B4D8D0">
+        <div style="font-family: 'Chakra Petch', sans-serif; font-weight: 600; letter-spacing: 0.2em; color: #5DF2C8">MAP <span lang="ja" style="font-family: 'Noto Sans JP', sans-serif; letter-spacing: 0.1em; color: #6E9C93">地図</span></div>
+        <div style="color: #FF8A63">TARGET {{readout.n}} // {{readout.title}}</div>
+        <div>{{readout.coords}}</div>
+        <div>ETA {{readout.time}}</div>
+      </div>
+      <div style="position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-family: 'Share Tech Mono', monospace; font-size: 11px">
+        <span style="padding: 6px 10px; border: 1px dashed #FF6A3D; background: rgba(2,12,11,0.88); color: #FF8A63">01 WAYPOINT UNLOCATED · <a href="#" style="color: #FFB394">LINK SOURCE</a></span>
+        <span style="padding: 2px 6px; background: rgba(2,12,11,0.88); color: #8FB8AF">© OpenStreetMap contributors</span>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":940}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 'kiyomizu' }; }
+  renderVals() {
+    const S = { DONE: 'color: #6E9C93; border: 1px solid #1C4A43', ACTIVE: 'color: #020C0B; background: #FF6A3D', FLEX: 'color: #9CC9C0; border: 1px dashed #3C6E66', QUEUED: 'color: #5DF2C8; border: 1px solid #1F6B5C', LOCKED: 'color: #8EC5FF; border: 1px solid #2D5A86' };
+    const stops = [
+      { id: 'arabica', time: '08:30', title: 'Coffee · % Arabica', meta: 'FOOD // HIGASHIYAMA // ¥1,200', status: 'DONE', x: 50, y: 50, lat: '34.9985', lng: '135.7801', notes: 'Grab a latte to go; the line is short before 9.' },
+      { id: 'kiyomizu', time: '09:15', title: 'Kiyomizu-dera', meta: 'SIGHTSEEING // UNTIL 11:00 // ¥500', status: 'ACTIVE', x: 66, y: 76, lat: '34.9949', lng: '135.7850', notes: 'Enter by the Nio-mon gate and finish on the stage before 10. Walk down Sannenzaka afterwards.' },
+      { id: 'okutan', time: '~12:00', title: 'Yudofu lunch · Okutan', meta: 'FOOD // FLEXIBLE // ¥4,400', status: 'FLEX', notes: 'No map location yet. Paste a Google Maps link to pin it.' },
+      { id: 'kodaiji', time: '13:30', title: 'Kodai-ji', meta: 'SIGHTSEEING // UNTIL 15:00 // ¥600', status: 'QUEUED', x: 64, y: 40, lat: '35.0006', lng: '135.7808', notes: 'Bamboo grove behind the main hall.' },
+      { id: 'yasaka', time: '15:30', title: 'Yasaka Shrine', meta: 'SIGHTSEEING // GION // FREE', status: 'QUEUED', x: 56, y: 28, lat: '35.0037', lng: '135.7785', notes: 'Cut through Maruyama Park on the way.' },
+      { id: 'kaiseki', time: '18:30', title: 'Kaiseki dinner', meta: 'FOOD // GION // ¥12,000', status: 'LOCKED', x: 42, y: 20, lat: '35.0030', lng: '135.7750', notes: 'Reservation under your name. Arrive 10 minutes early.' }
+    ];
+    let n = 0; stops.forEach((s) => { s.n = s.x != null ? String(++n).padStart(2, '0') : null; });
+    const pick = (id) => () => this.setState({ sel: this.state.sel === id ? null : id });
+    const coords = (s) => s.lat ? 'LAT ' + s.lat + 'N · LNG ' + s.lng + 'E' : 'NO COORDINATES';
+    const tabs = ['PLAN', 'CALENDAR', 'BOARD', 'TABLE', 'MAP', 'SPEND'];
+    const days = ['04.03', '04.04', '04.05', '04.06', '04.07', '04.08', '04.09', '04.10'];
+    const mapped = stops.filter((s) => s.n);
+    const sel = stops.find((s) => s.id === this.state.sel && s.n) || null;
+    return {
+      tabs: tabs.map((label, i) => ({ label, current: i === 0 ? 'page' : 'false', style: i === 0 ? 'color: #020C0B; background: #5DF2C8' : 'color: #6E9C93' })),
+      days: days.map((label, i) => ({ n: String(i + 1).padStart(2, '0'), label, aria: 'Day ' + (i + 1) + ', April ' + (i + 3), selected: i === 2 ? 'true' : 'false',
+        style: i === 2 ? 'border: 1px solid #5DF2C8; background: rgba(93,242,200,0.12); color: #E8FFF8; box-shadow: 0 0 12px rgba(93,242,200,0.25)' : 'border: 1px solid #0F3B35; background: transparent; color: #8FB8AF' })),
+      rows: stops.map((s) => {
+        const on = this.state.sel === s.id;
+        return { ...s, badge: s.n ?? '--', expanded: on, pick: pick(s.id), statusStyle: S[s.status], coords: coords(s),
+          timeColor: s.status === 'DONE' ? '#4F7A72' : on ? '#FF8A63' : '#5DF2C8', glow: on ? '0 0 10px rgba(255,106,61,0.6)' : s.status === 'DONE' ? 'none' : '0 0 8px rgba(93,242,200,0.45)',
+          idxColor: s.n ? (on ? '#FF8A63' : '#5DF2C8') : '#4F7A72',
+          rowStyle: on ? 'background: rgba(255,106,61,0.07); box-shadow: inset 2px 0 0 #FF6A3D' : '' };
+      }),
+      pins: mapped.map((s) => {
+        const on = sel && sel.id === s.id;
+        return { n: s.n, pick: pick(s.id), label: 'Waypoint ' + s.n + ', ' + s.title,
+          style: 'left: ' + s.x + '%; top: ' + s.y + '%; ' + (on ? 'width: 30px; height: 30px; font-size: 12px; background: #FF6A3D; color: #020C0B; border: 0; box-shadow: 0 0 16px rgba(255,106,61,0.7); z-index: 2' : 'width: 24px; height: 24px; font-size: 11px; background: #031412; color: #5DF2C8; border: 1px solid #5DF2C8; box-shadow: 0 0 8px rgba(93,242,200,0.4)') };
+      }),
+      routePoints: mapped.map((s) => s.x + ',' + s.y).join(' '),
+      hasSel: !!sel, selX: sel ? sel.x + '%' : '0', selY: sel ? sel.y + '%' : '0',
+      readout: sel ? { n: sel.n, title: sel.title.toUpperCase(), coords: coords(sel), time: sel.time } : { n: '--', title: 'NONE', coords: 'SELECT A WAYPOINT', time: '--:--' }
+    };
+  }
+}
+</script>
+</body>
+</html>

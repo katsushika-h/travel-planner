@@ -13,23 +13,21 @@ import {
   type ReactNode,
 } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { ExternalLink, GripVertical, List, LocateFixed, Map as MapIcon, MapPin, Plus } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { ItemNoteCard } from "@/components/notes/ItemNoteCard";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { eventItems, isNote } from "@/lib/note-domain";
-import { Button } from "@/components/ui/button";
 import { formatTripDate, shiftDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
-import { itemDateSpan, itemScheduleLabel } from "@/lib/schedule-domain";
+import { itemDateSpan } from "@/lib/schedule-domain";
 import { sortDayDisplayItems } from "@/lib/schedule-order";
 import { typeColor } from "@/lib/type-color";
+import { flexibleDisplayTimes, formatPlannedCost, stopNumbers } from "@/components/views/plan/plan-domain";
 import type { LocationData, TravelObject, Trip } from "@/types/travel";
 
 const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.LeafletMap), {
   ssr: false,
-  loading: () => (
-    <div className="grid min-h-80 flex-1 place-items-center text-sm text-muted-foreground">Loading map…</div>
-  ),
+  loading: () => <div className="grid min-h-80 flex-1 place-items-center text-sm text-muted">Loading map…</div>,
 });
 
 const savedScrollPositions = new Map<string, number>();
@@ -44,14 +42,6 @@ function tripDates(trip: Trip) {
 function itemAppearsOnDate(item: TravelObject, date: string) {
   const { first, last } = itemDateSpan(item);
   return Boolean(first && first <= date && last && last >= date);
-}
-
-function selectionRing(selected: boolean, primary: boolean) {
-  return selected
-    ? primary
-      ? "ring-2 ring-white ring-offset-2 ring-offset-emerald-600"
-      : "ring-2 ring-emerald-600"
-    : "";
 }
 
 function safeMapsHref(location: LocationData | null | undefined, fallback: string) {
@@ -72,37 +62,31 @@ function DropGap({
   onAddNote?: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day-list:${date}:${order}` });
+  const action =
+    "flex min-h-11 items-center px-2 text-[11px] text-muted underline-offset-2 hover:text-foreground hover:underline focus-visible:underline sm:min-h-7";
   return (
     <div
       ref={setNodeRef}
-      className={`group/gap flex h-11 items-center gap-2 transition sm:h-7 ${isOver ? "bg-emerald-50 dark:bg-emerald-950/30" : ""}`}
+      className={`group/gap flex h-11 items-center gap-2 transition sm:h-7 ${isOver ? "bg-surface" : ""}`}
     >
       <span
-        className={`h-px flex-1 border-t ${isOver ? "border-2 border-emerald-500" : "border-dotted border-transparent group-hover/gap:border-stone-300 group-focus-within/gap:border-stone-300 dark:group-hover/gap:border-neutral-600"}`}
+        className={`h-px flex-1 ${isOver ? "bg-accent" : "bg-transparent group-hover/gap:bg-divider group-focus-within/gap:bg-divider"}`}
       />
       <div
-        className={`flex items-center gap-1 rounded-md text-stone-500 transition-opacity dark:text-stone-400 ${isOver ? "opacity-100" : "opacity-0 group-hover/gap:opacity-100 group-focus-within/gap:opacity-100 [@media(hover:none)]:opacity-100"}`}
+        className={`flex items-center gap-1 transition-opacity ${isOver ? "opacity-100" : "opacity-0 group-hover/gap:opacity-100 group-focus-within/gap:opacity-100 [@media(hover:none)]:opacity-100"}`}
       >
         <button
           type="button"
           aria-label={`Add item at position ${order + 1}`}
           onClick={() => onCreate(date, order)}
-          className="flex min-h-11 items-center gap-1 rounded px-2 text-[11px] font-medium hover:bg-stone-100 focus-visible:outline-2 dark:hover:bg-neutral-800 sm:min-h-7 sm:text-[10px]"
+          className={action}
         >
-          <Plus size={12} /> Add event
+          Add event
         </button>
         {onAddNote && (
-          <>
-            <span aria-hidden="true" className="h-3 border-l border-stone-300 dark:border-neutral-600" />
-            <button
-              type="button"
-              aria-label={`Add note at position ${order + 1}`}
-              onClick={onAddNote}
-              className="flex min-h-11 items-center gap-1 rounded px-2 text-[11px] font-medium hover:bg-stone-100 focus-visible:outline-2 dark:hover:bg-neutral-800 sm:min-h-7 sm:text-[10px]"
-            >
-              <Plus size={12} /> Add note
-            </button>
-          </>
+          <button type="button" aria-label={`Add note at position ${order + 1}`} onClick={onAddNote} className={action}>
+            Add note
+          </button>
         )}
       </div>
     </div>
@@ -112,16 +96,26 @@ function DropGap({
 function DayItemDrop({ date, order, children }: { date: string; order: number; children: ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day-item:${date}:${order}` });
   return (
-    <div ref={setNodeRef} className={isOver ? "rounded-xl ring-2 ring-inset ring-emerald-500" : ""}>
+    <div ref={setNodeRef} className={isOver ? "ring-1 ring-inset ring-accent" : ""}>
       {children}
     </div>
   );
+}
+
+/** Large mono start time in the Plan list: confirmed start, `~` placement for flexible items, or a label. */
+function timeLabel(item: TravelObject, flexibleTime?: string) {
+  if (item.isAllDay) return { text: "All day", flexible: false, small: true };
+  if (item.startTime && item.endTime) return { text: item.startTime, flexible: false, small: false };
+  const placement = flexibleTime ?? item.placementTime;
+  if (placement) return { text: `~${placement}`, flexible: true, small: false };
+  return { text: "Flexible", flexible: true, small: true };
 }
 
 const JourneyCard = memo(function JourneyCard({
   item,
   date,
   number,
+  flexTime,
   color,
   selected,
   primary,
@@ -132,7 +126,8 @@ const JourneyCard = memo(function JourneyCard({
 }: {
   item: TravelObject;
   date: string;
-  number: number;
+  number: number | null;
+  flexTime?: string;
   color: string;
   selected: boolean;
   primary: boolean;
@@ -146,12 +141,15 @@ const JourneyCard = memo(function JourneyCard({
     data: { item, draggedDate: date },
   });
   const location = item.location?.name ?? item.location?.address;
-  const scheduleLabel = itemScheduleLabel(item, "Flexible");
-  const cost = item.cost?.amount != null ? `${item.cost.currency} ${item.cost.amount.toLocaleString()}` : null;
-  const style: CSSProperties = {
-    borderLeftColor: color,
-    ...(transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : {}),
-  };
+  const time = timeLabel(item, flexTime);
+  const cost = item.cost?.amount != null ? formatPlannedCost(item.cost.amount, item.cost.currency) : null;
+  const detail = [
+    item.type.charAt(0).toUpperCase() + item.type.slice(1),
+    item.startTime && item.endTime && !item.isAllDay ? `until ${item.endTime}` : null,
+    location ?? null,
+  ].filter(Boolean);
+  const style: CSSProperties = transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : {};
+  const active = primary || highlighted;
   return (
     <article
       id={`day-card-${item.id}`}
@@ -163,7 +161,7 @@ const JourneyCard = memo(function JourneyCard({
       }}
       onMouseEnter={() => onHover(item.id)}
       onMouseLeave={() => onHover(null)}
-      className={`relative overflow-hidden rounded-xl border border-l-4 bg-white shadow-sm transition dark:bg-neutral-900 ${selectionRing(selected, primary)} ${highlighted ? "shadow-md ring-2 ring-emerald-400/70" : ""} ${isDragging ? "opacity-40" : ""}`}
+      className={`relative border-b border-divider bg-background ${selected && !primary ? "ring-1 ring-inset ring-accent" : ""} ${isDragging ? "opacity-40" : ""}`}
     >
       {item.headerImage && (
         <button
@@ -172,84 +170,75 @@ const JourneyCard = memo(function JourneyCard({
           onClick={(event) =>
             window.matchMedia("(max-width: 639px)").matches ? onInspect(item) : onSelect(item, event.shiftKey)
           }
-          className="block h-36 w-full overflow-hidden border-b text-left sm:h-44"
+          className="block h-36 w-full overflow-hidden text-left sm:h-44 in-data-[density=compact]:hidden"
         >
           <img src={item.headerImage} alt="" className="size-full object-cover" />
         </button>
       )}
       <div className="flex min-w-0 items-stretch">
-        <div className="flex w-12 shrink-0 flex-col items-center gap-2 border-r bg-stone-50 px-1 py-3 dark:bg-neutral-800/60">
-          <span
-            className="grid size-7 place-items-center rounded-full text-xs font-bold text-white"
-            style={{ backgroundColor: color }}
-          >
-            {number}
-          </span>
-          <button
-            type="button"
-            data-reorder-handle
-            aria-label={`Reorder ${item.title}`}
-            className="flex min-h-11 min-w-11 touch-none items-center justify-center rounded text-muted-foreground hover:bg-stone-200 active:cursor-grabbing dark:hover:bg-neutral-700 sm:min-h-7 sm:min-w-7 sm:cursor-grab"
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical size={15} />
-          </button>
-        </div>
         <button
           type="button"
           data-item-content
           onClick={(event) =>
             window.matchMedia("(max-width: 639px)").matches ? onInspect(item) : onSelect(item, event.shiftKey)
           }
-          className="flex min-w-0 flex-1 items-start gap-3 px-3 py-3 text-left"
+          className="flex min-w-0 flex-1 items-start gap-3 py-4 in-data-[density=compact]:items-baseline in-data-[density=compact]:py-1 pr-2 text-left"
         >
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2">
-              <p className="min-w-0 truncate text-sm font-semibold">{item.title}</p>
-              {item.isAllDay ? (
-                <span className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[9px] font-semibold uppercase text-stone-600 dark:bg-neutral-800 dark:text-stone-300">
-                  {scheduleLabel}
-                </span>
-              ) : (
-                <span
-                  className={`shrink-0 text-xs font-semibold ${item.startTime && item.endTime ? "text-violet-700 dark:text-violet-300" : "text-stone-500 dark:text-stone-400"}`}
-                >
-                  {scheduleLabel}
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {item.type}
-              {cost ? ` · ${cost}` : ""}
-            </p>
-            <p
-              className={`mt-2 flex items-center gap-1.5 truncate text-xs ${location ? "text-muted-foreground" : "text-amber-700 dark:text-amber-300"}`}
-            >
-              <MapPin size={12} className="shrink-0" />
-              {location || "Location unavailable"}
-            </p>
+          <span
+            className={`w-[72px] shrink-0 font-mono ${time.small ? "pt-1.5 text-xs" : "text-[22px] font-light leading-8 in-data-[density=compact]:text-base in-data-[density=compact]:leading-6"} ${primary ? "text-accent" : time.flexible ? "text-muted" : ""}`}
+          >
+            {time.text}
+          </span>
+          <span className={`w-5 shrink-0 pt-1.5 font-mono text-[11px] ${active ? "text-accent" : "text-faint"}`}>
+            {number != null ? String(number).padStart(2, "0") : "—"}
+          </span>
+          <span className="min-w-0 flex-1 in-data-[density=compact]:flex in-data-[density=compact]:items-baseline in-data-[density=compact]:gap-3">
+            <span className="flex min-w-0 items-center gap-2 in-data-[density=compact]:shrink-0 in-data-[density=compact]:max-w-[55%]">
+              <span aria-hidden className="size-2 shrink-0" style={{ backgroundColor: color }} />
+              <span className="min-w-0 truncate text-[17px] font-medium leading-tight">{item.title}</span>
+            </span>
+            <span className="mt-1 flex items-baseline justify-between gap-3 text-[13px] text-muted in-data-[density=compact]:mt-0 in-data-[density=compact]:min-w-0 in-data-[density=compact]:flex-1 in-data-[density=compact]:text-xs">
+              <span className="min-w-0 truncate">{detail.join(" · ")}</span>
+              {cost && <span className="shrink-0 font-mono text-xs">{cost}</span>}
+            </span>
+            {!location && (
+              <span className="mt-0.5 block text-xs text-accent in-data-[density=compact]:hidden">No location</span>
+            )}
             {item.location?.openingHours?.[0] && (
-              <p className="mt-2 line-clamp-1 text-[11px] text-muted-foreground">{item.location.openingHours[0]}</p>
+              <span className="mt-1.5 line-clamp-1 block text-xs text-faint in-data-[density=compact]:hidden">
+                {item.location.openingHours[0]}
+              </span>
             )}
             {item.notes && (
-              <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-stone-500 dark:text-stone-400">
+              <span className="mt-2 line-clamp-2 block text-[13px] leading-relaxed text-muted in-data-[density=compact]:hidden">
                 {item.notes}
-              </p>
+              </span>
             )}
-          </div>
+          </span>
         </button>
-        {location && (
-          <a
-            href={safeMapsHref(item.location, item.title)}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`Open ${item.title} in Maps`}
-            className="m-2 self-end rounded p-2 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950"
+        <div className="flex shrink-0 flex-col items-end justify-between py-3 in-data-[density=compact]:flex-row in-data-[density=compact]:items-center in-data-[density=compact]:gap-1 in-data-[density=compact]:py-0">
+          <button
+            type="button"
+            data-reorder-handle
+            aria-label={`Reorder ${item.title}`}
+            className="flex min-h-11 min-w-11 touch-none items-center justify-center text-faint hover:text-foreground active:cursor-grabbing sm:min-h-7 sm:min-w-7 sm:cursor-grab"
+            {...attributes}
+            {...listeners}
           >
-            <ExternalLink size={13} />
-          </a>
-        )}
+            <GripVertical size={15} />
+          </button>
+          {location && (
+            <a
+              href={safeMapsHref(item.location, item.title)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Open ${item.title} in Maps`}
+              className="px-1 py-2 in-data-[density=compact]:py-0 text-xs underline underline-offset-2 hover:text-accent max-sm:flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center max-sm:justify-center"
+            >
+              Maps
+            </a>
+          )}
+        </div>
       </div>
     </article>
   );
@@ -296,7 +285,8 @@ function DateSection({
 }) {
   const { setNodeRef: setSectionDropRef, isOver } = useDroppable({ id: `day-section:${date}:${items.length}` });
   const events = eventItems(items);
-  const numbers = new Map(events.map((item, index) => [item.id, index + 1]));
+  const numbers = stopNumbers(events);
+  const flexTimes = flexibleDisplayTimes(events);
   const fixedCount = items.filter((item) => item.startTime && item.endTime && !item.isAllDay).length;
   return (
     <section
@@ -306,53 +296,43 @@ function DateSection({
       }}
       data-date={date}
       aria-labelledby={`day-heading-${date}`}
-      className={`min-h-[42vh] scroll-mt-0 pb-8 ${isOver ? "bg-emerald-50/50 dark:bg-emerald-950/20" : ""}`}
+      className={`min-h-[42vh] scroll-mt-0 pb-8 ${isOver ? "bg-surface/60" : ""}`}
     >
-      <header
-        className={`sticky top-0 z-20 border-y bg-stone-50/95 backdrop-blur dark:bg-neutral-950/95 ${isOver ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950" : ""}`}
-      >
+      <header className={`sticky top-0 z-20 border-t bg-background ${isOver ? "border-accent" : "border-foreground"}`}>
         <div className="flex flex-wrap items-center justify-between gap-2 max-sm:pb-2">
           <button
             type="button"
             onClick={onFocusDay}
             aria-label={`Show all ${events.length} ${events.length === 1 ? "place" : "places"} for ${formatTripDate(`${date}T12:00:00Z`, trip.timezone, { weekday: "long", month: "long", day: "numeric" })} on the map`}
-            className="flex min-w-0 flex-1 items-end justify-between gap-3 px-4 py-3 text-left max-sm:basis-full hover:bg-stone-100/70 dark:hover:bg-neutral-900/70"
+            className="flex min-w-0 flex-1 items-baseline justify-between gap-3 px-4 py-3.5 text-left hover:bg-surface max-sm:basis-full sm:px-6"
           >
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-emerald-700 dark:text-emerald-300">
-                Day {dayNumber}
-              </p>
-              <h2 id={`day-heading-${date}`} className="mt-0.5 truncate text-base font-semibold">
+            <span className="flex min-w-0 items-baseline gap-3">
+              <span className="shrink-0 font-mono text-xs text-faint">Day {dayNumber}</span>
+              <h2 id={`day-heading-${date}`} className="min-w-0 truncate text-[17px] font-medium">
                 {formatTripDate(`${date}T12:00:00Z`, trip.timezone, { weekday: "long", month: "long", day: "numeric" })}
               </h2>
-            </div>
-            <p className="hidden shrink-0 text-right text-[10px] leading-relaxed text-muted-foreground sm:block">
-              {events.length} {events.length === 1 ? "place" : "places"}
-              <br />
-              {fixedCount} fixed {fixedCount === 1 ? "time" : "times"}
-            </p>
+            </span>
+            <span className="hidden shrink-0 text-right text-xs text-muted sm:block">
+              {events.length} {events.length === 1 ? "stop" : "stops"} · {fixedCount} fixed
+            </span>
           </button>
-          <Button
+          <button
             type="button"
-            variant="outline"
-            size="sm"
-            className="mr-3 min-h-11 sm:hidden"
+            className="mr-1 min-h-11 px-2 text-[13px] underline underline-offset-2 sm:hidden"
             onClick={() => onCreate(date, items.length)}
           >
-            <Plus size={14} /> Event
-          </Button>
-          <Button
+            Add event
+          </button>
+          <button
             type="button"
-            variant="ghost"
-            size="sm"
-            className="mr-2 min-h-11 sm:hidden"
+            className="mr-3 min-h-11 px-2 text-[13px] text-muted underline underline-offset-2 sm:hidden"
             onClick={() => onAddNote(date, items.length)}
           >
-            + Note
-          </Button>
+            Add note
+          </button>
         </div>
       </header>
-      <div className="px-3 pt-3 sm:px-4">
+      <div className="px-4 pt-1 sm:px-6">
         {items.length ? (
           items.map((item, index) => (
             <div key={item.id}>
@@ -370,7 +350,8 @@ function DateSection({
                   <JourneyCard
                     item={item}
                     date={date}
-                    number={numbers.get(item.id) ?? 0}
+                    number={numbers.get(item.id) ?? null}
+                    flexTime={flexTimes.get(item.id)}
                     color={typeColor(item.type, typeColors)}
                     selected={selectedIds.has(item.id)}
                     primary={primarySelectedId === item.id}
@@ -385,11 +366,11 @@ function DateSection({
           ))
         ) : (
           <div
-            className={`grid min-h-40 place-items-center rounded-xl border border-dashed px-4 text-center ${isOver ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30" : ""}`}
+            className={`mt-3 grid min-h-40 place-items-center border border-dashed px-4 text-center ${isOver ? "border-accent bg-surface" : "border-input-rule"}`}
           >
             <div>
               <p className="text-sm font-medium">Nothing planned</p>
-              <p className="mt-1 text-xs text-muted-foreground">Drop an idea on this date or add an item.</p>
+              <p className="mt-1 text-xs text-muted">Drop an idea on this date or add an item.</p>
               <div className="mt-3">
                 <DropGap date={date} order={0} onCreate={onCreate} onAddNote={() => onAddNote(date, 0)} />
               </div>
@@ -595,7 +576,7 @@ export function DayJourneyView({
 
   const activeItems = useMemo(() => eventItems(grouped.get(activeDate) ?? []), [activeDate, grouped]);
   const mappedItems = activeItems.filter((item) => hasMapCoordinates(item.location));
-  const markerNumbers = useMemo(() => new Map(activeItems.map((item, index) => [item.id, index + 1])), [activeItems]);
+  const markerNumbers = useMemo(() => stopNumbers(activeItems), [activeItems]);
 
   function selectFromMap(item: TravelObject) {
     onSelect(item);
@@ -632,35 +613,28 @@ export function DayJourneyView({
       )}
       <div ref={noteFocusRef} tabIndex={-1}>
         {noteCreateError && (
-          <div role="alert" className="border-b px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
+          <div role="alert" className="border-b border-divider px-4 py-2 text-xs text-danger">
             {noteCreateError} Try Add note again.
           </div>
         )}
       </div>
-      <div className="flex shrink-0 border-b bg-white p-1 dark:bg-neutral-900 md:hidden">
-        <Button
-          type="button"
-          size="sm"
-          variant={mobileSurface === "itinerary" ? "secondary" : "ghost"}
-          className="min-h-11 flex-1"
-          onClick={() => setMobileSurface("itinerary")}
-        >
-          <List size={14} /> Itinerary
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant={mobileSurface === "map" ? "secondary" : "ghost"}
-          className="min-h-11 flex-1"
-          onClick={() => setMobileSurface("map")}
-        >
-          <MapIcon size={14} /> Map
-        </Button>
+      <div className="flex shrink-0 gap-6 border-b border-divider px-4 md:hidden">
+        {(["itinerary", "map"] as const).map((surface) => (
+          <button
+            key={surface}
+            type="button"
+            aria-pressed={mobileSurface === surface}
+            className={`min-h-11 min-w-11 border-b px-0.5 text-sm capitalize ${mobileSurface === surface ? "border-foreground font-medium" : "border-transparent text-muted"}`}
+            onClick={() => setMobileSurface(surface)}
+          >
+            {surface}
+          </button>
+        ))}
       </div>
-      <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(280px,28.5%)_minmax(0,71.5%)]">
+      <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(360px,44%)_minmax(0,1fr)]">
         <div
           ref={scrollRef}
-          className={`${mobileSurface === "map" ? "hidden" : "block"} min-h-0 overflow-y-auto bg-stone-50/60 [overflow-anchor:none] dark:bg-neutral-950 md:block`}
+          className={`${mobileSurface === "map" ? "hidden" : "block"} min-h-0 overflow-y-auto [overflow-anchor:none] md:block`}
           aria-label="Continuous trip itinerary"
         >
           {dates.map((date, index) => (
@@ -694,35 +668,34 @@ export function DayJourneyView({
           ))}
         </div>
         <section
-          className={`${mobileSurface === "map" ? "flex" : "hidden"} relative min-h-0 flex-col overflow-hidden border-l bg-white dark:bg-neutral-900 md:flex`}
+          className={`${mobileSurface === "map" ? "flex" : "hidden"} relative min-h-0 flex-col overflow-hidden border-l border-divider md:flex`}
           aria-label={`Map for ${activeDate}`}
         >
-          <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
+          <header className="flex shrink-0 items-baseline justify-between gap-3 border-t border-foreground px-4 py-3.5">
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">
+              <p className="truncate text-[17px] font-medium">
                 {formatTripDate(`${activeDate}T12:00:00Z`, trip.timezone, {
                   weekday: "long",
                   month: "long",
                   day: "numeric",
                 })}
               </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-xs text-muted">
                 {mappedItems.length} of {activeItems.length} {activeItems.length === 1 ? "place has" : "places have"}{" "}
                 map coordinates
               </p>
             </div>
             {mapMoved && mappedItems.length > 0 && (
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
+                className="min-h-11 shrink-0 text-sm underline underline-offset-2 hover:text-accent sm:min-h-8"
                 onClick={() => {
                   setMapMoved(false);
                   setRecenterToken((token) => token + 1);
                 }}
               >
-                <LocateFixed size={14} /> Recenter day
-              </Button>
+                Recenter day
+              </button>
             )}
           </header>
           {(desktopMapVisible || mobileSurface === "map") && (
@@ -742,7 +715,7 @@ export function DayJourneyView({
             />
           )}
           {mappedItems.length === 0 && (
-            <div className="pointer-events-none absolute inset-x-4 top-20 z-[500] rounded-lg border bg-white/90 px-4 py-3 text-center text-xs text-muted-foreground shadow-sm backdrop-blur dark:bg-neutral-900/90">
+            <div className="pointer-events-none absolute inset-x-4 top-20 z-[500] border border-divider bg-background/90 px-4 py-3 text-center text-xs text-muted">
               No locations with coordinates for this day.
             </div>
           )}

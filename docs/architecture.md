@@ -13,6 +13,8 @@ Read this when changing a boundary or tracing a cross-module data flow. `AGENTS.
 
 7. Notes are independent `TravelObject` records with `kind=note` and plain-text `noteBody`. They use flexible scheduling and the shared dayOrder sequence. Day renders draggable cards with inline fields; other views filter notes. Week computes drop positions against the complete sequence before filtering. See [ADR 0005](decisions/0005-independent-day-notes.md).
 
+8. The workspace UI uses the Minimal design ([ADR 0006](decisions/0006-minimal-ui.md)): a one-line header (`AppShell`, `TripMenu`, `ItemSearch`) replaces the sidebar, and views are Plan (`TripDaysView` + `components/views/plan/`), Calendar, Board, Table, Map, and Spend. Colours come from CSS variables in `app/globals.css` (light and dark, including `--scrim`) exposed as Tailwind tokens; item type colours come from `lib/type-color.ts`. Persisted `PlannerTab` values are unchanged (`days` is labelled Plan).
+
 ## Deployment
 
 `docker-compose.nas.yml` starts PostgreSQL, runs the one-shot Prisma migrator after the database is healthy, then starts the app. `Dockerfile` has separate `migrator` and app runner stages. Deployment images target `linux/amd64`; the production app build uses webpack. See `AGENTS.md` for the deployment rule and validation commands.

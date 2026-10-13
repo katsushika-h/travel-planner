@@ -31,7 +31,7 @@ export function MarkdownEditorClient({
       onChange={onChange}
       placeholder="Write notes…"
       className={`travel-markdown-editor ${darkMode ? "dark-theme" : ""}`}
-      contentEditableClassName="min-h-44 text-sm leading-6 outline-none"
+      contentEditableClassName="min-h-20 p-0! text-[15px] leading-relaxed text-foreground! outline-none"
       plugins={[
         headingsPlugin(),
         listsPlugin(),

@@ -1,277 +1,173 @@
 "use client";
 
 import {
-  closestCorners,
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
   pointerWithin,
-  useDraggable,
-  useDroppable,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { useEffect, useRef, useState } from "react";
-import { Plus, MapPin, GripVertical } from "lucide-react";
-import { formatTripDate, shiftDate } from "@/lib/date-utils";
-import { allDayDropStartDate, itemScheduleLabel, occursOnItineraryDate } from "@/lib/schedule-domain";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { dateParts, formatTripDate } from "@/lib/date-utils";
+import { hasMapCoordinates } from "@/lib/map-coordinates";
+import { eventItems, isNote } from "@/lib/note-domain";
+import { allDayDropStartDate, occursOnItineraryDate } from "@/lib/schedule-domain";
 import { compareScheduleOrder, isTimedItem, itineraryDropPosition } from "@/lib/schedule-order";
-import { typeColor } from "@/lib/type-color";
 import type { TravelObject, Trip } from "@/types/travel";
+import { DayStrip } from "./plan/DayStrip";
+import { PlanMap } from "./plan/PlanMap";
+import {
+  flexibleDisplayTimes,
+  plannedTotals,
+  stopMeta,
+  stopNumbers,
+  stopTimeLabel,
+  tripDays,
+} from "./plan/plan-domain";
+import { AddGap, EndSlot, NoteBlock, StopRow } from "./plan/StopRow";
 
-function TripDayDropSlot({ date, order, empty = false }: { date: string; order: number; empty?: boolean }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `trip-day:${date}:${order}` });
-  return (
-    <div
-      ref={setNodeRef}
-      className={`relative shrink-0 ${empty ? "min-h-24 flex-1" : "h-4"} ${isOver ? "before:absolute before:inset-x-1 before:top-1/2 before:z-20 before:border-t-2 before:border-emerald-500" : ""}`}
-    />
-  );
+/** Remembers the day each trip was last viewed so switching views and back keeps the place. */
+const lastViewedDate = new Map<string, string>();
+
+function initialDate(trip: Trip, days: string[], items: TravelObject[], primaryId: string | null) {
+  const primary = primaryId ? items.find((item) => item.id === primaryId) : null;
+  const primaryDate = primary?.date?.slice(0, 10);
+  if (primaryDate && days.includes(primaryDate)) return primaryDate;
+  const remembered = lastViewedDate.get(trip.id);
+  if (remembered && days.includes(remembered)) return remembered;
+  const today = dateParts(new Date(), trip.timezone).date;
+  return days.includes(today) ? today : days[0];
 }
-function TripDayColumn({
-  date,
-  index,
-  items,
-  timezone,
-  colorMap,
-  selectedIds,
-  primarySelectedId,
-  onSelect,
-  onCreate,
-}: {
-  date: string;
-  index: number;
-  items: TravelObject[];
-  timezone: string;
-  colorMap: Record<string, string>;
-  selectedIds: ReadonlySet<string>;
-  primarySelectedId: string | null;
-  onSelect: (item: TravelObject, additive?: boolean) => void;
-  onCreate: (date: string) => void;
-}) {
-  const { setNodeRef, isOver } = useDroppable({ id: `trip-day:${date}` });
-  return (
-    <section
-      ref={setNodeRef}
-      className={`flex min-h-0 w-[280px] shrink-0 flex-col rounded-xl border bg-white dark:bg-neutral-900 ${isOver ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20" : ""}`}
-    >
-      <header className="flex items-center justify-between border-b px-4 py-3">
-        <div>
-          <p className="text-xs font-medium text-muted-foreground">Day {index + 1}</p>
-          <h2 className="text-sm font-semibold">
-            {formatTripDate(`${date}T12:00:00Z`, "UTC", { weekday: "short", month: "short", day: "numeric" })}
-          </h2>
-        </div>
-        <button
-          type="button"
-          onClick={() => onCreate(date)}
-          aria-label="Add item on this day"
-          title="Add item on this day"
-          className="grid min-h-11 min-w-11 place-items-center rounded text-muted-foreground hover:bg-muted sm:min-h-0 sm:min-w-0 sm:p-1.5"
-        >
-          <Plus size={15} />
-        </button>
-      </header>
-      <div
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3"
-        onDoubleClick={() => onCreate(date)}
-        title="Double-click to add an item"
-      >
-        {items.map((item, order) => (
-          <div key={`${item.id}:${date}`}>
-            <TripDayDropSlot date={date} order={order} />
-            <DayCard
-              item={item}
-              order={order}
-              date={date}
-              timezone={timezone}
-              color={typeColor(item.type, colorMap)}
-              selected={selectedIds.has(item.id)}
-              primary={primarySelectedId === item.id}
-              onSelect={onSelect}
-            />
-          </div>
-        ))}
-        <TripDayDropSlot date={date} order={items.length} empty={items.length === 0} />
-        {items.length === 0 && (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onCreate(date);
-            }}
-            onDoubleClick={(event) => event.stopPropagation()}
-            className="grid min-h-24 place-items-center rounded-lg border border-dashed text-xs text-muted-foreground"
-          >
-            Add item
-          </button>
-        )}
-      </div>
-    </section>
-  );
-}
-function DayCard({
-  item,
-  order,
-  date,
-  color,
-  selected,
-  primary,
-  onSelect,
-}: {
-  item: TravelObject;
-  order: number;
-  date: string;
-  timezone: string;
-  color: string;
-  selected: boolean;
-  primary: boolean;
-  onSelect: (item: TravelObject, additive?: boolean) => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `${item.id}:${date}`,
-    data: { item, draggedDate: date },
-  });
-  const place = (item.location as { name?: string } | null)?.name;
-  const time = item.isAllDay ? "All day" : isTimedItem(item) ? item.startTime : "";
-  return (
-    <div
-      ref={setNodeRef}
-      data-travel-object-id={item.id}
-      {...attributes}
-      {...listeners}
-      role="button"
-      tabIndex={0}
-      onClick={(event) => onSelect(item, event.shiftKey)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect(item, event.shiftKey);
-        }
-      }}
-      style={transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : undefined}
-      className={`flex w-full scroll-mx-4 items-stretch gap-2 text-left ${selected ? (primary ? "ring-2 ring-white ring-offset-2 ring-offset-emerald-600" : "ring-2 ring-emerald-600") : ""} ${isDragging ? "opacity-40" : ""}`}
-    >
-      <span className="w-11 shrink-0 pt-3 text-right text-[11px] font-medium text-stone-400 dark:text-stone-500">
-        {time}
-      </span>
-      <article
-        style={{ borderLeft: `4px solid ${color}` }}
-        className="min-w-0 flex-1 overflow-hidden rounded-lg border bg-background shadow-sm"
-      >
-        {item.headerImage && <img src={item.headerImage} alt="" className="h-28 w-full object-cover" />}
-        <div className="flex gap-3 p-3">
-          <span className="w-5 shrink-0 pt-0.5 text-center text-xs font-semibold text-muted-foreground">
-            {order + 1}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1.5 text-sm font-medium">
-              <GripVertical size={13} className="shrink-0 text-muted-foreground" />
-              <span className="truncate">{item.title}</span>
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">{item.isAllDay ? "All day" : item.type}</p>
-            {place && (
-              <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                <MapPin size={11} />
-                {place}
-              </p>
-            )}
-          </div>
-        </div>
-      </article>
-    </div>
-  );
-}
-function DragPreview({ item, color }: { item: TravelObject; timezone: string; color: string }) {
-  const place = (item.location as { name?: string } | null)?.name;
-  const scheduleLabel = itemScheduleLabel(item, "Unscheduled time");
-  return (
-    <article
-      className="w-[280px] overflow-hidden rounded-lg border bg-background text-left shadow-xl"
-      style={{ borderLeft: `4px solid ${color}` }}
-    >
-      {item.headerImage && <img src={item.headerImage} alt="" className="h-28 w-full object-cover" />}
-      <div className="p-3">
-        <p className="flex items-center gap-1.5 text-sm font-medium">
-          <GripVertical size={13} className="shrink-0 text-muted-foreground" />
-          <span className="truncate">{item.title}</span>
-        </p>
-        <p className="mt-1 pl-5 text-xs text-muted-foreground">
-          {scheduleLabel} · {item.type}
-        </p>
-        {place && (
-          <p className="mt-1 flex items-center gap-1 pl-5 text-xs text-muted-foreground">
-            <MapPin size={11} />
-            {place}
-          </p>
-        )}
-      </div>
-    </article>
-  );
-}
+
 export function TripDaysView({
   trip,
   items,
   typeColors,
   selectedIds,
   primarySelectedId,
-  inspectedItemId,
   onSelect,
+  onInspect,
   onSelectForDrag,
   onMove,
   onReorder,
   onCreateItem,
 }: {
   trip: Trip;
+  /** Dated items for the trip. Notes are shown inline when present. */
   items: TravelObject[];
   typeColors: Record<string, string>;
   selectedIds: ReadonlySet<string>;
   primarySelectedId: string | null;
-  inspectedItemId: string | null;
+  inspectedItemId?: string | null;
   onSelect: (item: TravelObject, additive?: boolean) => void;
+  /** Opens the item editor. Falls back to `onSelect` when the shell does not distinguish selecting from editing. */
+  onInspect?: (item: TravelObject) => void;
   onSelectForDrag: (item: TravelObject) => void;
   onMove: (item: TravelObject, date: string) => Promise<void>;
   onReorder: (item: TravelObject, date: string, order: number, clearTime: boolean) => Promise<void>;
-  onCreateItem: (date: string) => void;
+  onCreateItem: (date: string, order?: number) => void;
 }) {
-  const start = trip.startDate.slice(0, 10);
-  const end = trip.endDate.slice(0, 10);
-  const days: string[] = [];
-  for (let date = start, i = 0; date <= end && i < 1000; date = shiftDate(date, 1), i++) days.push(date);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 3 } }));
+  const days = useMemo(() => tripDays(trip.startDate, trip.endDate), [trip.startDate, trip.endDate]);
+  const today = dateParts(new Date(), trip.timezone).date;
+  const [activeDate, setActiveDate] = useState(() => initialDate(trip, days, items, primarySelectedId));
+  const [expandedId, setExpandedId] = useState<string | null>(primarySelectedId);
+  const [seenPrimaryId, setSeenPrimaryId] = useState(primarySelectedId);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<TravelObject | null>(null);
-  const boardRef = useRef<HTMLDivElement>(null);
+  const [mapMoved, setMapMoved] = useState(false);
+  const [recenterToken, setRecenterToken] = useState(0);
+  const [mobileSurface, setMobileSurface] = useState<"list" | "map">("list");
+  const [mapVisible, setMapVisible] = useState(false);
   const suppressClickRef = useRef(false);
+  const date = days.includes(activeDate) ? activeDate : initialDate(trip, days, items, null);
+
+  // Selection that changes elsewhere (map pin, search, editor) expands that stop and shows its day.
+  if (seenPrimaryId !== primarySelectedId) {
+    setSeenPrimaryId(primarySelectedId);
+    setExpandedId(primarySelectedId);
+    // Clearing the selection brings the map back to the whole day after it flew to a stop.
+    if (!primarySelectedId) setRecenterToken((token) => token + 1);
+    const selected = primarySelectedId ? items.find((item) => item.id === primarySelectedId) : null;
+    const selectedDate = selected?.date?.slice(0, 10);
+    if (selected && selectedDate && days.includes(selectedDate) && !occursOnItineraryDate(selected, date)) {
+      setActiveDate(selectedDate);
+      setMapMoved(false);
+      setRecenterToken((token) => token + 1);
+    }
+  }
+
   useEffect(() => {
-    if (!inspectedItemId) return;
-    let secondFrame = 0;
-    const firstFrame = requestAnimationFrame(() => {
-      secondFrame = requestAnimationFrame(() => {
-        const board = boardRef.current;
-        if (!board) return;
-        const center = board.getBoundingClientRect().left + board.clientWidth / 2;
-        const candidates = [...board.querySelectorAll<HTMLElement>("[data-travel-object-id]")].filter(
-          (element) => element.dataset.travelObjectId === inspectedItemId,
-        );
-        const target = candidates.reduce<HTMLElement | null>(
-          (nearest, candidate) =>
-            !nearest ||
-            Math.abs(candidate.getBoundingClientRect().left + candidate.clientWidth / 2 - center) <
-              Math.abs(nearest.getBoundingClientRect().left + nearest.clientWidth / 2 - center)
-              ? candidate
-              : nearest,
-          null,
-        );
-        target?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-      });
-    });
-    return () => {
-      cancelAnimationFrame(firstFrame);
-      cancelAnimationFrame(secondFrame);
-    };
-  }, [inspectedItemId]);
+    lastViewedDate.set(trip.id, date);
+  }, [trip.id, date]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 768px)");
+    const update = () => setMapVisible(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 3 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
+
+  const dayItems = useMemo(
+    () => items.filter((item) => occursOnItineraryDate(item, date)).sort(compareScheduleOrder),
+    [items, date],
+  );
+  const events = useMemo(() => eventItems(dayItems), [dayItems]);
+  const numbers = useMemo(() => stopNumbers(events), [events]);
+  const flexTimes = useMemo(() => flexibleDisplayTimes(events), [events]);
+  const mapped = useMemo(() => events.filter((item) => hasMapCoordinates(item.location)), [events]);
+  const unmapped = events.filter((item) => !hasMapCoordinates(item.location));
+  // A multi-day item's planned cost belongs to its first day only, so day totals never double count it.
+  const totals = plannedTotals(events.filter((item) => item.date?.slice(0, 10) === date));
+  const weekday = formatTripDate(`${date}T12:00:00Z`, "UTC", { weekday: "long" });
+  const summary = [weekday, `${events.length} ${events.length === 1 ? "stop" : "stops"}`, totals.join(", ")]
+    .filter(Boolean)
+    .join(" · ");
+
+  function pickDay(next: string) {
+    if (next === date) return;
+    setActiveDate(next);
+    setExpandedId(null);
+    setMapMoved(false);
+    setRecenterToken((token) => token + 1);
+  }
+
+  function pickStop(item: TravelObject, additive: boolean) {
+    if (suppressClickRef.current) return;
+    if (additive) {
+      onSelect(item, true);
+      return;
+    }
+    if (expandedId === item.id && primarySelectedId === item.id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(item.id);
+    onSelect(item, false);
+  }
+
+  function editStop(item: TravelObject) {
+    (onInspect ?? onSelect)(item);
+  }
+
+  function selectFromMap(item: TravelObject) {
+    setExpandedId(item.id);
+    onSelect(item);
+    setMobileSurface("list");
+    requestAnimationFrame(() =>
+      document.getElementById(`plan-row-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }),
+    );
+  }
+
   const finishDrag = () => {
     setActiveItem(null);
     requestAnimationFrame(() => {
@@ -284,58 +180,51 @@ export function TripDaysView({
     setActiveItem(item);
     if (item && !selectedIds.has(item.id)) onSelectForDrag(item);
   };
-  const orderedForDate = (date: string) =>
-    items.filter((item) => occursOnItineraryDate(item, date)).sort(compareScheduleOrder);
-  async function persistReorder(item: TravelObject, date: string, order: number, clearTime: boolean) {
-    await onReorder(item, date, order, clearTime);
-  }
   const onDragEnd = (event: DragEndEvent) => {
-    const target = String(event.over?.id ?? "");
-    if (!target.startsWith("trip-day:")) return;
-    const item = (event.active.data.current as { item?: TravelObject } | undefined)?.item;
-    const [, date, rawOrder] = target.split(":");
-    if (!item || !date) return;
+    const [kind, targetDate, rawOrder] = String(event.over?.id ?? "").split(":");
+    if ((kind !== "trip-day" && kind !== "trip-row") || !targetDate) return;
+    const data = event.active.data.current as { item?: TravelObject; draggedDate?: string } | undefined;
+    const item = data?.item;
+    if (!item) return;
+    // Dropping on a stop inserts before it or, in its lower half, after it. A day button has no position (end).
+    let gap = rawOrder === undefined ? Number.NaN : Number(rawOrder);
+    if (kind === "trip-row") {
+      const dragged = event.active.rect.current.translated;
+      const over = event.over?.rect;
+      if (dragged && over && dragged.top + dragged.height / 2 > over.top + over.height / 2) gap += 1;
+    }
+    const draggedDate = data?.draggedDate ?? item.date ?? targetDate;
     if (item.isAllDay) {
       if (!item.date) return;
-      const draggedDate = (event.active.data.current as { draggedDate?: string } | undefined)?.draggedDate ?? item.date;
-      const nextStart = allDayDropStartDate(item.date, draggedDate, date);
+      const nextStart = allDayDropStartDate(item.date, draggedDate, targetDate);
       if (item.date !== nextStart) void onMove(item, nextStart);
       return;
     }
-    const { requestedOrder: order, betweenTimedAnchors: betweenAnchors } = itineraryDropPosition(
-      orderedForDate(date),
+    // Dropping a stop on the day button of the day it is already on changes nothing.
+    if (kind === "trip-day" && rawOrder === undefined && targetDate === draggedDate) return;
+    const { requestedOrder, betweenTimedAnchors } = itineraryDropPosition(
+      items.filter((candidate) => occursOnItineraryDate(candidate, targetDate)).sort(compareScheduleOrder),
       item,
-      date,
-      Number(rawOrder),
+      targetDate,
+      gap,
     );
-    if (betweenAnchors) {
-      void persistReorder(item, date, order, true);
+    if (betweenTimedAnchors) {
+      void onReorder(item, targetDate, requestedOrder, true);
       return;
     }
-    if (isTimedItem(item) && item.date !== date) {
-      void onMove(item, date);
+    if (isTimedItem(item) && item.date !== targetDate) {
+      void onMove(item, targetDate);
       return;
     }
-    void persistReorder(item, date, order, false);
+    void onReorder(item, targetDate, requestedOrder, false);
   };
-  const selectFromClick = (item: TravelObject, additive = false) => {
-    if (!suppressClickRef.current) onSelect(item, additive);
-  };
+
+  const listLabel = formatTripDate(`${date}T12:00:00Z`, "UTC", { month: "long", day: "numeric" });
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-stone-50 dark:bg-neutral-950">
-      <header className="border-b bg-white px-4 py-3 dark:bg-neutral-900">
-        <h2 className="text-sm font-semibold">Itinerary</h2>
-        <p className="text-xs text-muted-foreground">
-          Ordered plan · timed items keep their actual time; flexible items have no confirmed time.
-        </p>
-      </header>
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-8 sm:px-12">
       <DndContext
         sensors={sensors}
-        collisionDetection={(args) => {
-          const pointerCollisions = pointerWithin(args);
-          const slot = pointerCollisions.find(({ id }) => String(id).split(":").length === 3);
-          return slot ? [slot] : pointerCollisions.length ? pointerCollisions : closestCorners(args);
-        }}
+        collisionDetection={(args) => pointerWithin(args).slice(0, 1)}
         onDragStart={onDragStart}
         onDragCancel={finishDrag}
         onDragEnd={(event) => {
@@ -343,25 +232,92 @@ export function TripDaysView({
           finishDrag();
         }}
       >
-        <div ref={boardRef} className="flex min-h-0 flex-1 items-start gap-3 overflow-x-auto p-4">
-          {days.map((date, index) => (
-            <TripDayColumn
-              key={date}
-              date={date}
-              index={index}
-              timezone={trip.timezone}
-              items={orderedForDate(date)}
-              colorMap={typeColors}
-              selectedIds={selectedIds}
-              primarySelectedId={primarySelectedId}
-              onSelect={selectFromClick}
-              onCreate={onCreateItem}
-            />
-          ))}
+        <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 bg-background px-4 pt-3 sm:-mx-12 sm:px-12 sm:pt-4">
+          <DayStrip days={days} activeDate={date} today={today} onPick={pickDay} />
+          <p className="text-sm text-muted">{summary}</p>
+          <div className="flex basis-full border-b border-divider md:hidden" role="group" aria-label="Plan surface">
+            {(["list", "map"] as const).map((surface) => (
+              <button
+                key={surface}
+                type="button"
+                aria-pressed={mobileSurface === surface}
+                onClick={() => setMobileSurface(surface)}
+                className={`min-h-11 flex-1 text-sm ${mobileSurface === surface ? "font-medium text-foreground shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted"}`}
+              >
+                {surface === "list" ? "Stops" : "Map"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4 flex flex-col gap-12 md:mt-6 md:flex-row">
+          <div className={`min-w-0 md:block md:flex-[1_1_520px] ${mobileSurface === "map" ? "hidden" : ""}`}>
+            <ol aria-label={`Stops on ${listLabel}`} className="border-t border-foreground">
+              {dayItems.map((item, order) => (
+                <Fragment key={`${item.id}:${date}`}>
+                  <AddGap label={`Add stop at position ${order + 1}`} onAdd={() => onCreateItem(date, order)} />
+                  {isNote(item) ? (
+                    <NoteBlock item={item} date={date} order={order} />
+                  ) : (
+                    <StopRow
+                      item={item}
+                      date={date}
+                      order={order}
+                      number={numbers.get(item.id) ?? null}
+                      flexTime={flexTimes.get(item.id)}
+                      selected={selectedIds.has(item.id)}
+                      primary={primarySelectedId === item.id}
+                      expanded={expandedId === item.id}
+                      hovered={hoveredId === item.id}
+                      onPick={pickStop}
+                      onEdit={editStop}
+                      onHover={setHoveredId}
+                    />
+                  )}
+                </Fragment>
+              ))}
+              <EndSlot
+                date={date}
+                order={dayItems.length}
+                empty={dayItems.length === 0}
+                onAdd={() => onCreateItem(date, dayItems.length)}
+              />
+            </ol>
+          </div>
+          {(mapVisible || mobileSurface === "map") && (
+            <div
+              className={`min-w-0 md:sticky md:top-28 md:block md:flex-[1_1_420px] md:self-start ${mobileSurface === "list" ? "hidden" : ""}`}
+            >
+              <PlanMap
+                trip={trip}
+                date={date}
+                mapped={mapped}
+                unmappedCount={unmapped.length}
+                typeColors={typeColors}
+                markerNumbers={numbers}
+                selectedItemId={primarySelectedId}
+                hoveredItemId={hoveredId}
+                recenterToken={recenterToken}
+                mapMoved={mapMoved}
+                onHover={setHoveredId}
+                onSelect={selectFromMap}
+                onUserMove={() => setMapMoved(true)}
+                onRecenter={() => {
+                  setMapMoved(false);
+                  setRecenterToken((token) => token + 1);
+                }}
+                onAddLink={unmapped[0] ? () => editStop(unmapped[0]) : undefined}
+              />
+            </div>
+          )}
         </div>
         <DragOverlay dropAnimation={null}>
           {activeItem && (
-            <DragPreview item={activeItem} timezone={trip.timezone} color={typeColor(activeItem.type, typeColors)} />
+            <div className="border border-foreground bg-background px-4 py-3 shadow-lg">
+              <p className="truncate text-base font-medium">{activeItem.title}</p>
+              <p className="mt-1 truncate font-mono text-xs text-muted">
+                {stopTimeLabel(activeItem)} · {stopMeta(activeItem)}
+              </p>
+            </div>
           )}
         </DragOverlay>
       </DndContext>

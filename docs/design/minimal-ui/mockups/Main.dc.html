@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wayfarer plan view</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,650&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F4F4F0}
+a{color:#0B6B57}a:hover{color:#064C3E}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="min-height: 940px; display: flex; flex-wrap: wrap; background: #F4F4F0; color: #17191C; font-family: Geist, system-ui, sans-serif; font-size: 14px">
+
+  <!-- Trip rail -->
+  <nav aria-label="Trips" style="flex: 1 1 232px; max-width: 100%; box-sizing: border-box; padding: 20px 14px; display: flex; flex-direction: column; gap: 24px; border-right: 1px solid #E3E3DD">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 6px">
+      <div style="width: 30px; height: 30px; border-radius: 9px; background: #17191C; display: grid; place-items: center">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F4F4F0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m15.5 8.5-2 5-5 2 2-5z"></path></svg>
+      </div>
+      <span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 650; font-size: 18px; letter-spacing: -0.01em">Wayfarer</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 8px 6px">
+        <span style="font-size: 12px; font-weight: 500; color: #5E6166">Trips</span>
+        <button type="button" aria-label="New trip" style="width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; display: grid; place-items: center; cursor: pointer">
+          <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#17191C" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+        </button>
+      </div>
+      <a href="#" aria-current="page" style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(23,25,28,0.06), 0 0 0 1px #E3E3DD; text-decoration: none; color: #17191C">
+        <span style="font-weight: 600">Kyoto &amp; Osaka</span>
+        <span style="font-size: 12px; color: #5E6166">Apr 3 – 10 · 8 days</span>
+      </a>
+      <a href="#" style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; text-decoration: none; color: #17191C">
+        <span style="font-weight: 500">Lisbon long weekend</span>
+        <span style="font-size: 12px; color: #5E6166">Jun 11 – 14 · 4 days</span>
+      </a>
+      <a href="#" style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; text-decoration: none; color: #17191C">
+        <span style="font-weight: 500">Hokkaido ski</span>
+        <span style="font-size: 12px; color: #5E6166">Jan 8 – 15, 2028</span>
+      </a>
+    </div>
+
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 2px">
+      <button type="button" style="display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: #3D4045; cursor: pointer; text-align: left">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"></path></svg>
+        Dark mode
+      </button>
+      <button type="button" style="display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: #3D4045; cursor: pointer; text-align: left">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"></path></svg>
+        <span style="flex: 1">Shortcuts</span>
+        <kbd style="font-family: 'Geist Mono', monospace; font-size: 11px; color: #5E6166">?</kbd>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Workspace -->
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+
+    <!-- Trip header -->
+    <header style="padding: 22px 32px 0; display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 13px; color: #5E6166">Sat, Apr 3 – Sat, Apr 10, 2027 · Asia/Tokyo · JPY</span>
+          <h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 650; font-size: 34px; letter-spacing: -0.02em; line-height: 1.05">Kyoto &amp; Osaka</h1>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+          <button type="button" style="display: flex; align-items: center; gap: 10px; min-height: 40px; min-width: 220px; padding: 0 12px; border: 1px solid #E3E3DD; border-radius: 10px; background: #FFFFFF; color: #5E6166; cursor: pointer">
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+            <span style="flex: 1; text-align: left">Search or jump to…</span>
+            <kbd style="font-family: 'Geist Mono', monospace; font-size: 11px; padding: 2px 5px; border-radius: 5px; background: #F4F4F0">⌘K</kbd>
+          </button>
+          <button type="button" aria-label="Trip actions: edit, import, export, delete" style="width: 40px; height: 40px; border: 1px solid #E3E3DD; border-radius: 10px; background: #FFFFFF; display: grid; place-items: center; cursor: pointer">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="#17191C"><circle cx="5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="19" cy="12" r="1.7"></circle></svg>
+          </button>
+          <button type="button" style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px; border: 0; border-radius: 10px; background: #0B6B57; color: #FFFFFF; font-weight: 500; cursor: pointer">
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+            Add to trip
+          </button>
+        </div>
+      </div>
+
+      <!-- View tabs -->
+      <div role="tablist" aria-label="Views" style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #E3E3DD">
+        <a href="#" role="tab" aria-selected="true" style="padding: 10px 12px; margin-bottom: -1px; border-bottom: 2px solid #17191C; color: #17191C; font-weight: 600; text-decoration: none">Plan</a>
+        <a href="Calendar.dc.html" role="tab" aria-selected="false" style="padding: 10px 12px; color: #5E6166; text-decoration: none">Calendar</a>
+        <a href="#" role="tab" aria-selected="false" style="padding: 10px 12px; color: #5E6166; text-decoration: none">Board</a>
+        <a href="#" role="tab" aria-selected="false" style="padding: 10px 12px; color: #5E6166; text-decoration: none">Table</a>
+        <a href="#" role="tab" aria-selected="false" style="padding: 10px 12px; color: #5E6166; text-decoration: none">Map</a>
+        <a href="#" role="tab" aria-selected="false" style="padding: 10px 12px; color: #5E6166; text-decoration: none">Spend</a>
+      </div>
+    </header>
+
+    <!-- Day strip -->
+    <div style="padding: 16px 32px 0; display: flex; gap: 8px; overflow-x: auto">
+      <sc-for list="{{days}}" as="d" hint-placeholder-count="8">
+        <button type="button" onClick="{{d.pick}}" aria-pressed="{{d.selected}}" style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 88px; padding: 9px 12px; border-radius: 10px; cursor: pointer; text-align: left; {{d.style}}">
+          <span style="font-size: 12px; opacity: 0.75">Day {{d.n}}</span>
+          <span style="font-weight: 600">{{d.label}}</span>
+          <span style="font-size: 12px; opacity: 0.75">{{d.countLabel}}</span>
+        </button>
+      </sc-for>
+    </div>
+
+    <!-- Body -->
+    <div style="flex: 1; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; padding: 24px 32px 32px">
+
+      <!-- Day timeline -->
+      <section aria-label="Day timeline" style="flex: 999 1 460px; min-width: 0; display: flex; flex-direction: column">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 14px">
+          <h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 650; font-size: 22px; letter-spacing: -0.01em">{{dayTitle}}</h2>
+          <span style="font-size: 13px; color: #5E6166">{{daySummary}}</span>
+        </div>
+
+        <sc-if value="{{hasItems}}" hint-placeholder-val="{{ true }}">
+          <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+            <sc-for list="{{items}}" as="item" hint-placeholder-count="6">
+              <li style="display: grid; grid-template-columns: 64px 24px minmax(0, 1fr); column-gap: 10px">
+                <div style="padding-top: 14px; text-align: right; font-family: 'Geist Mono', monospace; font-size: 12px; line-height: 1.5">
+                  <div style="color: #17191C; font-weight: 500">{{item.timeA}}</div>
+                  <div style="color: #5E6166">{{item.timeB}}</div>
+                </div>
+                <div style="position: relative; display: flex; justify-content: center">
+                  <div style="position: absolute; top: 0; bottom: 0; width: 2px; background: #E3E3DD"></div>
+                  <div style="position: relative; margin-top: 17px; width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; {{item.nodeStyle}}"></div>
+                </div>
+                <div style="padding: 6px 0">
+                  <sc-if value="{{item.isNote}}" hint-placeholder-val="{{ false }}">
+                    <div style="padding: 10px 14px; border-radius: 10px; border: 1px dashed #CFCFC6; color: #3D4045; font-size: 13px; line-height: 1.5">
+                      <span style="font-weight: 600; color: #17191C">Note · </span>{{item.title}}
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{item.isEvent}}" hint-placeholder-val="{{ true }}">
+                    <button type="button" onClick="{{item.pick}}" style="width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 12px 14px; border-radius: 12px; cursor: pointer; text-align: left; {{item.cardStyle}}">
+                      <span style="flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+                        <span style="font-weight: 600; font-size: 15px">{{item.title}}</span>
+                        <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: #5E6166">
+                          <span style="display: inline-flex; align-items: center; gap: 6px; color: #3D4045"><span style="width: 8px; height: 8px; border-radius: 2px; background: {{item.color}}"></span>{{item.typeLabel}}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{{item.place}}</span>
+                        </span>
+                      </span>
+                      <span style="font-family: 'Geist Mono', monospace; font-size: 13px; color: #3D4045">{{item.costLabel}}</span>
+                    </button>
+                  </sc-if>
+                </div>
+              </li>
+            </sc-for>
+          </ol>
+        </sc-if>
+        <sc-if value="{{noItems}}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 40px 24px; border: 1px dashed #CFCFC6; border-radius: 14px; text-align: center; color: #5E6166">
+            <p style="margin: 0 0 4px; color: #17191C; font-weight: 600">Nothing planned yet</p>
+            <p style="margin: 0">Drag an idea here, or press N to add an item.</p>
+          </div>
+        </sc-if>
+
+        <button type="button" style="align-self: flex-start; margin: 10px 0 0 98px; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border: 0; border-radius: 9px; background: transparent; color: #0B6B57; font-weight: 500; cursor: pointer">
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+          Add to this day
+        </button>
+      </section>
+
+      <!-- Side panel: inspector or ideas -->
+      <aside style="flex: 1 1 340px; max-width: 400px; min-width: 0; align-self: stretch">
+        <sc-if value="{{hasSelection}}" hint-placeholder-val="{{ true }}">
+          <div style="background: #FFFFFF; border-radius: 16px; box-shadow: 0 1px 2px rgba(23,25,28,0.05), 0 0 0 1px #E3E3DD, 0 12px 32px -12px rgba(23,25,28,0.18); display: flex; flex-direction: column">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 0 18px">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #3D4045"><span style="width: 8px; height: 8px; border-radius: 2px; background: {{sel.color}}"></span>{{sel.typeLabel}}</span>
+              <button type="button" onClick="{{closeSel}}" aria-label="Close details" style="width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; display: grid; place-items: center; cursor: pointer">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3D4045" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+              </button>
+            </div>
+            <h3 style="margin: 0; padding: 6px 18px 16px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 650; font-size: 24px; letter-spacing: -0.01em; line-height: 1.15">{{sel.title}}</h3>
+
+            <dl style="margin: 0; padding: 0 18px; display: grid; grid-template-columns: 76px minmax(0, 1fr); row-gap: 14px; column-gap: 12px; font-size: 14px">
+              <dt style="color: #5E6166">When</dt>
+              <dd style="margin: 0; display: flex; flex-direction: column; gap: 6px">
+                <span>{{sel.when}}</span>
+                <span style="display: inline-flex; align-self: flex-start; padding: 2px 8px; border-radius: 999px; background: #F4F4F0; font-size: 12px; color: #3D4045">{{sel.mode}}</span>
+              </dd>
+              <dt style="color: #5E6166">Where</dt>
+              <dd style="margin: 0; display: flex; flex-direction: column; gap: 2px">
+                <span>{{sel.place}}</span>
+                <a href="https://www.google.com/maps" style="font-size: 13px">Open in Google Maps</a>
+              </dd>
+              <dt style="color: #5E6166">Planned</dt>
+              <dd style="margin: 0; font-family: 'Geist Mono', monospace">{{sel.costLabel}}</dd>
+              <dt style="color: #5E6166">Tags</dt>
+              <dd style="margin: 0; display: flex; flex-wrap: wrap; gap: 6px">
+                <sc-for list="{{sel.tags}}" as="t" hint-placeholder-count="2">
+                  <span style="padding: 2px 8px; border-radius: 6px; border: 1px solid #E3E3DD; font-size: 12px">{{t}}</span>
+                </sc-for>
+              </dd>
+            </dl>
+
+            <div style="margin: 18px 18px 0; padding-top: 16px; border-top: 1px solid #EEEEE9; display: flex; flex-direction: column; gap: 8px">
+              <span style="font-size: 12px; font-weight: 500; color: #5E6166">Notes</span>
+              <p style="margin: 0; line-height: 1.55; color: #26292D">{{sel.notes}}</p>
+            </div>
+
+            <div style="margin: 16px 18px 0; padding-top: 16px; border-top: 1px solid #EEEEE9; display: flex; flex-direction: column; gap: 8px">
+              <span style="font-size: 12px; font-weight: 500; color: #5E6166">Attachments</span>
+              <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #F4F4F0">
+                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3D4045" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path></svg>
+                <span style="flex: 1; min-width: 0">{{sel.file}}</span>
+                <span style="font-size: 12px; color: #5E6166">220 KB</span>
+              </div>
+            </div>
+
+            <div style="margin-top: 18px; padding: 12px 18px; border-top: 1px solid #EEEEE9; display: flex; align-items: center; justify-content: space-between">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #5E6166">
+                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0B6B57" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"></path></svg>
+                Saved
+              </span>
+              <button type="button" style="min-height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: #B42318; cursor: pointer">Delete</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{noSelection}}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; align-items: baseline; justify-content: space-between">
+              <h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 650; font-size: 18px">Ideas <span style="font-family: Geist, sans-serif; font-weight: 400; font-size: 14px; color: #5E6166">{{ideaCount}}</span></h2>
+              <span style="font-size: 12px; color: #5E6166">Drag onto a day</span>
+            </div>
+            <label style="display: flex; align-items: center; gap: 8px; padding: 0 12px; min-height: 40px; border: 1px solid #E3E3DD; border-radius: 10px; background: #FFFFFF">
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5E6166" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+              <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Filter ideas</span>
+              <input type="text" placeholder="Filter ideas" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; color: #17191C">
+            </label>
+            <sc-for list="{{ideas}}" as="idea" hint-placeholder-count="5">
+              <button type="button" style="display: flex; align-items: center; gap: 10px; padding: 12px; border: 0; border-radius: 12px; background: #FFFFFF; box-shadow: 0 0 0 1px #E3E3DD; cursor: grab; text-align: left">
+                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="#A3A59F"><circle cx="9" cy="6" r="1.6"></circle><circle cx="15" cy="6" r="1.6"></circle><circle cx="9" cy="12" r="1.6"></circle><circle cx="15" cy="12" r="1.6"></circle><circle cx="9" cy="18" r="1.6"></circle><circle cx="15" cy="18" r="1.6"></circle></svg>
+                <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+                  <span style="font-weight: 500">{{idea.title}}</span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #5E6166"><span style="width: 7px; height: 7px; border-radius: 2px; background: {{idea.color}}"></span>{{idea.typeLabel}} · {{idea.place}}</span>
+                </span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#0B6B57","options":["#0B6B57","#2F5BD3","#B4561F","#17191C"]},"$preview":{"width":1440,"height":940}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { day: 2, sel: 'kiyomizu' }; }
+  renderVals() {
+    const accent = this.props.accent ?? '#0B6B57';
+    const T = {
+      flight: ['Flight', '#2F6FDB'], commute: ['Transit', '#7A7F87'], hotel: ['Stay', '#7C5CC4'],
+      food: ['Food', '#E07A1F'], sightseeing: ['Sightseeing', '#0E9384'], activity: ['Activity', '#D6457A']
+    };
+    const ev = (id, type, title, place, a, b, cost, extra) => Object.assign({ id, kind: 'event', type, title, place, a, b, cost }, extra || {});
+    const note = (title) => ({ id: 'n' + title.length, kind: 'note', title });
+    const days = [
+      { label: 'Sat, Apr 3', items: [ev('sq', 'flight', 'SQ 618 · SIN → KIX', 'Kansai International', '07:55', '15:20', 0), ev('haruka', 'commute', 'Haruka Express to Kyoto', 'KIX → Kyoto Station', '16:00', '17:20', 3600), ev('kanra', 'hotel', 'Check in · Hotel Kanra Kyoto', 'Shimogyo-ku', '18:00', '', 0), ev('izakaya', 'food', 'Dinner near Nishiki', 'Nakagyo-ku', '~19:30', 'flexible', 5000, { flex: true })] },
+      { label: 'Sun, Apr 4', items: [ev('inari', 'sightseeing', 'Fushimi Inari, before the crowds', 'Fushimi-ku', '07:00', '09:30', 0), ev('tofuku', 'sightseeing', 'Tofuku-ji', 'Higashiyama-ku', '10:00', '11:00', 600), ev('udon', 'food', 'Lunch · udon', 'Gion', '~12:30', 'flexible', 1500, { flex: true })] },
+      { label: 'Mon, Apr 5', items: [
+        ev('arabica', 'food', 'Coffee at % Arabica', 'Higashiyama', '08:30', '09:00', 1200),
+        ev('kiyomizu', 'sightseeing', 'Kiyomizu-dera', 'Higashiyama, Kyoto', '09:15', '11:00', 500, { tags: ['temple', 'tickets on site'], notes: 'Enter by the Nio-mon gate and finish on the stage before 10. Walk down Sannenzaka afterwards, before the crowds build.', file: 'kiyomizu-map.pdf' }),
+        note('Sannenzaka gets crowded after 10. Take Ninenzaka down instead of back up.'),
+        ev('okutan', 'food', 'Yudofu lunch · Okutan', 'Kiyomizu', '~12:00', 'flexible', 4400, { flex: true }),
+        ev('kodaiji', 'sightseeing', 'Kodai-ji', 'Higashiyama', '13:30', '15:00', 600),
+        ev('yasaka', 'sightseeing', 'Yasaka Shrine', 'Gion', '15:30', '16:00', 0),
+        ev('kaiseki', 'food', 'Kaiseki dinner', 'Gion', '18:30', '20:30', 12000, { tags: ['booked'] })
+      ] },
+      { label: 'Tue, Apr 6', items: [ev('arashi', 'sightseeing', 'Arashiyama bamboo grove', 'Ukyo-ku', '08:00', '10:00', 0), ev('tenryu', 'sightseeing', 'Tenryu-ji garden', 'Arashiyama', '10:15', '11:30', 500)] },
+      { label: 'Wed, Apr 7', items: [ev('toosaka', 'commute', 'Train to Osaka', 'Kyoto → Umeda', '10:00', '10:30', 580), ev('cross', 'hotel', 'Check in · Cross Hotel Osaka', 'Shinsaibashi', '15:00', '', 0)] },
+      { label: 'Thu, Apr 8', items: [] },
+      { label: 'Fri, Apr 9', items: [ev('dotonbori', 'food', 'Street food in Dotonbori', 'Chuo-ku', '~18:00', 'flexible', 3000, { flex: true })] },
+      { label: 'Sat, Apr 10', items: [ev('home', 'flight', 'SQ 619 · KIX → SIN', 'Kansai International', '11:10', '17:15', 0)] }
+    ];
+    const yen = (n) => n ? '¥' + n.toLocaleString('en-US') : '';
+    const cur = days[this.state.day];
+    const events = cur.items.filter((i) => i.kind === 'event');
+    const total = events.reduce((s, i) => s + (i.cost || 0), 0);
+    const noteCount = cur.items.length - events.length;
+    const sel = events.find((i) => i.id === this.state.sel) || null;
+    const items = cur.items.map((i) => {
+      if (i.kind === 'note') return { isNote: true, isEvent: false, title: i.title, timeA: '', timeB: '', nodeStyle: 'width: 8px; height: 8px; margin-top: 20px; background: #CFCFC6' };
+      const t = T[i.type]; const on = sel && sel.id === i.id;
+      return {
+        isNote: false, isEvent: true, title: i.title, place: i.place, typeLabel: t[0], color: t[1],
+        timeA: i.a, timeB: i.b, costLabel: yen(i.cost),
+        nodeStyle: i.flex ? 'border: 2px dashed ' + t[1] + '; background: #F4F4F0' : 'border: 3px solid #F4F4F0; background: ' + t[1] + '; box-shadow: 0 0 0 1px ' + t[1],
+        cardStyle: on ? 'border: 1px solid ' + accent + '; background: #FFFFFF; box-shadow: 0 0 0 3px ' + accent + '22' : 'border: 1px solid #E3E3DD; background: #FFFFFF; box-shadow: 0 1px 2px rgba(23,25,28,0.04)',
+        pick: () => this.setState({ sel: i.id })
+      };
+    });
+    const ideas = [
+      ['Nishiki Market', 'food', 'Nakagyo-ku'], ["Philosopher's Path", 'sightseeing', 'Sakyo-ku'],
+      ['teamLab Botanical Garden', 'activity', 'Osaka'], ['Kurama to Kibune hike', 'activity', 'Sakyo-ku'],
+      ['Kuromon Market', 'food', 'Osaka']
+    ].map(([title, type, place]) => ({ title, place, typeLabel: T[type][0], color: T[type][1] }));
+    return {
+      days: days.map((d, n) => {
+        const c = d.items.filter((i) => i.kind === 'event').length; const on = n === this.state.day;
+        return { n: n + 1, label: d.label.replace(/^\w+, /, ''), countLabel: c ? c + (c === 1 ? ' item' : ' items') : 'Open', selected: on ? 'true' : 'false',
+          style: on ? 'border: 1px solid #17191C; background: #17191C; color: #FFFFFF' : 'border: 1px solid #E3E3DD; background: #FFFFFF; color: #17191C',
+          pick: () => this.setState({ day: n }) };
+      }),
+      dayTitle: cur.label.replace(', ', ', ').replace('Apr', 'April'),
+      daySummary: events.length ? events.length + ' items' + (noteCount ? ' · ' + noteCount + ' note' : '') + (total ? ' · ' + yen(total) + ' planned' : '') : 'No items',
+      items, hasItems: items.length > 0, noItems: items.length === 0,
+      hasSelection: !!sel, noSelection: !sel,
+      sel: sel ? {
+        title: sel.title, typeLabel: T[sel.type][0], color: T[sel.type][1],
+        when: cur.label + (sel.flex ? ', around ' + sel.a.replace('~', '') : ', ' + sel.a + (sel.b ? ' – ' + sel.b : '')),
+        mode: sel.flex ? 'Flexible time' : 'Fixed time', place: sel.place, costLabel: yen(sel.cost) || 'Free',
+        tags: sel.tags || ['untagged'], notes: sel.notes || 'No notes yet.', file: sel.file || 'booking.pdf'
+      } : { tags: [] },
+      closeSel: () => this.setState({ sel: null }),
+      ideas, ideaCount: ideas.length
+    };
+  }
+}
+</script>
+</body>
+</html>

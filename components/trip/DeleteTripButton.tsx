@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { menuItemClassName } from "@/components/ui/menu-item";
 import { useModalFocus } from "@/components/ui/use-modal-focus";
 import { api } from "@/lib/api-client";
 import type { Trip } from "@/types/travel";
@@ -13,11 +14,13 @@ export function DeleteTripButton({
   onDeleted,
   onError,
   compact = false,
+  menuItem = false,
 }: {
   trip: Trip;
   onDeleted: () => void;
   onError: (message: string) => void;
   compact?: boolean;
+  menuItem?: boolean;
 }) {
   const [deleting, setDeleting] = useState(false);
   const [confirmationStep, setConfirmationStep] = useState<0 | 1 | 2>(0);
@@ -57,37 +60,46 @@ export function DeleteTripButton({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="destructive"
-        size={compact ? "icon-sm" : "default"}
-        className={compact ? "size-11 sm:size-7" : "min-h-11 sm:min-h-0"}
-        onClick={requestDelete}
-        disabled={deleting}
-        aria-label={`Delete ${trip.title}`}
-        title={`Delete ${trip.title}`}
-      >
-        <Trash2 /> {!compact && (deleting ? "Deleting…" : "Delete trip")}
-      </Button>
+      {menuItem ? (
+        <button
+          type="button"
+          className={`${menuItemClassName} text-danger [&_svg]:text-danger`}
+          onClick={requestDelete}
+          disabled={deleting}
+        >
+          <Trash2 /> {deleting ? "Deleting…" : "Delete trip"}
+        </button>
+      ) : (
+        <Button
+          type="button"
+          variant="destructive"
+          size={compact ? "icon-sm" : "default"}
+          className={compact ? "size-11 sm:size-7" : "min-h-11 sm:min-h-0"}
+          onClick={requestDelete}
+          disabled={deleting}
+          aria-label={`Delete ${trip.title}`}
+          title={`Delete ${trip.title}`}
+        >
+          <Trash2 /> {!compact && (deleting ? "Deleting…" : "Delete trip")}
+        </Button>
+      )}
       {confirmationStep > 0 &&
         createPortal(
           <div
             ref={dialogRef}
-            className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/35 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
+            className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-scrim p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-trip-title"
           >
-            <div className="my-auto max-h-[calc(100dvh_-_2rem)] w-full max-w-md overflow-y-auto rounded-xl border bg-background p-6 shadow-2xl">
+            <div className="my-auto max-h-[calc(100dvh_-_2rem)] w-full max-w-md overflow-y-auto border-t border-foreground bg-panel p-6 text-foreground shadow-[0_24px_48px_rgb(0_0_0/0.18)]">
               <div className="flex items-start gap-3">
-                <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
-                  <Trash2 size={18} />
-                </div>
+                <Trash2 size={18} aria-hidden className="mt-1 shrink-0 text-danger" />
                 <div>
-                  <h2 id="delete-trip-title" className="text-lg font-semibold">
+                  <h2 id="delete-trip-title" className="text-lg font-medium tracking-tight">
                     {confirmationStep === 1 ? "Delete this trip?" : "Confirm permanent deletion"}
                   </h2>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  <p className="mt-1 text-sm leading-relaxed text-muted">
                     {confirmationStep === 1 ? (
                       <>
                         This will delete <span className="font-medium text-foreground">{trip.title}</span> and all of
@@ -103,7 +115,7 @@ export function DeleteTripButton({
                   </p>
                 </div>
               </div>
-              <div className="mt-6 flex justify-end gap-2">
+              <div className="mt-6 flex justify-end gap-3">
                 <Button
                   type="button"
                   variant="ghost"

@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import * as dateUtils from "../lib/date-utils.ts";
 import * as schedule from "../lib/schedule-domain.ts";
 
 const require = createRequire(import.meta.url);
@@ -27,6 +28,8 @@ function render(items, direction = "asc") {
             useEffect() {},
             useRef: (current) => ({ current }),
           };
+        if (name === "@/lib/date-utils") return dateUtils;
+        if (name === "@/components/views/KanbanView") return { shortDayLabel: (date) => date };
         if (name === "@/lib/schedule-domain") return schedule;
         if (name === "@/lib/type-color") return { typeColor: () => "#000000" };
         return {};
@@ -35,7 +38,7 @@ function render(items, direction = "asc") {
   );
   const patches = [];
   const tree = compiledModule.exports.TableView({
-    trip: { timezone: "America/New_York" },
+    trip: { timezone: "America/New_York", startDate: "2026-05-01", endDate: "2026-05-05" },
     items,
     typeColors: {},
     selectedIds: new Set(),

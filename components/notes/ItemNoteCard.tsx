@@ -1,7 +1,7 @@
 "use client";
 
 import { useDraggable } from "@dnd-kit/core";
-import { GripVertical, StickyNote, Trash2 } from "lucide-react";
+import { GripVertical, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { TravelObject } from "@/types/travel";
@@ -101,23 +101,22 @@ export function ItemNoteCard({
       ref={setNodeRef}
       aria-label="Day note"
       style={transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : undefined}
-      className={`rounded-xl border border-l-4 border-l-amber-500 bg-white shadow-sm dark:bg-neutral-900 ${isDragging ? "opacity-40" : ""}`}
+      className={`group/note relative border-b border-divider sm:ml-[104px] ${isDragging ? "opacity-40" : ""}`}
     >
       <div className="flex min-w-0">
-        <div className="flex w-12 shrink-0 flex-col items-center gap-2 rounded-l-lg border-r bg-amber-50 py-3 text-amber-700 dark:bg-amber-950/20 dark:text-amber-300">
-          <StickyNote size={18} />
+        <div className="flex w-9 shrink-0 items-start justify-center pt-1 text-faint">
           <button
             type="button"
             data-reorder-handle
             aria-label={`Reorder note ${item.title}`}
-            className="flex min-h-11 min-w-11 touch-none items-center justify-center rounded hover:bg-amber-100 sm:min-h-7 sm:min-w-7 dark:hover:bg-amber-950"
+            className="flex min-h-11 min-w-11 touch-none items-center justify-center hover:text-foreground sm:hidden sm:min-h-7 sm:min-w-7 sm:group-hover/note:flex sm:group-focus-within/note:flex"
             {...attributes}
             {...listeners}
           >
             <GripVertical size={15} />
           </button>
         </div>
-        <div className="min-w-0 flex-1 p-3">
+        <div className="min-w-0 flex-1 py-1 pr-9">
           <input
             ref={titleRef}
             aria-label="Note title"
@@ -132,7 +131,7 @@ export function ItemNoteCard({
                 event.currentTarget.parentElement?.querySelector("textarea")?.focus();
               }
             }}
-            className="min-h-11 w-full min-w-0 border-0 bg-transparent px-2 text-base font-semibold outline-none focus:ring-0 sm:min-h-8 sm:text-sm"
+            className="min-h-11 w-full min-w-0 border-0 bg-transparent px-1 text-base font-medium text-muted outline-none placeholder:text-faint focus:text-foreground focus:ring-0 sm:min-h-6 sm:text-[13px]"
           />
           <textarea
             ref={bodyRef}
@@ -143,10 +142,10 @@ export function ItemNoteCard({
             value={draft.noteBody}
             onChange={(event) => change({ noteBody: event.target.value })}
             onBlur={() => void commit()}
-            className="mt-1 w-full resize-none overflow-hidden border-0 bg-transparent p-2 text-base outline-none focus:ring-0 sm:text-sm"
+            className="w-full resize-none overflow-hidden border-0 bg-transparent px-1 py-0.5 text-base leading-snug text-muted outline-none placeholder:text-faint focus:text-foreground focus:ring-0 sm:text-[13px]"
           />
-          <div className="flex flex-wrap items-center justify-between gap-1">
-            <span aria-live="polite" className="text-xs text-muted-foreground">
+          <div className="absolute top-0 right-0 flex items-center gap-1">
+            <span aria-live="polite" className="text-xs text-muted">
               {status}
             </span>
             <span className="group/delete">
@@ -154,7 +153,7 @@ export function ItemNoteCard({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="min-h-11 opacity-0 transition-opacity group-hover/delete:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 sm:min-h-8"
+                className="min-h-11 min-w-11 opacity-0 transition-opacity group-hover/delete:opacity-100 group-hover/note:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 sm:min-h-6 sm:min-w-6"
                 onClick={onDelete}
                 aria-label={`Delete note ${item.title}`}
               >
@@ -163,7 +162,7 @@ export function ItemNoteCard({
             </span>
           </div>
           {error && (
-            <div role="alert" className="text-xs text-rose-700 dark:text-rose-300">
+            <div role="alert" className="text-xs text-danger">
               {error}
               <Button type="button" variant="ghost" size="sm" className="ml-1 min-h-11" onClick={() => void commit()}>
                 Retry save

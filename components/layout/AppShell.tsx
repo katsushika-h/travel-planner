@@ -3,7 +3,6 @@
 import {
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -11,29 +10,21 @@ import {
 } from "react";
 import {
   CalendarDays,
-  CalendarRange,
   ChevronDown,
   Compass,
   List,
   LoaderCircle,
   Map as MapIcon,
-  Moon,
   MoreHorizontal,
-  PanelLeftClose,
-  PanelLeftOpen,
+  Plus,
   ReceiptText,
   Rows3,
-  Sun,
-  TableProperties,
+  Search,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CreateTripDialog } from "@/components/trip/CreateTripDialog";
-import { DeleteTripButton } from "@/components/trip/DeleteTripButton";
-import { EditTripDialog } from "@/components/trip/EditTripDialog";
-import { ExportIcsButton } from "@/components/trip/ExportIcsButton";
-import { ImportGoogleMapsCsvButton } from "@/components/trip/ImportGoogleMapsCsvButton";
 import { ObjectInspectorPanel } from "@/components/inspector/ObjectInspectorPanel";
 import { CalendarView } from "@/components/views/CalendarView";
 import { KanbanView } from "@/components/views/KanbanView";
@@ -44,52 +35,18 @@ import { ExpensesView } from "@/components/views/ExpensesView";
 import { useTripData } from "@/components/layout/useTripData";
 import { useItemActions } from "@/components/layout/useItemActions";
 import { useItemSelection } from "@/components/layout/useItemSelection";
+import { menuItemClassName } from "@/components/ui/menu-item";
+import { ItemSearch } from "@/components/layout/ItemSearch";
+import { TripMenuContents, TripSwitcher, moveMenuFocus, useMenuDismiss } from "@/components/layout/TripMenu";
 import { eventItems, isNote } from "@/lib/note-domain";
+import { formatTripDateRange } from "@/lib/trip-dates";
 
 import { sortTravelObjects } from "@/lib/schedule-order";
-import { useTravelStore } from "@/store/use-travel-store";
-import type { Trip } from "@/types/travel";
+import { plannerTabLabels, plannerTabOrder, plannerTabShortcuts, useTravelStore } from "@/store/use-travel-store";
+import type { TravelObject, Trip } from "@/types/travel";
 
 const EMPTY_EVENT_TYPES: string[] = [];
 const EMPTY_EVENT_TYPE_COLORS: Record<string, string> = {};
-
-function TripList({
-  trips,
-  activeTripId,
-  collapsed,
-  onSelect,
-}: {
-  trips: Trip[];
-  activeTripId: string | null;
-  collapsed: boolean;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <nav aria-label="Your trips" className="max-h-52 space-y-1 overflow-y-auto pr-1">
-      {trips.length ? (
-        trips.map((trip) => (
-          <button
-            key={trip.id}
-            type="button"
-            title={collapsed ? trip.title : undefined}
-            aria-current={trip.id === activeTripId ? "page" : undefined}
-            onClick={() => onSelect(trip.id)}
-            className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition sm:min-h-0 ${trip.id === activeTripId ? "bg-emerald-50 font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100" : "text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-neutral-800"} ${collapsed ? "justify-center px-0" : ""}`}
-          >
-            <span
-              className={`grid size-7 shrink-0 place-items-center rounded-md text-xs font-semibold ${trip.id === activeTripId ? "bg-emerald-700 text-white" : "bg-stone-100 text-stone-500 dark:bg-neutral-800 dark:text-stone-300"}`}
-            >
-              {trip.title.slice(0, 1).toUpperCase()}
-            </span>
-            {!collapsed && <span className="min-w-0 flex-1 truncate">{trip.title}</span>}
-          </button>
-        ))
-      ) : (
-        <p className={`px-2 py-2 text-xs text-muted-foreground ${collapsed ? "sr-only" : ""}`}>No trips yet</p>
-      )}
-    </nav>
-  );
-}
 
 export function AppShell() {
   const selection = useItemSelection();
@@ -127,10 +84,10 @@ export function AppShell() {
   const activeTab = useTravelStore((state) => state.activeTab);
   const calendarMode = useTravelStore((state) => state.calendarMode);
   const setCalendarMode = useTravelStore((state) => state.setCalendarMode);
-  const collapsed = useTravelStore((state) => state.sidebarCollapsed);
   const [narrowScreen, setNarrowScreen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const mobileMenuRef = useRef<HTMLElement>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuCloseRef = useRef<HTMLButtonElement>(null);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
@@ -140,7 +97,6 @@ export function AppShell() {
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
-  const sidebarCollapsed = narrowScreen ? !mobileSidebarOpen : collapsed;
   const mobileDestination =
     activeTab === "calendar"
       ? calendarMode === "day"
@@ -152,13 +108,14 @@ export function AppShell() {
           ? "spend"
           : "more";
   const theme = useTravelStore((state) => state.theme);
+  const compact = useTravelStore((state) => state.compact);
+  const toggleCompact = useTravelStore((state) => state.toggleCompact);
   useLayoutEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("dark", theme === "dark");
     root.style.colorScheme = theme;
   }, [theme]);
   const setActiveTab = useTravelStore((state) => state.setActiveTab);
-  const toggleSidebar = useTravelStore((state) => state.toggleSidebar);
   const toggleTheme = useTravelStore((state) => state.toggleTheme);
   const savedEventTypes = useTravelStore((state) =>
     activeTrip ? (state.eventTypesByTrip[activeTrip.id] ?? EMPTY_EVENT_TYPES) : EMPTY_EVENT_TYPES,
@@ -184,9 +141,13 @@ export function AppShell() {
     setMobileSidebarOpen(false);
     mobileMenuTriggerRef.current?.focus();
   }
+  useMenuDismiss(mobileSidebarOpen, mobileMenuRef, mobileMenuTriggerRef, closeMobileMenu);
 
   function handleMobileMenuKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    moveMenuFocus(event, mobileMenuRef.current);
     if (!mobileSidebarOpen || event.key !== "Tab") return;
+    // Dialogs opened from the sheet are portals; leave their own focus trap in charge.
+    if (!(event.target instanceof Node) || !mobileMenuRef.current?.contains(event.target)) return;
     const focusable = [
       ...(mobileMenuRef.current?.querySelectorAll<HTMLElement>(
         'button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"])',
@@ -247,14 +208,6 @@ export function AppShell() {
       ...events.map((item) => item.type),
     ]),
   ];
-  const itineraryItems = events.filter((item) => item.date !== null);
-  const tripLabel = useMemo(
-    () =>
-      activeTrip
-        ? `${activeTrip.title} · ${new Date(`${activeTrip.startDate.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, { month: "short", year: "numeric" })}`
-        : "Select a trip",
-    [activeTrip],
-  );
   const selectTrip = (id: string) => {
     if (id !== activeTripId) {
       clearSelection();
@@ -280,17 +233,17 @@ export function AppShell() {
   };
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.defaultPrevented || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      if (
+        event.defaultPrevented ||
+        document.querySelector('[role="dialog"][aria-modal="true"], [aria-label="Trip menu"]')
+      )
+        return;
       const target = event.target;
       if (
         target instanceof HTMLElement &&
         (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
       )
         return;
-      if (event.key === "Escape" && mobileSidebarOpen) {
-        closeMobileMenu();
-        return;
-      }
       if (event.key === "Escape") {
         setSelectedIds(new Set());
         setPrimarySelectedId(null);
@@ -318,9 +271,7 @@ export function AppShell() {
         event.preventDefault();
         return;
       }
-      const tab = ({ "1": "calendar", "2": "kanban", "3": "days", "4": "table", "5": "map", "6": "expenses" } as const)[
-        event.key as "1" | "2" | "3" | "4" | "5" | "6"
-      ];
+      const tab = plannerTabOrder.find((id) => plannerTabShortcuts[id] === event.key);
       if (tab) {
         setActiveTab(tab);
         event.preventDefault();
@@ -328,221 +279,210 @@ export function AppShell() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [
-    activeTab,
-    mobileSidebarOpen,
-    selectedIds,
-    setActiveTab,
-    setCalendarMode,
-    setSelectedIds,
-    setPrimarySelectedId,
-    setInspectedItemId,
-  ]);
+  }, [activeTab, selectedIds, setActiveTab, setCalendarMode, setSelectedIds, setPrimarySelectedId, setInspectedItemId]);
+
+  const tripMenuProps = {
+    trips,
+    activeTrip,
+    exportItems: activeTrip && itemsTripId === activeTrip.id ? events : null,
+    eventTypes,
+    theme,
+    onSelectTrip: selectTrip,
+    onTripCreated,
+    onTripSaved,
+    onTripDeleted,
+    onAddType: addEventType,
+    onImported: (tripId: string, imported: TravelObject[]) => {
+      if (activeTripKeyRef.current === tripId) setItems((current) => sortTravelObjects([...current, ...imported]));
+    },
+    onError: (tripId: string, message: string) => {
+      if (activeTripKeyRef.current === tripId) setError(message);
+    },
+    onToggleTheme: toggleTheme,
+  };
+  const mobileSheetOpen = mobileSidebarOpen && narrowScreen;
 
   return (
     <main
       style={{ colorScheme: theme }}
-      className={`flex h-dvh min-h-0 overflow-hidden sm:min-h-[620px] ${theme === "dark" ? "dark bg-neutral-950 text-stone-100" : "bg-[#f7f7f4] text-stone-900"}`}
+      data-density={compact ? "compact" : "comfortable"}
+      className={`flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground sm:min-h-[620px] ${theme === "dark" ? "dark" : ""}`}
     >
-      {mobileSidebarOpen && (
+      {mobileSheetOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-black/35 sm:hidden"
+          className="fixed inset-0 z-40 bg-scrim sm:hidden"
           aria-label="Close navigation"
-          onClick={closeMobileMenu}
+          onClick={() => closeMobileMenu()}
         />
       )}
-      <aside
-        ref={mobileMenuRef}
-        role={mobileSidebarOpen && narrowScreen ? "dialog" : undefined}
-        aria-modal={mobileSidebarOpen && narrowScreen ? true : undefined}
-        aria-label="Workspace and trips"
-        onKeyDown={handleMobileMenuKeyDown}
-        className={`z-50 hidden shrink-0 flex-col border-r bg-[#fbfbf9] transition-[width] duration-200 dark:bg-neutral-900 sm:flex ${sidebarCollapsed ? "sm:w-[68px]" : "sm:w-[230px]"} ${mobileSidebarOpen ? "max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:flex max-sm:max-h-[85dvh] max-sm:w-full max-sm:overflow-y-auto max-sm:rounded-t-2xl max-sm:border-t max-sm:shadow-2xl" : ""}`}
-      >
-        <div className="flex items-center justify-between border-b px-4 py-3 sm:hidden">
-          <p className="text-sm font-semibold">Workspace and trips</p>
-          <Button
-            ref={mobileMenuCloseRef}
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-11 sm:size-7"
-            onClick={closeMobileMenu}
-            aria-label="Close menu"
-          >
-            <X />
-          </Button>
-        </div>
+      {mobileSheetOpen && (
         <div
-          className={`hidden h-[68px] items-center border-b sm:flex ${sidebarCollapsed ? "justify-center px-2" : "gap-3 px-4"}`}
+          ref={mobileMenuRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Trips and workspace"
+          onKeyDown={handleMobileMenuKeyDown}
+          className="fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] flex-col overflow-y-auto border-t border-foreground bg-panel pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:hidden"
         >
-          <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-800 text-white">
-            <Compass size={19} />
-          </div>
-          {!sidebarCollapsed && (
-            <div className="min-w-0">
-              <p className="font-semibold tracking-tight">Wayfarer</p>
-              <p className="text-[10px] uppercase tracking-[.18em] text-stone-400">Travel planner</p>
-            </div>
-          )}
-        </div>
-        <div className={`px-3 pt-5 ${sidebarCollapsed ? "px-2" : ""}`}>
-          <div
-            className={`mb-2 hidden items-center justify-between px-2 text-[10px] font-semibold uppercase tracking-[.16em] text-stone-400 sm:flex ${sidebarCollapsed ? "justify-center" : ""}`}
-          >
-            {!sidebarCollapsed && <span>Workspace</span>}
-            <button
-              onClick={toggleSidebar}
-              className="rounded p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
-              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          <div className="flex items-center justify-between border-b border-divider px-4 py-1">
+            <p className="text-sm font-medium">Trips and workspace</p>
+            <Button
+              ref={mobileMenuCloseRef}
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-11"
+              onClick={() => closeMobileMenu()}
+              aria-label="Close menu"
             >
-              {sidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
-            </button>
+              <X />
+            </Button>
           </div>
-          <nav className="space-y-1">
-            {[
-              { id: "calendar" as const, label: "Calendar", shortcut: "1", icon: CalendarDays },
-              { id: "kanban" as const, label: "Kanban", shortcut: "2", icon: Rows3 },
-              { id: "days" as const, label: "Itinerary", shortcut: "3", icon: CalendarRange },
-              { id: "table" as const, label: "Table", shortcut: "4", icon: TableProperties },
-              { id: "map" as const, label: "Map", shortcut: "5", icon: MapIcon },
-              { id: "expenses" as const, label: "Expenses", shortcut: "6", icon: ReceiptText },
-            ].map(({ id, label, shortcut, icon: Icon }) => (
+          <div className="border-b border-divider py-2">
+            <p className="px-4 pt-1 pb-2 text-xs text-muted">Views</p>
+            {(["days", "kanban", "table"] as const).map((id) => (
               <button
                 key={id}
-                title={sidebarCollapsed ? label : undefined}
+                type="button"
+                aria-current={activeTab === id ? "page" : undefined}
                 onClick={() => {
                   setActiveTab(id);
                   closeMobileMenu();
                 }}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition sm:min-h-0 ${activeTab === id ? "bg-emerald-50 font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100" : "text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-neutral-800"} ${sidebarCollapsed ? "justify-center px-0" : ""}`}
+                className={`${menuItemClassName} ${activeTab === id ? "font-medium" : ""}`}
               >
-                <Icon size={17} />
-                {!sidebarCollapsed && (
-                  <>
-                    <span className="flex-1 text-left">{label}</span>
-                    <kbd className="rounded border px-1 text-[9px] opacity-60">{shortcut}</kbd>
-                  </>
-                )}
+                {plannerTabLabels[id]}
+              </button>
+            ))}
+          </div>
+          <TripMenuContents {...tripMenuProps} onDone={() => closeMobileMenu()} />
+        </div>
+      )}
+      <header className="hidden shrink-0 flex-wrap items-center gap-x-6 gap-y-1 px-6 pt-4 sm:flex lg:gap-x-10 lg:px-12">
+        <TripSwitcher {...tripMenuProps} />
+        {activeTrip && (
+          <nav aria-label="Views" className="flex flex-1 flex-wrap gap-x-5 lg:gap-x-7">
+            {plannerTabOrder.map((id) => (
+              <button
+                key={id}
+                type="button"
+                aria-current={activeTab === id ? "page" : undefined}
+                title={`${plannerTabLabels[id]} (${plannerTabShortcuts[id]})`}
+                onClick={() => setActiveTab(id)}
+                className={`min-h-11 py-3 text-sm outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring ${activeTab === id ? "font-medium text-foreground shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted hover:text-foreground"}`}
+              >
+                {plannerTabLabels[id]}
               </button>
             ))}
           </nav>
-        </div>
-        <div className={`mt-7 px-3 ${sidebarCollapsed ? "px-2" : ""}`}>
-          <div
-            className={`mb-2 flex items-center justify-between px-2 text-[10px] font-semibold uppercase tracking-[.16em] text-stone-400 ${sidebarCollapsed ? "justify-center" : ""}`}
-          >
-            {!sidebarCollapsed && <span>Your trips</span>}
-            {!sidebarCollapsed && (
-              <div className="flex items-center gap-1">
-                {activeTrip && <EditTripDialog key={activeTrip.id} trip={activeTrip} onSaved={onTripSaved} />}
-                <CreateTripDialog
-                  onCreated={(trip) => {
-                    onTripCreated(trip);
-                    closeMobileMenu();
-                  }}
-                />
-              </div>
-            )}
-          </div>
-          <TripList
-            trips={trips}
-            activeTripId={activeTripId}
-            collapsed={sidebarCollapsed}
-            onSelect={(id) => {
-              selectTrip(id);
-              closeMobileMenu();
-            }}
-          />
-        </div>
-        <div
-          className={`mt-auto border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] ${sidebarCollapsed ? "px-2" : ""}`}
-        >
-          <div className="mb-2 space-y-1 border-b pb-2">
-            {activeTrip && (
-              <ImportGoogleMapsCsvButton
-                compact={sidebarCollapsed}
-                trip={activeTrip}
-                eventTypes={eventTypes}
-                onAddType={(type) => addEventType(activeTrip.id, type)}
-                onImported={(imported) => {
-                  if (activeTripKeyRef.current === activeTrip.id)
-                    setItems((current) => sortTravelObjects([...current, ...imported]));
-                }}
-                onError={(message) => {
-                  if (activeTripKeyRef.current === activeTrip.id) setError(message);
-                }}
-              />
-            )}
-            {activeTrip && itemsTripId === activeTrip.id && (
-              <ExportIcsButton compact={sidebarCollapsed} trip={activeTrip} items={events} />
-            )}
-            <Button
+        )}
+        {!activeTrip && <div className="flex-1" />}
+        {activeTrip && (
+          <>
+            <button
               type="button"
-              variant="ghost"
-              size={sidebarCollapsed ? "icon" : "sm"}
-              className={
-                sidebarCollapsed ? "mx-auto flex size-11 sm:size-8" : "min-h-11 w-full justify-start sm:min-h-0"
-              }
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              title={sidebarCollapsed ? (theme === "dark" ? "Switch to light mode" : "Switch to dark mode") : undefined}
-              onClick={toggleTheme}
+              aria-label="Compact rows"
+              aria-pressed={compact}
+              title={compact ? "Compact rows: on" : "Compact rows: off"}
+              onClick={toggleCompact}
+              className={`grid size-10 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring ${compact ? "text-accent" : "text-muted hover:text-foreground"}`}
             >
-              {theme === "dark" ? <Sun /> : <Moon />}
-              {!sidebarCollapsed && (theme === "dark" ? "Light mode" : "Dark mode")}
-            </Button>
-          </div>
-          <div className={`flex items-center gap-1 rounded-lg p-2 ${sidebarCollapsed ? "justify-center" : ""}`}>
-            <div className="grid size-8 shrink-0 place-items-center rounded-full bg-orange-100 text-xs font-semibold text-orange-800">
-              {activeTrip?.title.slice(0, 1).toUpperCase() ?? "T"}
-            </div>
-            {!sidebarCollapsed && <span className="min-w-0 flex-1 truncate text-xs font-medium">{tripLabel}</span>}
-            {activeTrip && (
-              <DeleteTripButton
-                trip={activeTrip}
-                compact
-                onDeleted={() => onTripDeleted(activeTrip.id)}
-                onError={(message) => {
-                  if (activeTripKeyRef.current === activeTrip.id) setError(message);
-                }}
-              />
-            )}
-          </div>
-        </div>
-      </aside>
-      <section className="relative flex min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b bg-white px-4 py-3 dark:bg-neutral-900 sm:hidden">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-emerald-800 text-white">
-              <Compass size={17} />
-            </span>
-            <span className="truncate text-sm font-semibold">Wayfarer</span>
-          </div>
+              <Rows3 className="size-[18px]" strokeWidth={1.5} />
+            </button>
+            <button
+              type="button"
+              aria-label="Search items"
+              title="Search items"
+              onClick={() => setSearchOpen(true)}
+              className="grid size-10 place-items-center text-foreground outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
+            >
+              <Search className="size-[18px]" strokeWidth={1.5} />
+            </button>
+            <button
+              type="button"
+              aria-label="Add an item"
+              title="Add an item"
+              onClick={() => void openCreateItem()}
+              className="grid size-10 place-items-center rounded-full border border-foreground text-foreground outline-none transition-colors hover:bg-foreground hover:text-background focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <Plus className="size-4" strokeWidth={1.5} />
+            </button>
+          </>
+        )}
+      </header>
+      <section className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-divider bg-background px-4 py-1 sm:hidden">
           <button
             type="button"
             onClick={openMobileMenu}
             aria-expanded={mobileSidebarOpen}
             aria-label="Choose trip and open workspace menu"
-            className="flex min-h-11 min-w-0 items-center gap-1 rounded-lg bg-emerald-50 px-3 text-xs font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100"
+            className="flex min-h-11 min-w-0 items-baseline gap-2 text-left outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
           >
-            <span className="max-w-36 truncate">{activeTrip?.title ?? "Choose trip"}</span>
-            <ChevronDown size={14} className="shrink-0" />
+            <span className="truncate text-base font-medium tracking-tight">{activeTrip?.title ?? "Choose trip"}</span>
+            {activeTrip && (
+              <span className="shrink-0 text-xs text-muted">
+                {formatTripDateRange(activeTrip.startDate, activeTrip.endDate)}
+              </span>
+            )}
+            <ChevronDown aria-hidden="true" className="size-4 shrink-0 self-center text-muted" />
           </button>
+          {activeTrip && (
+            <div className="flex shrink-0 items-center">
+              <button
+                type="button"
+                aria-label="Compact rows"
+                aria-pressed={compact}
+                onClick={toggleCompact}
+                className={`grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring ${compact ? "text-accent" : "text-muted"}`}
+              >
+                <Rows3 className="size-[18px]" strokeWidth={1.5} />
+              </button>
+              <button
+                type="button"
+                aria-label="Search items"
+                onClick={() => setSearchOpen(true)}
+                className="grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
+              >
+                <Search className="size-[18px]" strokeWidth={1.5} />
+              </button>
+              <button
+                type="button"
+                aria-label="Add an item"
+                onClick={() => void openCreateItem()}
+                className="grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
+              >
+                <Plus className="size-[18px]" strokeWidth={1.5} />
+              </button>
+            </div>
+          )}
         </header>
         {error && (
-          <div className="mx-5 mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-            {error}
+          <div
+            role="alert"
+            className="mx-5 mt-4 flex items-start justify-between gap-3 border border-danger py-3 pr-2 pl-4 text-sm text-danger"
+          >
+            <span className="min-w-0 flex-1 break-words">{error}</span>
+            <button
+              type="button"
+              aria-label="Dismiss error"
+              title="Dismiss"
+              onClick={() => setError("")}
+              className="-my-2 grid size-11 shrink-0 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring sm:size-9"
+            >
+              <X className="size-4" strokeWidth={1.5} />
+            </button>
           </div>
         )}
         {loadingTrips ? (
           <div className="grid flex-1 place-items-center">
-            <LoaderCircle className="animate-spin text-emerald-700" aria-label="Loading trips" />
+            <LoaderCircle className="animate-spin text-muted" aria-label="Loading trips" />
           </div>
         ) : tripsLoadError ? (
           <div className="grid flex-1 place-items-center p-6">
             <div role="alert" className="max-w-sm text-center">
-              <p className="text-sm text-rose-700 dark:text-rose-300">{tripsLoadError}</p>
+              <p className="text-sm text-danger">{tripsLoadError}</p>
               <Button type="button" className="mt-4 min-h-11" onClick={retryTrips}>
                 Retry loading trips
               </Button>
@@ -551,11 +491,11 @@ export function AppShell() {
         ) : !activeTrip ? (
           <div className="grid flex-1 place-items-center p-6">
             <div className="max-w-md text-center">
-              <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-emerald-100 text-emerald-800">
+              <div className="mx-auto grid size-14 place-items-center border border-foreground text-foreground">
                 <Compass size={25} />
               </div>
               <h2 className="mt-5 text-xl font-semibold">Make room for the good parts</h2>
-              <p className="mt-2 text-sm leading-relaxed text-stone-500">
+              <p className="mt-2 text-sm leading-relaxed text-muted">
                 Create a trip to bring dates, stays, meals, and little discoveries into one clear plan.
               </p>
               <div className="mt-5 flex justify-center">
@@ -570,13 +510,13 @@ export function AppShell() {
                 <div className="grid flex-1 place-items-center p-6">
                   {itemsLoadError ? (
                     <div role="alert" className="max-w-sm text-center">
-                      <p className="text-sm text-rose-700 dark:text-rose-300">{itemsLoadError}</p>
+                      <p className="text-sm text-danger">{itemsLoadError}</p>
                       <Button type="button" className="mt-4 min-h-11" onClick={retryItems}>
                         Retry loading itinerary
                       </Button>
                     </div>
                   ) : (
-                    <LoaderCircle className="animate-spin text-emerald-700" aria-label="Loading itinerary" />
+                    <LoaderCircle className="animate-spin text-muted" aria-label="Loading itinerary" />
                   )}
                 </div>
               ) : activeTab === "calendar" ? (
@@ -618,16 +558,18 @@ export function AppShell() {
               ) : activeTab === "days" ? (
                 <TripDaysView
                   trip={activeTrip}
-                  items={itineraryItems}
+                  items={items.filter((item) => item.date !== null)}
                   typeColors={eventTypeColors}
                   selectedIds={selectedIds}
                   primarySelectedId={primarySelectedId}
-                  inspectedItemId={inspectedItemId}
-                  onSelect={selectItem}
+                  onSelect={(item, additive) => selectItem(item, additive, false)}
+                  onInspect={inspectItem}
                   onSelectForDrag={(item) => selectItem(item, false, false)}
                   onMove={moveSelectedItemsToDay}
                   onReorder={reorderItem}
-                  onCreateItem={(date) => void openCreateItem(date)}
+                  onCreateItem={(date, order) =>
+                    void openCreateItem(date, undefined, "unclassified", "(untitled event)", order)
+                  }
                 />
               ) : activeTab === "table" ? (
                 <TableView
@@ -640,6 +582,7 @@ export function AppShell() {
                   onInspect={inspectItem}
                   onSelectionChange={replaceSelection}
                   onChangeItems={changeSelectedItems}
+                  onDeleteSelected={(ids) => setPendingDeleteIds(ids)}
                 />
               ) : activeTab === "expenses" ? (
                 <ExpensesView key={activeTrip.id} trip={activeTrip} items={events} />
@@ -658,7 +601,7 @@ export function AppShell() {
                 role={narrowScreen ? "dialog" : undefined}
                 aria-modal={narrowScreen ? true : undefined}
                 aria-label={narrowScreen ? `Edit ${selectedItem.title}` : undefined}
-                className={`z-[100] min-h-0 max-sm:fixed max-sm:inset-0 ${activeTab === "calendar" ? "sm:absolute sm:inset-y-3 sm:right-3 sm:w-[min(92vw,600px)]" : "sm:w-[min(38vw,760px)] sm:min-w-[400px] sm:shrink-0 max-lg:sm:absolute max-lg:sm:inset-y-3 max-lg:sm:right-3 max-lg:sm:w-[min(92vw,600px)] max-lg:sm:min-w-0"}`}
+                className={`z-[100] min-h-0 max-sm:fixed max-sm:inset-0 ${activeTab === "calendar" ? "sm:absolute sm:inset-y-3 sm:right-3 sm:w-[min(92vw,600px)] sm:shadow-xl" : "sm:w-[min(38vw,760px)] sm:min-w-[400px] sm:shrink-0 max-lg:sm:absolute max-lg:sm:inset-y-3 max-lg:sm:right-3 max-lg:sm:w-[min(92vw,600px)] max-lg:sm:min-w-0"}`}
               >
                 <ObjectInspectorPanel
                   key={selectedItem.id}
@@ -680,7 +623,7 @@ export function AppShell() {
         {activeTrip && (
           <nav
             aria-label="Mobile workspace"
-            className="z-20 grid shrink-0 grid-cols-5 border-t bg-white px-1 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] dark:bg-neutral-900 sm:hidden"
+            className="z-20 grid shrink-0 grid-cols-5 border-t border-divider bg-background px-1 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:hidden"
           >
             {[
               {
@@ -709,7 +652,7 @@ export function AppShell() {
                 type="button"
                 aria-current={mobileDestination === id ? "page" : undefined}
                 onClick={onClick}
-                className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-lg text-[10px] font-medium ${mobileDestination === id ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-100" : "text-stone-500 dark:text-stone-400"}`}
+                className={`flex min-h-12 flex-col items-center justify-center gap-0.5 text-[10px] ${mobileDestination === id ? "font-medium text-foreground shadow-[inset_0_2px_0_var(--ink)]" : "text-muted"}`}
               >
                 <Icon size={17} />
                 {label}
@@ -720,12 +663,24 @@ export function AppShell() {
               aria-current={mobileDestination === "more" ? "page" : undefined}
               aria-expanded={mobileSidebarOpen}
               onClick={openMobileMenu}
-              className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-lg text-[10px] font-medium ${mobileDestination === "more" ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-100" : "text-stone-500 dark:text-stone-400"}`}
+              className={`flex min-h-12 flex-col items-center justify-center gap-0.5 text-[10px] ${mobileDestination === "more" ? "font-medium text-foreground shadow-[inset_0_2px_0_var(--ink)]" : "text-muted"}`}
             >
               <MoreHorizontal size={18} />
               More
             </button>
           </nav>
+        )}
+        {searchOpen && activeTrip && (
+          <ItemSearch
+            items={events}
+            onClose={() => setSearchOpen(false)}
+            onPick={(item) => {
+              setSearchOpen(false);
+              // The inspector is not shown on Spend, so move to a view that has it first.
+              if (activeTab === "expenses") setActiveTab("days");
+              inspectItem(item);
+            }}
+          />
         )}
         {pendingDeleteIds && (
           <ConfirmDialog

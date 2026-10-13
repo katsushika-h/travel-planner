@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wayfarer, Night Departures style</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0D1014}
+a{color:#F2B33D}a:hover{color:#FFD27A}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="min-height: 900px; display: flex; flex-wrap: wrap; background: #0D1014; color: #E9E6DF; font-family: 'IBM Plex Sans Condensed', system-ui, sans-serif; font-size: 15px">
+
+  <!-- Rail -->
+  <nav aria-label="Trips" style="flex: 1 1 220px; max-width: 100%; box-sizing: border-box; padding: 24px 16px; display: flex; flex-direction: column; gap: 28px; border-right: 1px solid #222831; background: #0A0C0F">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <span style="display: grid; place-items: center; width: 30px; height: 30px; border: 1.5px solid #F2B33D; border-radius: 50%">
+        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F2B33D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15.5 8.5-2 5-5 2 2-5z"></path></svg>
+      </span>
+      <span style="font-weight: 700; font-size: 17px; letter-spacing: 0.14em; text-transform: uppercase">Wayfarer</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <span style="padding: 0 8px 4px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: #8B929C">TRIPS</span>
+      <a href="#" aria-current="page" style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 6px; background: #1A1F26; border: 1px solid #F2B33D; color: #E9E6DF; text-decoration: none">
+        <span style="font-weight: 600">Kyoto &amp; Osaka</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #F2B33D">03 APR – 10 APR</span>
+      </a>
+      <a href="#" style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 6px; color: #E9E6DF; text-decoration: none">
+        <span style="font-weight: 500">Lisbon long weekend</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8B929C">11 JUN – 14 JUN</span>
+      </a>
+      <a href="#" style="display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 6px; color: #E9E6DF; text-decoration: none">
+        <span style="font-weight: 500">Hokkaido ski</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8B929C">08 JAN – 15 JAN</span>
+      </a>
+      <button type="button" style="margin-top: 6px; min-height: 40px; border: 1px dashed #39414C; border-radius: 6px; background: transparent; color: #B7BDC6; cursor: pointer">+ New trip</button>
+    </div>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <!-- Header -->
+    <header style="padding: 24px 32px 0; display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.1em; color: #8B929C">ASIA/TOKYO · JPY · 8 DAYS</span>
+          <h1 style="margin: 0; font-weight: 700; font-size: 40px; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1">Kyoto &amp; Osaka</h1>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <button type="button" style="display: flex; align-items: center; gap: 10px; min-height: 40px; min-width: 210px; padding: 0 12px; border: 1px solid #2A313B; border-radius: 6px; background: #12161B; color: #8B929C; cursor: pointer">
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+            <span style="flex: 1; text-align: left">Search</span>
+            <kbd style="font-family: 'IBM Plex Mono', monospace; font-size: 11px">⌘K</kbd>
+          </button>
+          <button type="button" style="min-height: 40px; padding: 0 16px; border: 0; border-radius: 6px; background: #F2B33D; color: #0D1014; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer">+ Add</button>
+        </div>
+      </div>
+      <div role="tablist" aria-label="Views" style="display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid #222831">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="6">
+          <a href="#" role="tab" aria-selected="{{t.selected}}" style="padding: 10px 14px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; text-decoration: none; {{t.style}}">{{t.label}}</a>
+        </sc-for>
+      </div>
+    </header>
+
+    <!-- Day strip as platform numbers -->
+    <div style="padding: 18px 32px 0; display: flex; gap: 6px; overflow-x: auto">
+      <sc-for list="{{days}}" as="d" hint-placeholder-count="8">
+        <button type="button" aria-pressed="{{d.selected}}" style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 76px; padding: 8px 0; border-radius: 6px; cursor: pointer; {{d.style}}">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; line-height: 1">{{d.dom}}</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.1em">{{d.dow}}</span>
+        </button>
+      </sc-for>
+    </div>
+
+    <div style="flex: 1; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; padding: 22px 32px 32px">
+      <!-- Departure board -->
+      <section aria-label="Day 3 departures" style="flex: 999 1 520px; min-width: 0; border-radius: 10px; background: #12161B; border: 1px solid #222831; overflow: hidden">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; padding: 16px 20px; border-bottom: 1px solid #222831">
+          <h2 style="margin: 0; font-weight: 700; font-size: 20px; letter-spacing: 0.06em; text-transform: uppercase">Day 3 · Monday 5 April</h2>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8B929C">6 STOPS · ¥18,700 PLANNED</span>
+        </div>
+        <div style="overflow-x: auto">
+          <table style="width: 100%; min-width: 560px; border-collapse: collapse">
+            <thead>
+              <tr style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: #8B929C; text-align: left">
+                <th scope="col" style="padding: 10px 20px; font-weight: 500">TIME</th>
+                <th scope="col" style="padding: 10px 8px; font-weight: 500">STOP</th>
+                <th scope="col" style="padding: 10px 8px; font-weight: 500">AREA</th>
+                <th scope="col" style="padding: 10px 8px; font-weight: 500; text-align: right">COST</th>
+                <th scope="col" style="padding: 10px 20px; font-weight: 500; text-align: right">STATUS</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="7">
+                <tr style="border-top: 1px solid #1E242C; {{r.rowStyle}}">
+                  <td style="padding: 14px 20px; font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600; color: {{r.timeColor}}; white-space: nowrap">{{r.time}}</td>
+                  <td style="padding: 14px 8px">
+                    <div style="display: flex; align-items: center; gap: 10px">
+                      <span style="width: 4px; height: 26px; border-radius: 2px; background: {{r.color}}"></span>
+                      <span style="display: flex; flex-direction: column; gap: 1px">
+                        <span style="font-weight: 600; font-size: 16px">{{r.title}}</span>
+                        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #8B929C">{{r.type}}</span>
+                      </span>
+                    </div>
+                  </td>
+                  <td style="padding: 14px 8px; color: #B7BDC6">{{r.place}}</td>
+                  <td style="padding: 14px 8px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #B7BDC6">{{r.cost}}</td>
+                  <td style="padding: 14px 20px; text-align: right"><span style="display: inline-block; padding: 3px 8px; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; {{r.statusStyle}}">{{r.status}}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Ticket inspector -->
+      <aside aria-label="Selected stop" style="flex: 1 1 320px; max-width: 380px; min-width: 0; display: flex; flex-direction: column">
+        <div style="padding: 20px; border-radius: 10px 10px 0 0; background: #F2B33D; color: #0D1014; display: flex; flex-direction: column; gap: 6px">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.14em">ADMIT ONE · SIGHTSEEING</span>
+          <span style="font-weight: 700; font-size: 28px; text-transform: uppercase; line-height: 1.05">Kiyomizu-dera</span>
+        </div>
+        <div style="height: 0; border-top: 2px dashed #0D1014; margin: 0 14px; position: relative"></div>
+        <div style="padding: 18px 20px 20px; border-radius: 0 0 10px 10px; background: #1A1F26; border: 1px solid #2A313B; border-top: 0; display: flex; flex-direction: column; gap: 16px">
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+            <div style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em; color: #8B929C">DEPART</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600">09:15</span></div>
+            <div style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em; color: #8B929C">ARRIVE</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600">11:00</span></div>
+            <div style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em; color: #8B929C">FARE</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600">¥500</span></div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em; color: #8B929C">WHERE</span>
+            <span>Higashiyama, Kyoto</span>
+            <a href="https://www.google.com/maps" style="font-size: 14px">Open in Google Maps</a>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em; color: #8B929C">NOTES</span>
+            <p style="margin: 0; line-height: 1.5; color: #D4D0C8">Enter by the Nio-mon gate and finish on the stage before 10. Walk down Sannenzaka afterwards.</p>
+          </div>
+          <div style="display: flex; gap: 6px">
+            <span style="padding: 3px 8px; border: 1px solid #39414C; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 11px">TEMPLE</span>
+            <span style="padding: 3px 8px; border: 1px solid #39414C; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 11px">TICKETS ON SITE</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const C = { FOOD: '#F08A3C', SIGHTSEEING: '#3FC1A8' };
+    const rows = [
+      ['08:30', 'Coffee at % Arabica', 'FOOD', 'Higashiyama', '¥1,200', 'DONE'],
+      ['09:15', 'Kiyomizu-dera', 'SIGHTSEEING', 'Higashiyama', '¥500', 'NOW'],
+      ['~12:00', 'Yudofu lunch · Okutan', 'FOOD', 'Kiyomizu', '¥4,400', 'FLEXIBLE'],
+      ['13:30', 'Kodai-ji', 'SIGHTSEEING', 'Higashiyama', '¥600', 'ON TIME'],
+      ['15:30', 'Yasaka Shrine', 'SIGHTSEEING', 'Gion', 'FREE', 'ON TIME'],
+      ['18:30', 'Kaiseki dinner', 'FOOD', 'Gion', '¥12,000', 'BOOKED']
+    ];
+    const S = {
+      DONE: 'color: #8B929C; border: 1px solid #39414C',
+      NOW: 'background: #F2B33D; color: #0D1014',
+      FLEXIBLE: 'color: #B7BDC6; border: 1px dashed #59616C',
+      'ON TIME': 'color: #3FC1A8; border: 1px solid #2A5E55',
+      BOOKED: 'color: #8FB8FF; border: 1px solid #34507E'
+    };
+    const days = [['SAT', '03'], ['SUN', '04'], ['MON', '05'], ['TUE', '06'], ['WED', '07'], ['THU', '08'], ['FRI', '09'], ['SAT', '10']];
+    const tabs = ['PLAN', 'CALENDAR', 'BOARD', 'TABLE', 'MAP', 'SPEND'];
+    return {
+      tabs: tabs.map((label, i) => ({ label, selected: i === 0 ? 'true' : 'false', style: i === 0 ? 'color: #F2B33D; border-bottom: 2px solid #F2B33D; margin-bottom: -1px' : 'color: #8B929C' })),
+      days: days.map(([dow, dom], i) => ({ dow, dom, selected: i === 2 ? 'true' : 'false', style: i === 2 ? 'border: 1px solid #F2B33D; background: #F2B33D; color: #0D1014' : 'border: 1px solid #2A313B; background: #12161B; color: #E9E6DF' })),
+      rows: rows.map(([time, title, type, place, cost, status]) => ({ time, title, type, place, cost, status, color: C[type],
+        timeColor: status === 'DONE' ? '#6B727C' : status === 'FLEXIBLE' ? '#B7BDC6' : '#F2B33D',
+        rowStyle: status === 'NOW' ? 'background: #1A1F26' : status === 'DONE' ? 'opacity: 0.7' : '',
+        statusStyle: S[status] }))
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { menuItemClassName } from "@/components/ui/menu-item";
 import { useModalFocus } from "@/components/ui/use-modal-focus";
 import { api } from "@/lib/api-client";
 import { shiftDate } from "@/lib/date-utils";
@@ -24,7 +25,13 @@ function nextDate(date: string) {
   return shiftDate(date, 1);
 }
 
-export function CreateTripDialog({ onCreated }: { onCreated: (trip: Trip) => void }) {
+export function CreateTripDialog({
+  onCreated,
+  menuItem = false,
+}: {
+  onCreated: (trip: Trip) => void;
+  menuItem?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -69,27 +76,34 @@ export function CreateTripDialog({ onCreated }: { onCreated: (trip: Trip) => voi
 
   return (
     <>
-      <Button className="min-h-11 sm:min-h-0" onClick={() => setOpen(true)}>
-        <Plus /> New trip
-      </Button>
+      {menuItem ? (
+        <button type="button" className={menuItemClassName} onClick={() => setOpen(true)}>
+          <Plus /> New trip
+        </button>
+      ) : (
+        <Button className="min-h-11 sm:min-h-0" onClick={() => setOpen(true)}>
+          <Plus /> New trip
+        </Button>
+      )}
       {open &&
         createPortal(
           <div
             ref={dialogRef}
-            className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/35 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
+            className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-scrim p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
             role="dialog"
             aria-modal="true"
+            aria-labelledby="create-trip-title"
           >
             <form
               action={submit}
-              className="my-auto max-h-[calc(100dvh_-_2rem)] w-full max-w-md overflow-y-auto rounded-xl border bg-background p-6 shadow-2xl"
+              className="my-auto max-h-[calc(100dvh_-_2rem)] w-full max-w-md overflow-y-auto border-t border-foreground bg-panel p-6 text-foreground shadow-[0_24px_48px_rgb(0_0_0/0.18)]"
             >
               <div className="mb-5 flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold">Create a trip</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Your destination timezone is used throughout the itinerary.
-                  </p>
+                  <h2 id="create-trip-title" className="text-lg font-medium tracking-tight">
+                    Create a trip
+                  </h2>
+                  <p className="text-sm text-muted">Your destination timezone is used throughout the itinerary.</p>
                 </div>
                 <Button
                   type="button"
@@ -102,18 +116,18 @@ export function CreateTripDialog({ onCreated }: { onCreated: (trip: Trip) => voi
                   <X />
                 </Button>
               </div>
-              <label className="block text-sm font-medium">
+              <label className="block text-xs font-normal text-muted">
                 Trip name
                 <input
                   name="title"
                   required
                   maxLength={50}
                   placeholder="Japan spring escape"
-                  className="mt-1.5 w-full rounded-md border bg-background px-3 py-2"
+                  className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
                 />
               </label>
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <label className="text-sm font-medium">
+                <label className="text-xs font-normal text-muted">
                   Start date
                   <input
                     name="startDate"
@@ -124,10 +138,10 @@ export function CreateTripDialog({ onCreated }: { onCreated: (trip: Trip) => voi
                       setEndDate(nextDate(event.target.value));
                     }}
                     required
-                    className="mt-1.5 w-full rounded-md border bg-background px-3 py-2"
+                    className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
                   />
                 </label>
-                <label className="text-sm font-medium">
+                <label className="text-xs font-normal text-muted">
                   End date
                   <input
                     name="endDate"
@@ -136,11 +150,11 @@ export function CreateTripDialog({ onCreated }: { onCreated: (trip: Trip) => voi
                     value={endDate}
                     onChange={(event) => setEndDate(event.target.value)}
                     required
-                    className="mt-1.5 w-full rounded-md border bg-background px-3 py-2"
+                    className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
                   />
                 </label>
               </div>
-              <label className="mt-4 block text-sm font-medium">
+              <label className="mt-4 block text-xs font-normal text-muted">
                 IANA timezone
                 <input
                   name="timezone"
@@ -148,18 +162,18 @@ export function CreateTripDialog({ onCreated }: { onCreated: (trip: Trip) => voi
                   required
                   defaultValue={Intl.DateTimeFormat().resolvedOptions().timeZone}
                   placeholder="Type a city or region, e.g. Tokyo"
-                  className="mt-1.5 w-full rounded-md border bg-background px-3 py-2"
+                  className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground"
                 />
                 <datalist id="create-iana-timezones">
                   {[...new Set(["UTC", Intl.DateTimeFormat().resolvedOptions().timeZone, ...zones])].map((zone) => (
                     <option key={zone} value={zone} />
                   ))}
                 </datalist>
-                <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                <span className="mt-1 block text-xs font-normal text-muted">
                   Type to filter valid IANA timezone names.
                 </span>
               </label>
-              <label className="mt-4 block text-sm font-medium">
+              <label className="mt-4 block text-xs font-normal text-muted">
                 Default currency
                 <input
                   name="defaultCurrency"
@@ -169,14 +183,14 @@ export function CreateTripDialog({ onCreated }: { onCreated: (trip: Trip) => voi
                   value={defaultCurrency}
                   onChange={(event) => setDefaultCurrency(event.target.value.toUpperCase())}
                   placeholder="SGD"
-                  className="mt-1.5 w-full rounded-md border bg-background px-3 py-2 uppercase"
+                  className="mt-1 w-full max-sm:min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] font-normal text-foreground outline-none focus:border-foreground uppercase"
                 />
-                <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                <span className="mt-1 block text-xs font-normal text-muted">
                   Use a three-letter currency code, such as SGD, USD, or JPY.
                 </span>
               </label>
-              {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-              <div className="mt-6 flex justify-end gap-2">
+              {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+              <div className="mt-6 flex justify-end gap-3">
                 <Button type="button" variant="ghost" className="min-h-11 sm:min-h-0" onClick={() => setOpen(false)}>
                   Cancel
                 </Button>

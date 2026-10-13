@@ -4,6 +4,8 @@ prisma/migrations/
 package-lock.json
 next-env.d.ts
 *.md
+# Design mockups are reference files in the canvas format; keep them byte-identical to the published canvas.
+docs/design/
 # Next.js rewrites this file; keep its own formatting.
 tsconfig.json
 # Deployment file; formatting changes are not worth the review risk.
