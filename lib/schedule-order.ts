@@ -134,6 +134,18 @@ export function weekFlexibleDropOrder<T extends OrderableItem & { date: string |
   return nextFixed < 0 ? ordered.length : nextFixed;
 }
 
+/**
+ * Day lists also show multi-day items carried over from earlier dates, but the reorder route and
+ * `canDropInDayOrder` only count items dated on that day. Translate a visible gap into that index.
+ */
+export function sameDayGapOrder<T extends { date: string | null }>(
+  visibleItems: readonly T[],
+  date: string,
+  visibleGap: number,
+) {
+  return visibleItems.slice(0, Math.max(0, visibleGap)).filter((item) => item.date?.slice(0, 10) === date).length;
+}
+
 /** Reject Day placements that contradict confirmed times or split overlapping bookings. */
 export function canDropInDayOrder<T extends OrderableItem & { date: string | null; endDate: string | null }>(
   items: readonly T[],
