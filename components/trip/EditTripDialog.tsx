@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Pencil, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { menuItemClassName } from "@/components/ui/menu-item";
 import { useModalFocus } from "@/components/ui/use-modal-focus";
 import { api } from "@/lib/api-client";
 import type { Trip } from "@/types/travel";
@@ -11,7 +12,15 @@ import type { Trip } from "@/types/travel";
 const zones =
   (Intl as typeof Intl & { supportedValuesOf?: (key: "timeZone") => string[] }).supportedValuesOf?.("timeZone") ?? [];
 
-export function EditTripDialog({ trip, onSaved }: { trip: Trip; onSaved: (trip: Trip) => void }) {
+export function EditTripDialog({
+  trip,
+  onSaved,
+  menuItem = false,
+}: {
+  trip: Trip;
+  onSaved: (trip: Trip) => void;
+  menuItem?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -52,16 +61,22 @@ export function EditTripDialog({ trip, onSaved }: { trip: Trip; onSaved: (trip: 
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className="size-11 sm:size-7"
-        onClick={() => setOpen(true)}
-        aria-label="Edit trip settings"
-        title="Edit trip settings"
-      >
-        <Pencil />
-      </Button>
+      {menuItem ? (
+        <button type="button" className={menuItemClassName} onClick={() => setOpen(true)}>
+          <Pencil /> Edit trip
+        </button>
+      ) : (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="size-11 sm:size-7"
+          onClick={() => setOpen(true)}
+          aria-label="Edit trip settings"
+          title="Edit trip settings"
+        >
+          <Pencil />
+        </Button>
+      )}
       {open &&
         createPortal(
           <div

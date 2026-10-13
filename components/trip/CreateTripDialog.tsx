@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { menuItemClassName } from "@/components/ui/menu-item";
 import { useModalFocus } from "@/components/ui/use-modal-focus";
 import { api } from "@/lib/api-client";
 import { shiftDate } from "@/lib/date-utils";
@@ -24,7 +25,13 @@ function nextDate(date: string) {
   return shiftDate(date, 1);
 }
 
-export function CreateTripDialog({ onCreated }: { onCreated: (trip: Trip) => void }) {
+export function CreateTripDialog({
+  onCreated,
+  menuItem = false,
+}: {
+  onCreated: (trip: Trip) => void;
+  menuItem?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -69,9 +76,15 @@ export function CreateTripDialog({ onCreated }: { onCreated: (trip: Trip) => voi
 
   return (
     <>
-      <Button className="min-h-11 sm:min-h-0" onClick={() => setOpen(true)}>
-        <Plus /> New trip
-      </Button>
+      {menuItem ? (
+        <button type="button" className={menuItemClassName} onClick={() => setOpen(true)}>
+          <Plus /> New trip
+        </button>
+      ) : (
+        <Button className="min-h-11 sm:min-h-0" onClick={() => setOpen(true)}>
+          <Plus /> New trip
+        </Button>
+      )}
       {open &&
         createPortal(
           <div

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { menuItemClassName } from "@/components/ui/menu-item";
 import { useModalFocus } from "@/components/ui/use-modal-focus";
 import { api } from "@/lib/api-client";
 import type { Trip } from "@/types/travel";
@@ -13,11 +14,13 @@ export function DeleteTripButton({
   onDeleted,
   onError,
   compact = false,
+  menuItem = false,
 }: {
   trip: Trip;
   onDeleted: () => void;
   onError: (message: string) => void;
   compact?: boolean;
+  menuItem?: boolean;
 }) {
   const [deleting, setDeleting] = useState(false);
   const [confirmationStep, setConfirmationStep] = useState<0 | 1 | 2>(0);
@@ -57,18 +60,29 @@ export function DeleteTripButton({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="destructive"
-        size={compact ? "icon-sm" : "default"}
-        className={compact ? "size-11 sm:size-7" : "min-h-11 sm:min-h-0"}
-        onClick={requestDelete}
-        disabled={deleting}
-        aria-label={`Delete ${trip.title}`}
-        title={`Delete ${trip.title}`}
-      >
-        <Trash2 /> {!compact && (deleting ? "Deleting…" : "Delete trip")}
-      </Button>
+      {menuItem ? (
+        <button
+          type="button"
+          className={`${menuItemClassName} text-danger [&_svg]:text-danger`}
+          onClick={requestDelete}
+          disabled={deleting}
+        >
+          <Trash2 /> {deleting ? "Deleting…" : "Delete trip"}
+        </button>
+      ) : (
+        <Button
+          type="button"
+          variant="destructive"
+          size={compact ? "icon-sm" : "default"}
+          className={compact ? "size-11 sm:size-7" : "min-h-11 sm:min-h-0"}
+          onClick={requestDelete}
+          disabled={deleting}
+          aria-label={`Delete ${trip.title}`}
+          title={`Delete ${trip.title}`}
+        >
+          <Trash2 /> {!compact && (deleting ? "Deleting…" : "Delete trip")}
+        </Button>
+      )}
       {confirmationStep > 0 &&
         createPortal(
           <div

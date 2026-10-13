@@ -6,10 +6,32 @@ import { persist } from "zustand/middleware";
 export type PlannerTab = "calendar" | "kanban" | "days" | "table" | "map" | "expenses";
 export type CalendarMode = "month" | "week" | "day";
 
+/** Visible names for the persisted tab keys. Keys never change; only these labels do. */
+export const plannerTabLabels: Record<PlannerTab, string> = {
+  days: "Plan",
+  calendar: "Calendar",
+  kanban: "Board",
+  table: "Table",
+  map: "Map",
+  expenses: "Spend",
+};
+
+/** Header order of the views. Number shortcuts keep their original keys (1 Calendar … 6 Spend). */
+export const plannerTabOrder: PlannerTab[] = ["days", "calendar", "kanban", "table", "map", "expenses"];
+export const plannerTabShortcuts: Record<PlannerTab, string> = {
+  calendar: "1",
+  kanban: "2",
+  days: "3",
+  table: "4",
+  map: "5",
+  expenses: "6",
+};
+
 type TravelStore = {
   activeTripId: string | null;
   activeTab: PlannerTab;
   calendarMode: CalendarMode;
+  /** Persisted from the old sidebar layout; no longer read by the header layout. Kept so stored state stays valid. */
   sidebarCollapsed: boolean;
   theme: "light" | "dark";
   eventTypesByTrip: Record<string, string[]>;

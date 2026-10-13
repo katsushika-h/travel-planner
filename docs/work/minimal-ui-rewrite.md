@@ -55,19 +55,29 @@ Each agent, when finishing: tick its checklist here, fill in **Notes / Requests*
 **Boards:** header and tabs on every Minimal board; tokens table in the design README.
 **Owns:** `app/globals.css`, `app/layout.tsx`, `components/layout/AppShell.tsx`, `components/ui/*`, `lib/type-color.ts`, `components/views/LeafletMap.tsx`, `store/use-travel-store.ts` (labels only, no key changes), `components/trip/*` only for moving them into the trip menu (WS5 restyles their insides).
 
-- [ ] Add the token set from the design README as CSS variables for `:root` and `.dark` in `globals.css`, mapped into the Tailwind `@theme` block (`--color-background`, `--color-foreground`, plus `panel`, `surface`, `muted`, `faint`, `divider`, `input-rule`, `accent`, `danger`). Keep the existing shadcn variables pointing at the new values so untouched components still look coherent.
-- [ ] Load Geist and Geist Mono (check the Next 16 font guide in `node_modules/next/dist/docs/` first) and set `--font-sans` / `--font-mono`.
-- [ ] Replace the desktop sidebar with the one-line header: trip name and dates as a trip-switcher button, plain-text view tabs (Plan, Calendar, Board, Table, Map, Spend) with an ink underline on the active tab, search button, and add button. Keep keyboard shortcuts 1–6.
-- [ ] Trip-switcher menu (dropdown or popover, keyboard accessible, Escape closes, focus returns to the button) containing: trip list with dates, New trip, Edit trip, Import Maps CSV, Export calendar (.ics), theme toggle, Delete trip. Reuse the existing `components/trip/*` components and their logic.
-- [ ] Restyle the mobile header and bottom navigation with the tokens; the More menu reuses the trip-switcher contents.
-- [ ] Remove the 230px sidebar and its collapsed state from layout. Keep the `sidebarCollapsed` store field (persisted) but stop using it; note this in Notes.
-- [ ] `lib/type-color.ts`: add `typeTextColor(color, theme)` that returns a readable darker shade (light) or lighter shade (dark) of a type colour for heading text (target 4.5:1 against the background); unit-test it in `tests/`.
-- [ ] `LeafletMap.tsx`: apply the light/dark tile filters from the design README to the tile pane only (markers and popups unfiltered); restyle markers as numbered circles (default outlined, selected filled with accent) using tokens; keep attribution visible in both themes. Keep its props API stable for WS1/WS2/WS4.
-- [ ] Restyle `components/ui/button.tsx` variants and `ConfirmDialog.tsx` to the tokens (square corners, outlined or text buttons, ink focus ring).
-- [ ] Create the retained trip **Minimal UI QA** (Kyoto & Osaka, Apr 3–10, Asia/Tokyo, JPY) with items similar to the mockups: fixed, flexible, all-day multi-day hotel, overlapping fixed items, a flexible item between fixed items, an unscheduled idea, an item whose Maps URL has no coordinates, and two JPY plus one SGD expense. Record its ID in Notes.
-- [ ] Verify all six tabs still render (unstyled is fine), shortcuts work, the trip menu performs every action, light/dark toggles, 390px mobile works. `npm run check`.
+- [x] Add the token set from the design README as CSS variables for `:root` and `.dark` in `globals.css`, mapped into the Tailwind `@theme` block (`--color-background`, `--color-foreground`, plus `panel`, `surface`, `muted`, `faint`, `divider`, `input-rule`, `accent`, `danger`). Keep the existing shadcn variables pointing at the new values so untouched components still look coherent.
+- [x] Load Geist and Geist Mono (check the Next 16 font guide in `node_modules/next/dist/docs/` first) and set `--font-sans` / `--font-mono`.
+- [x] Replace the desktop sidebar with the one-line header: trip name and dates as a trip-switcher button, plain-text view tabs (Plan, Calendar, Board, Table, Map, Spend) with an ink underline on the active tab, search button, and add button. Keep keyboard shortcuts 1–6.
+- [x] Trip-switcher menu (dropdown or popover, keyboard accessible, Escape closes, focus returns to the button) containing: trip list with dates, New trip, Edit trip, Import Maps CSV, Export calendar (.ics), theme toggle, Delete trip. Reuse the existing `components/trip/*` components and their logic.
+- [x] Restyle the mobile header and bottom navigation with the tokens; the More menu reuses the trip-switcher contents.
+- [x] Remove the 230px sidebar and its collapsed state from layout. Keep the `sidebarCollapsed` store field (persisted) but stop using it; note this in Notes.
+- [x] `lib/type-color.ts`: add `typeTextColor(color, theme)` that returns a readable darker shade (light) or lighter shade (dark) of a type colour for heading text (target 4.5:1 against the background); unit-test it in `tests/`.
+- [x] `LeafletMap.tsx`: apply the light/dark tile filters from the design README to the tile pane only (markers and popups unfiltered); restyle markers as numbered circles (default outlined, selected filled with accent) using tokens; keep attribution visible in both themes. Keep its props API stable for WS1/WS2/WS4.
+- [x] Restyle `components/ui/button.tsx` variants and `ConfirmDialog.tsx` to the tokens (square corners, outlined or text buttons, ink focus ring).
+- [x] Create the retained trip **Minimal UI QA** (Kyoto & Osaka, Apr 3–10, Asia/Tokyo, JPY) with items similar to the mockups: fixed, flexible, all-day multi-day hotel, overlapping fixed items, a flexible item between fixed items, an unscheduled idea, an item whose Maps URL has no coordinates, and two JPY plus one SGD expense. Record its ID in Notes.
+- [x] Verify all six tabs still render (unstyled is fine), shortcuts work, the trip menu performs every action, light/dark toggles, 390px mobile works. `npm run check`.
 
-**Notes / Requests:** _(fill in)_
+**Notes / Requests:**
+
+- QA trip **Minimal UI QA**: ID `e397046e-53c7-4929-bf4f-44e7b0c3e3cc` (Kyoto & Osaka, 2027-04-03 to 2027-04-10, Asia/Tokyo, JPY). 21 items (fixed, flexible lunch between fixed items, two multi-day hotels, overlapping Kodai-ji/Tea ceremony, two unscheduled ideas, Okutan with a Maps search URL that has no coordinates) and three expenses (two JPY, one SGD). Created through the app's API before this session and verified, not duplicated.
+- `sidebarCollapsed` stays in the persisted store (unused). Store keys and `PlannerTab` values are unchanged; `store/use-travel-store.ts` only gained exported label, order and shortcut maps. Header order is Plan, Calendar, Board, Table, Map, Spend, but number shortcuts keep their original keys (1 Calendar, 2 Board, 3 Plan, 4 Table, 5 Map, 6 Spend) so behaviour is unchanged. Tab buttons show the shortcut in their tooltip.
+- Header "add" button creates an unscheduled item (idea) via the existing `openCreateItem()` and opens it in the editor. Search (`components/layout/ItemSearch.tsx`) is a small modal that filters loaded items and opens the match in the editor; `lib/trip-dates.ts` formats header/menu date ranges and is unit-tested.
+- Trip menu pieces live in `components/layout/TripMenu.tsx` (desktop popover and the shared contents for the mobile More sheet). `components/trip/*` gained a `menuItem` prop that renders menu rows; their dialogs are untouched (WS5).
+- `typeTextColor(color, theme)` and `contrastRatio` are in `lib/type-color.ts` (tests: `tests/type-color.test.mjs`).
+- Not verified in a browser: Import Maps CSV file selection (only that the menu item and file input exist); Export was verified by intercepting the download (file name `Minimal-UI-QA.ics`) rather than saving a file.
+- Review fixes: mobile More sheet now has a Views section (Plan, Board, Table; current marked `aria-current`); global shortcuts are ignored while the trip menu is open; search pick on Spend switches to Plan before opening the editor; ItemSearch `aria-expanded`/`aria-controls` follow the result list; LeafletMap marker state is computed inside its effect (no eslint-disable).
+- Requests: none.
+
 
 ## WS1 — Plan view (Phase 1)
 
@@ -178,6 +188,9 @@ Not part of this rewrite. Needs a decision from the user first: routing provider
 ## Verification log
 
 _(Each workstream adds the checks it actually ran.)_
+
+- WS0: `npm run check` (lint, tsc, Prettier, 94 Node tests) passed. `npx next build --webpack` succeeded. Browser checks on port 3100 at desktop width (about 800px pane), 390px and 320px: all six tabs render; shortcuts 1-6 switch views; tab clicks work; trip menu opens, Escape closes and returns focus to the trigger; trip switch, Edit trip dialog, Export (.ics), Delete trip confirmation (cancelled), theme toggle (light and dark) work from both the desktop popover and the mobile sheet; search finds and opens an item; Map tile filter, numbered pins and OSM attribution present; no horizontal overflow at 320px.
+- WS0 review fixes: `npm run check` passed; browser on port 3100: at 375px the More sheet lists Plan/Board/Table and each opens its view and closes the sheet; with an item selected and the desktop trip menu open, Backspace, Delete and 2 do nothing (Backspace opens the delete confirmation once the menu is closed); search pick on Spend switches to Plan and opens the item.
 
 ## Next step
 

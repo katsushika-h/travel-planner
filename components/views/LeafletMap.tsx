@@ -12,15 +12,18 @@ function markerColor(type: string, colors: Record<string, string>) {
   return /^#[0-9a-f]{6}$/i.test(color) ? color : defaultTypeColor(type);
 }
 
-function markerIcon(color: string, number?: number, highlighted = false) {
-  const size = highlighted ? 42 : 36;
-  const label = number == null ? "" : String(number);
+type MarkerState = "default" | "active" | "dimmed";
+
+/** Numbered stops are outlined circles; unnumbered stops are small type-colour dots. Colours come from theme tokens. */
+function markerIcon(color: string, number?: number, state: MarkerState = "default") {
+  const numbered = number != null;
+  const size = state === "active" ? (numbered ? 36 : 22) : state === "dimmed" ? 10 : numbered ? 26 : 16;
   return L.divIcon({
     className: "travel-map-marker",
-    html: `<svg aria-hidden="true" viewBox="0 0 36 46" width="${size}" height="${Math.round((size * 46) / 36)}" xmlns="http://www.w3.org/2000/svg"><path d="M18 1C8.6 1 1 8.6 1 18c0 12.5 17 27 17 27s17-14.5 17-27C35 8.6 27.4 1 18 1Z" fill="${color}" stroke="#fff" stroke-width="2.5"/><circle cx="18" cy="18" r="10" fill="#fff"/><text x="18" y="22" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="700" fill="${color}">${label}</text></svg>`,
-    iconSize: [size, Math.round((size * 46) / 36)],
-    iconAnchor: [size / 2, Math.round((size * 46) / 36)],
-    popupAnchor: [0, -Math.round((size * 40) / 36)],
+    html: `<span class="travel-map-pin" aria-hidden="true" data-numbered="${numbered}" data-active="${state === "active"}" data-dimmed="${state === "dimmed"}" style="--pin-type: ${color}">${numbered ? number : ""}</span>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
   });
 }
 
@@ -30,8 +33,7 @@ function popupContent(item: TravelObject, number?: number) {
   title.textContent = `${number == null ? "" : `${number}. `}${item.title || "Untitled item"}`;
   content.appendChild(title);
   const details = document.createElement("div");
-  details.style.margin = "4px 0 8px";
-  details.style.color = "#57534e";
+  details.className = "travel-map-popup-meta";
   const fixedTime = itemScheduleLabel(item);
   details.textContent = [item.type, item.location?.name ?? item.location?.address, fixedTime]
     .filter(Boolean)
@@ -40,8 +42,7 @@ function popupContent(item: TravelObject, number?: number) {
   const action = document.createElement("button");
   action.type = "button";
   action.textContent = "Open details";
-  action.style.color = "#047857";
-  action.style.fontWeight = "600";
+  action.className = "travel-map-popup-action";
   action.dataset.openItem = item.id;
   content.appendChild(action);
   return content;
@@ -59,6 +60,8 @@ export interface LeafletMapProps {
   fitKey?: string;
   recenterToken?: number;
   onUserMove?: () => void;
+  /** Items drawn as small muted dots (for example, stops outside a selected day). */
+  dimmedItemIds?: ReadonlySet<string>;
   className?: string;
 }
 
@@ -74,6 +77,7 @@ export function LeafletMap({
   fitKey,
   recenterToken = 0,
   onUserMove,
+  dimmedItemIds,
   className = "min-h-[360px] flex-1",
 }: LeafletMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -152,15 +156,16 @@ export function LeafletMap({
     for (const item of items.filter((item) => hasMapCoordinates(item.location))) {
       const marker = markersRef.current.get(item.id);
       if (!marker) continue;
-      marker.setIcon(
-        markerIcon(
-          markerColor(item.type, typeColors),
-          markerNumbers?.get(item.id),
-          item.id === selectedItemId || item.id === hoveredItemId,
-        ),
-      );
+      const state: MarkerState =
+        item.id === selectedItemId || item.id === hoveredItemId
+          ? "active"
+          : dimmedItemIds?.has(item.id)
+            ? "dimmed"
+            : "default";
+      marker.setIcon(markerIcon(markerColor(item.type, typeColors), markerNumbers?.get(item.id), state));
+      marker.setZIndexOffset(state === "active" ? 1000 : state === "dimmed" ? -1000 : 0);
     }
-  }, [hoveredItemId, items, markerNumbers, selectedItemId, typeColors]);
+  }, [dimmedItemIds, hoveredItemId, items, markerNumbers, selectedItemId, typeColors]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -199,5 +204,5 @@ export function LeafletMap({
     return () => window.clearTimeout(timer);
   }, [fitKey, items, recenterToken]);
 
-  return <div ref={containerRef} className={`relative z-0 isolate bg-stone-100 text-sm text-stone-600 ${className}`} />;
+  return <div ref={containerRef} className={`travel-leaflet-map relative z-0 isolate text-sm ${className}`} />;
 }
