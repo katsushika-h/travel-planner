@@ -490,7 +490,7 @@ export function TableView({
           <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
             <thead className="sticky top-0 z-10 bg-background text-xs text-muted">
               <tr>
-                <th scope="col" className="w-8 border-b border-divider py-3 pr-2">
+                <th scope="col" className="w-8 border-b border-divider py-3 pl-1.5 pr-2">
                   <input
                     ref={selectAllRef}
                     type="checkbox"
@@ -537,7 +537,7 @@ export function TableView({
                     className={`transition-colors hover:bg-surface ${selected ? "bg-surface-selected" : ""}`}
                   >
                     <td
-                      className={`py-1.5 pr-2 ${primarySelectedId === item.id && selected ? "shadow-[inset_2px_0_0_var(--accent)] pl-1.5" : ""}`}
+                      className={`py-1.5 pl-1.5 pr-2 ${primarySelectedId === item.id && selected ? "shadow-[inset_2px_0_0_var(--accent)]" : ""}`}
                     >
                       <input
                         type="checkbox"
