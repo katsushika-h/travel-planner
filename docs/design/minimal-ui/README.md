@@ -70,3 +70,17 @@ Taken from the canonical boards. Put these in `app/globals.css` as CSS variables
 - **Week items:** 3px left bar in the type colour; booked items add a 1px ink top edge; overlapping items indent 12px per earlier overlap, with the title anchored to the top of the card.
 - **Flexible items:** dashed window with a muted label (`Flexible · 11:00–13:30`, `after`, `before`, `anytime`), as shipped in PR #14.
 - **Map:** light uses `filter: grayscale(1) contrast(0.85) brightness(1.08)` on the tile layer; dark uses `filter: invert(1) hue-rotate(180deg) brightness(0.88) contrast(0.92) saturate(0.75)` so parks stay green and water stays blue. Same OSM tiles in both themes; no new tile provider.
+
+## Reference screenshots and re-rendering
+
+`screenshots/` has a full-size render of every canonical board (light and dark), made 2026-10-13: `plan-*`, `week-*`, `board-*`, `table-light`, `table-dark-with-editor`, `item-editor-light`, `map-*`, `spend-*`. Compare implemented views against these.
+
+To regenerate them after a mockup changes, serve this folder and capture with headless Chrome, using `render-board.html` (a small renderer for the canvas format: `{{holes}}`, `sc-for`, `sc-if`, `renderVals()` sample data, local copies of `/_blob/` images):
+
+```bash
+python3 -m http.server 8765 --bind 127.0.0.1 --directory docs/design/minimal-ui
+```
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars --window-size=1440,1200 --virtual-time-budget=10000 --screenshot=out.png "http://127.0.0.1:8765/render-board.html?board=Minimal.dc.html"
+```

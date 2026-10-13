@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Board render</title><style>body{margin:0}</style></head>
+<body>
+<script type="module">
+// Minimal renderer for canvas .dc.html boards: helmet, data-props defaults, renderVals(), {{holes}}, sc-for, sc-if.
+const BLOBS = {
+  "/_blob/e9333d16f4488a0e6654a246bb82124d": "assets/kyoto-higashiyama-osm.webp",
+  "/_blob/cd90b1ac02d733df62b31dacad4a206e": "assets/kansai-osm.webp",
+};
+const board = new URLSearchParams(location.search).get("board");
+const source = await (await fetch("mockups/" + board)).text();
+// <sc-for>/<sc-if> inside <table> would be foster-parented out by the HTML parser; <template> is allowed there.
+const prepared = source
+  .replace(/<sc-for\b/g, '<template data-sc="for"').replace(/<\/sc-for>/g, "</template>")
+  .replace(/<sc-if\b/g, '<template data-sc="if"').replace(/<\/sc-if>/g, "</template>");
+const doc = new DOMParser().parseFromString(prepared, "text/html");
+const root = doc.querySelector("x-dc");
+const helmet = root.querySelector("helmet");
+if (helmet) {
+  for (const el of [...helmet.children]) document.head.appendChild(document.importNode(el, true));
+  helmet.remove();
+}
+const script = doc.querySelector("script[data-dc-script]");
+const defs = JSON.parse(script.getAttribute("data-props") || "{}");
+const props = {};
+for (const [key, def] of Object.entries(defs)) if (!key.startsWith("$") && def && "default" in def) props[key] = def.default;
+class DCLogic {
+  constructor(p) { this.props = p; this.state = {}; }
+  setState(next) { Object.assign(this.state, typeof next === "function" ? next(this.state) : next); }
+  forceUpdate() {}
+}
+const Component = new Function("DCLogic", script.textContent + "\nreturn Component;")(DCLogic);
+const values = new Component(props).renderVals();
+
+function lookup(path, scope) {
+  path = path.trim();
+  if (path === "true") return true;
+  if (path === "false") return false;
+  if (/^-?\d+(\.\d+)?$/.test(path)) return Number(path);
+  let current = scope;
+  for (const part of path.split(".")) { if (current == null) return undefined; current = current[part]; }
+  return current;
+}
+const unblob = (text) => Object.entries(BLOBS).reduce((acc, [from, to]) => acc.split(from).join(to), text);
+const interp = (text, scope) => unblob(text.replace(/\{\{([^}]+)\}\}/g, (_, p) => { const v = lookup(p, scope); return v == null ? "" : String(v); }));
+const WHOLE = /^\s*\{\{([^}]+)\}\}\s*$/;
+
+function render(node, scope, out) {
+  if (node.nodeType === Node.TEXT_NODE) { out.appendChild(document.createTextNode(interp(node.textContent, scope))); return; }
+  if (node.nodeType !== Node.ELEMENT_NODE) return;
+  const tag = node.localName === "template" ? "sc-" + node.dataset.sc : node.localName;
+  const kids = node.localName === "template" ? node.content.childNodes : node.childNodes;
+  if (tag === "sc-for") {
+    const list = lookup(WHOLE.exec(node.getAttribute("list"))[1], scope) || [];
+    const as = node.getAttribute("as");
+    list.forEach((item, index) => {
+      const child = Object.create(scope); child[as] = item; child.$index = index;
+      for (const n of kids) render(n, child, out);
+    });
+    return;
+  }
+  if (tag === "sc-if") {
+    if (lookup(WHOLE.exec(node.getAttribute("value"))[1], scope)) for (const n of kids) render(n, scope, out);
+    return;
+  }
+  if (tag === "dc-import" || tag === "script") return;
+  const el = document.createElementNS(node.namespaceURI, tag);
+  for (const attr of node.attributes) {
+    const name = attr.name;
+    if (/^on/i.test(name) || name.startsWith("hint-")) continue;
+    const whole = WHOLE.exec(attr.value);
+    if (whole) {
+      const v = lookup(whole[1], scope);
+      if (name === "checked") { if (v) el.setAttribute("checked", ""); continue; }
+      if (v == null) continue;
+      el.setAttribute(name, unblob(String(v)));
+    } else el.setAttribute(name, interp(attr.value, scope));
+  }
+  for (const n of node.childNodes) render(n, scope, el);
+  out.appendChild(el);
+}
+for (const n of root.childNodes) render(n, values, document.body);
+await document.fonts.ready;
+document.body.dataset.rendered = "true";
+</script>
+</body>
+</html>
