@@ -4,12 +4,22 @@ import dynamic from "next/dynamic";
 import { useMemo, useState, type MouseEvent } from "react";
 import { dayIndexForDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
+import { sortDayDisplayItems } from "@/lib/schedule-order";
 import type { TravelObject, Trip } from "@/types/travel";
 
 const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.LeafletMap), {
   ssr: false,
-  loading: () => <div className="grid flex-1 place-items-center text-sm text-muted-foreground">Loading map…</div>,
+  loading: () => <div className="grid flex-1 place-items-center text-sm text-muted">Loading map…</div>,
 });
+
+function dayLabel(date: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    timeZone: "UTC",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(`${date}T12:00:00Z`));
+}
 
 export function MapView({
   trip,
@@ -38,13 +48,33 @@ export function MapView({
     () => new Set([...selectedDates].filter((date) => availableDates.has(date))),
     [availableDates, selectedDates],
   );
-  const visibleItems = useMemo(
+  const dimmedItemIds = useMemo(
     () =>
       activeDates.size
-        ? mappedItems.filter((item) => item.date && activeDates.has(item.date.slice(0, 10)))
-        : mappedItems,
+        ? new Set(
+            mappedItems.filter((item) => !item.date || !activeDates.has(item.date.slice(0, 10))).map((item) => item.id),
+          )
+        : new Set<string>(),
     [activeDates, mappedItems],
   );
+  // One selected day numbers its stops in display order; otherwise a pin shows its trip day.
+  const markerNumbers = useMemo(() => {
+    const numbers = new Map<string, number>();
+    if (activeDates.size === 1) {
+      const [date] = activeDates;
+      sortDayDisplayItems(mappedItems.filter((item) => item.date?.slice(0, 10) === date)).forEach((item, index) =>
+        numbers.set(item.id, index + 1),
+      );
+      return numbers;
+    }
+    for (const item of mappedItems) {
+      if (!item.date) continue;
+      const dayNumber = dayIndexForDate(item.date.slice(0, 10), trip.startDate);
+      if (dayNumber > 0) numbers.set(item.id, dayNumber);
+    }
+    return numbers;
+  }, [activeDates, mappedItems, trip.startDate]);
+  const unmappedCount = items.length - mappedItems.length;
 
   function filterDay(date: string, event: MouseEvent<HTMLButtonElement>) {
     setSelectedDates((current) => {
@@ -57,86 +87,95 @@ export function MapView({
     });
   }
 
-  return (
-    <section
-      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-neutral-900"
-      aria-label="Trip locations map"
-    >
-      <header className="flex items-center justify-between gap-3 border-b px-4 py-3">
-        <div>
-          <h2 className="text-sm font-semibold">Trip map</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {activeDates.size
-              ? `${visibleItems.length} of ${mappedItems.length} mapped items shown`
-              : `${mappedItems.length} of ${items.length} items have coordinates`}
+  if (!mappedItems.length)
+    return (
+      <section className="grid min-h-0 flex-1 place-items-center p-8 text-center" aria-label="Trip locations map">
+        <div className="max-w-sm">
+          <p className="text-sm font-medium">No locations to map yet</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted">
+            Paste a Google Maps link containing coordinates into an item. Links without embedded coordinates stay saved
+            but cannot appear on this map.
           </p>
         </div>
-      </header>
-      {mappedItems.length ? (
-        <>
-          <LeafletMap
-            key={trip.id}
-            trip={trip}
-            items={visibleItems}
-            typeColors={typeColors}
-            onSelect={onSelect}
-            fitKey={[...activeDates].sort().join(",") || "all"}
-          />
-          <footer className="shrink-0 border-t px-4 py-3">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-muted-foreground">
-                Filter by day
-              </p>
-              <p className="text-[10px] text-muted-foreground sm:hidden">Tap days to select multiple</p>
-              <p className="hidden text-[10px] text-muted-foreground sm:block">Shift-click to select multiple</p>
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-1">
+      </section>
+    );
+
+  const allActive = activeDates.size === 0;
+  const rowBase =
+    "grid items-baseline text-left transition-colors hover:bg-surface max-sm:min-h-11 max-sm:shrink-0 max-sm:grid-cols-[auto_auto] max-sm:gap-x-2 max-sm:border max-sm:border-divider max-sm:px-3 max-sm:py-2 sm:min-h-14 sm:grid-cols-[52px_minmax(0,1fr)_auto] sm:gap-x-3 sm:border-b sm:border-divider sm:py-3";
+
+  return (
+    <section
+      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4 pt-4 sm:flex-row sm:gap-12 sm:overflow-hidden sm:px-12 sm:pb-8 sm:pt-6"
+      aria-label="Trip locations map"
+    >
+      <nav aria-label="Filter map by day" className="flex shrink-0 flex-col sm:min-h-0 sm:w-72 lg:w-80">
+        <h1 className="hidden text-[22px] font-medium tracking-tight sm:mb-4 sm:block">Whole trip</h1>
+        <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-col sm:gap-0 sm:overflow-y-auto sm:border-t sm:border-foreground sm:pb-0">
+          <button
+            type="button"
+            aria-pressed={allActive}
+            onClick={() => setSelectedDates(new Set())}
+            className={rowBase}
+          >
+            <span className={`font-mono text-lg font-light max-sm:hidden ${allActive ? "text-accent" : "text-faint"}`}>
+              —
+            </span>
+            <span className="flex flex-col gap-0.5">
+              <span className={`text-[15px] ${allActive ? "font-semibold" : ""}`}>All days</span>
+              <span className="text-xs text-muted max-sm:hidden">{trip.title}</span>
+            </span>
+            <span className="font-mono text-xs text-muted">{mappedItems.length}</span>
+          </button>
+          {days.map(([date, count]) => {
+            const dayNumber = dayIndexForDate(date, trip.startDate);
+            const active = activeDates.has(date);
+            return (
               <button
+                key={date}
                 type="button"
-                aria-pressed={activeDates.size === 0}
-                onClick={() => setSelectedDates(new Set())}
-                className={`min-h-11 shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition sm:min-h-0 ${activeDates.size === 0 ? "border-emerald-700 bg-emerald-700 text-white" : "bg-background hover:border-emerald-500 hover:text-emerald-800 dark:hover:text-emerald-300"}`}
+                aria-pressed={active}
+                title={`${count} mapped ${count === 1 ? "item" : "items"}`}
+                onClick={(event) => filterDay(date, event)}
+                className={rowBase}
               >
-                All
+                <span className={`font-mono text-lg font-light max-sm:hidden ${active ? "text-accent" : "text-faint"}`}>
+                  {dayNumber > 0 ? String(dayNumber).padStart(2, "0") : "·"}
+                </span>
+                <span className="flex flex-col gap-0.5">
+                  <span className={`text-[15px] ${active ? "font-semibold" : ""}`}>
+                    <span className="sm:hidden">{dayNumber > 0 ? `Day ${dayNumber} · ` : ""}</span>
+                    {dayLabel(date)}
+                  </span>
+                  <span className="text-xs text-muted max-sm:hidden">
+                    {count} {count === 1 ? "stop" : "stops"}
+                  </span>
+                </span>
+                <span className="font-mono text-xs text-muted">{count}</span>
               </button>
-              {days.map(([date, count]) => {
-                const dayNumber = dayIndexForDate(date, trip.startDate);
-                const label = new Intl.DateTimeFormat(undefined, {
-                  timeZone: "UTC",
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                }).format(new Date(`${date}T12:00:00Z`));
-                const active = activeDates.has(date);
-                return (
-                  <button
-                    key={date}
-                    type="button"
-                    aria-pressed={active}
-                    title={`${count} mapped ${count === 1 ? "item" : "items"}`}
-                    onClick={(event) => filterDay(date, event)}
-                    className={`min-h-11 shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition sm:min-h-0 ${active ? "border-emerald-700 bg-emerald-700 text-white" : "bg-background hover:border-emerald-500 hover:text-emerald-800 dark:hover:text-emerald-300"}`}
-                  >
-                    {dayNumber > 0 ? `Day ${dayNumber} · ` : ""}
-                    {label}
-                    <span className={`ml-1.5 ${active ? "text-emerald-100" : "text-muted-foreground"}`}>{count}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </footer>
-        </>
-      ) : (
-        <div className="grid min-h-0 flex-1 place-items-center p-8 text-center">
-          <div className="max-w-sm">
-            <p className="text-sm font-medium">No locations to map yet</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Paste a Google Maps link containing coordinates into an item. Links without embedded coordinates stay
-              saved but cannot appear on this map.
-            </p>
-          </div>
+            );
+          })}
         </div>
-      )}
+        <p className="mt-4 text-[13px] leading-normal text-muted">
+          Picking a day fits the map to its stops.
+          <span className="hidden sm:inline"> Shift-click to select several days.</span>
+          <span className="sm:hidden"> Tap days to select several.</span>
+          {unmappedCount > 0 &&
+            ` ${unmappedCount} ${unmappedCount === 1 ? "item has" : "items have"} no location and ${unmappedCount === 1 ? "isn't" : "aren't"} shown.`}
+        </p>
+      </nav>
+      <div className="flex min-h-[320px] min-w-0 flex-1 flex-col bg-surface max-sm:h-[60dvh] max-sm:flex-none sm:min-h-0">
+        <LeafletMap
+          key={trip.id}
+          trip={trip}
+          items={mappedItems}
+          typeColors={typeColors}
+          onSelect={onSelect}
+          markerNumbers={markerNumbers}
+          dimmedItemIds={dimmedItemIds}
+          fitKey={[...activeDates].sort().join(",") || "all"}
+        />
+      </div>
     </section>
   );
 }
