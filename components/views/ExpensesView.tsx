@@ -219,7 +219,7 @@ export function ExpensesView({ trip, items }: { trip: Trip; items: TravelObject[
   }
 
   const categoryName = (category: string) => category[0].toUpperCase() + category.slice(1);
-  const columns = "sm:grid-cols-[88px_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto_72px]";
+  const columns = "lg:grid-cols-[88px_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)_112px_72px]";
 
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-8 pt-4 sm:px-12 sm:pt-6">
@@ -405,7 +405,7 @@ export function ExpensesView({ trip, items }: { trip: Trip; items: TravelObject[
               {totals.currencies.length > 0 && (
                 <section
                   aria-label={`Spend by category in ${activeCategoryCurrency}`}
-                  className="shrink-0 self-start border-t border-foreground lg:w-80 lg:max-w-[380px]"
+                  className="shrink-0 self-stretch border-t border-foreground lg:w-80 lg:max-w-[380px] lg:self-start"
                 >
                   <div className="flex items-baseline justify-between pb-2 pt-3">
                     <h2 className="text-[15px] font-medium">By category</h2>
@@ -425,7 +425,7 @@ export function ExpensesView({ trip, items }: { trip: Trip; items: TravelObject[
                   </div>
                   {categoryRows.map(({ category, amount, width }) => (
                     <div key={category} className="flex flex-col gap-1.5 border-b border-divider py-3">
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between gap-3 text-sm">
                         <span>{categoryName(category)}</span>
                         <span className="font-mono text-[13px]">
                           {amount ? formatExpenseAmount(amount, activeCategoryCurrency) : "—"}
@@ -503,7 +503,7 @@ export function ExpensesView({ trip, items }: { trip: Trip; items: TravelObject[
                 </div>
                 {visibleExpenses.length ? (
                   <>
-                    <div aria-hidden="true" className={`hidden gap-x-3 py-3 text-xs text-muted sm:grid ${columns}`}>
+                    <div aria-hidden="true" className={`hidden gap-x-3 py-3 text-xs text-muted lg:grid ${columns}`}>
                       <span>Date</span>
                       <span>Description</span>
                       <span>Category</span>
@@ -519,11 +519,11 @@ export function ExpensesView({ trip, items }: { trip: Trip; items: TravelObject[
                         return (
                           <li
                             key={expense.id}
-                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-t border-divider py-2.5 text-sm hover:bg-surface max-sm:first:border-t-0 ${columns}`}
+                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-t border-divider py-2.5 text-sm hover:bg-surface max-lg:first:border-t-0 ${columns}`}
                           >
                             <span
                               title={expense.date}
-                              className="font-mono text-[13px] whitespace-nowrap text-muted max-sm:order-2 max-sm:col-span-2 sm:text-foreground"
+                              className="font-mono text-[13px] whitespace-nowrap text-muted max-lg:order-2 max-lg:col-span-2 lg:text-foreground"
                             >
                               {new Intl.DateTimeFormat("en-US", {
                                 timeZone: "UTC",
@@ -531,27 +531,27 @@ export function ExpensesView({ trip, items }: { trip: Trip; items: TravelObject[
                                 day: "2-digit",
                               }).format(new Date(`${expense.date}T12:00:00Z`))}
                             </span>
-                            <span className="min-w-0 font-medium max-sm:order-1">
+                            <span className="min-w-0 font-medium max-lg:order-1">
                               {expense.description}
                               {expense.notes && (
                                 <span className="mt-0.5 block text-xs font-normal text-muted">{expense.notes}</span>
                               )}
                             </span>
-                            <span className="text-muted max-sm:hidden">{categoryName(expense.category)}</span>
-                            <span className="min-w-0 text-muted max-sm:order-3 max-sm:col-span-2 max-sm:text-xs">
-                              <span className="sm:hidden">{categoryName(expense.category)}</span>
-                              {linked && <span className="sm:hidden"> · </span>}
-                              {linked ?? <span className="max-sm:hidden">—</span>}
+                            <span className="text-muted max-lg:hidden">{categoryName(expense.category)}</span>
+                            <span className="min-w-0 text-muted max-lg:order-3 max-lg:col-span-2 max-lg:text-xs">
+                              <span className="lg:hidden">{categoryName(expense.category)}</span>
+                              {linked && <span className="lg:hidden"> · </span>}
+                              {linked ?? <span className="max-lg:hidden">—</span>}
                             </span>
-                            <span className="text-right font-mono text-[13px] whitespace-nowrap max-sm:order-1">
+                            <span className="text-right font-mono text-[13px] whitespace-nowrap max-lg:order-1">
                               {formatExpenseAmount(expense.amount, expense.currency)}
                             </span>
-                            <span className="flex justify-end max-sm:order-4 max-sm:col-span-2">
+                            <span className="flex justify-end max-lg:order-4 max-lg:col-span-2">
                               <button
                                 type="button"
                                 onClick={() => startEdit(expense)}
                                 aria-label={`Edit ${expense.description}`}
-                                className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-foreground sm:size-8"
+                                className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-foreground lg:size-8"
                               >
                                 <Pencil size={14} />
                               </button>
@@ -559,7 +559,7 @@ export function ExpensesView({ trip, items }: { trip: Trip; items: TravelObject[
                                 type="button"
                                 onClick={() => setDeleteTarget(expense)}
                                 aria-label={`Delete ${expense.description}`}
-                                className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-danger sm:size-8"
+                                className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-danger lg:size-8"
                               >
                                 <Trash2 size={14} />
                               </button>
