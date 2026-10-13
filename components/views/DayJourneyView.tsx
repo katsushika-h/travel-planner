@@ -20,7 +20,7 @@ import { eventItems, isNote } from "@/lib/note-domain";
 import { formatTripDate, shiftDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { itemDateSpan } from "@/lib/schedule-domain";
-import { sortDayDisplayItems } from "@/lib/schedule-order";
+import { sameDayGapOrder, sortDayDisplayItems } from "@/lib/schedule-order";
 import { typeColor } from "@/lib/type-color";
 import { flexibleDisplayTimes, formatPlannedCost, stopNumbers } from "@/components/views/plan/plan-domain";
 import type { LocationData, TravelObject, Trip } from "@/types/travel";
@@ -283,7 +283,10 @@ function DateSection({
   onCreate: (date: string, order: number) => void;
   onFocusDay: () => void;
 }) {
-  const { setNodeRef: setSectionDropRef, isOver } = useDroppable({ id: `day-section:${date}:${items.length}` });
+  const gapOrder = (visibleGap: number) => sameDayGapOrder(items, date, visibleGap);
+  const { setNodeRef: setSectionDropRef, isOver } = useDroppable({
+    id: `day-section:${date}:${gapOrder(items.length)}`,
+  });
   const events = eventItems(items);
   const numbers = stopNumbers(events);
   const flexTimes = flexibleDisplayTimes(events);
@@ -319,14 +322,14 @@ function DateSection({
           <button
             type="button"
             className="mr-1 min-h-11 px-2 text-[13px] underline underline-offset-2 sm:hidden"
-            onClick={() => onCreate(date, items.length)}
+            onClick={() => onCreate(date, gapOrder(items.length))}
           >
             Add event
           </button>
           <button
             type="button"
             className="mr-3 min-h-11 px-2 text-[13px] text-muted underline underline-offset-2 sm:hidden"
-            onClick={() => onAddNote(date, items.length)}
+            onClick={() => onAddNote(date, gapOrder(items.length))}
           >
             Add note
           </button>
@@ -336,8 +339,13 @@ function DateSection({
         {items.length ? (
           items.map((item, index) => (
             <div key={item.id}>
-              <DropGap date={date} order={index} onCreate={onCreate} onAddNote={() => onAddNote(date, index)} />
-              <DayItemDrop date={date} order={index}>
+              <DropGap
+                date={date}
+                order={gapOrder(index)}
+                onCreate={onCreate}
+                onAddNote={() => onAddNote(date, gapOrder(index))}
+              />
+              <DayItemDrop date={date} order={gapOrder(index)}>
                 {isNote(item) ? (
                   <ItemNoteCard
                     item={item}
@@ -380,9 +388,9 @@ function DateSection({
         {items.length > 0 && (
           <DropGap
             date={date}
-            order={items.length}
+            order={gapOrder(items.length)}
             onCreate={onCreate}
-            onAddNote={() => onAddNote(date, items.length)}
+            onAddNote={() => onAddNote(date, gapOrder(items.length))}
           />
         )}
       </div>

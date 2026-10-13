@@ -251,3 +251,17 @@ test("Week groups flexible items into the free window between fixed neighbours",
   const overnight = item("overnight", 0, "22:00", "06:00", "2026-09-25");
   assert.equal(weekFlexibleWindows([overnight, lunch])[0].start, "24:00");
 });
+
+test("sameDayGapOrder skips carried-over multi-day items when translating a visible gap", async () => {
+  const { sameDayGapOrder } = await import("../lib/schedule-order.ts");
+  const visible = [
+    { id: "hotel", date: "2026-12-01" },
+    { id: "a", date: "2026-12-03" },
+    { id: "b", date: "2026-12-03" },
+  ];
+  assert.equal(sameDayGapOrder(visible, "2026-12-03", 0), 0);
+  assert.equal(sameDayGapOrder(visible, "2026-12-03", 1), 0);
+  assert.equal(sameDayGapOrder(visible, "2026-12-03", 2), 1);
+  assert.equal(sameDayGapOrder(visible, "2026-12-03", 3), 2);
+  assert.equal(sameDayGapOrder(visible, "2026-12-01", 3), 1);
+});
