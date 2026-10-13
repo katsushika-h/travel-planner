@@ -89,11 +89,6 @@ export function LeafletMap({
   const programmaticMoveRef = useRef(false);
   const lastSelectedItemRef = useRef<string | null | undefined>(undefined);
 
-  function markerState(itemId: string): MarkerState {
-    if (itemId === selectedItemId || itemId === hoveredItemId) return "active";
-    return dimmedItemIds?.has(itemId) ? "dimmed" : "default";
-  }
-
   useEffect(() => {
     callbacksRef.current = { onSelect, onHover, onUserMove };
   }, [onHover, onSelect, onUserMove]);
@@ -161,12 +156,15 @@ export function LeafletMap({
     for (const item of items.filter((item) => hasMapCoordinates(item.location))) {
       const marker = markersRef.current.get(item.id);
       if (!marker) continue;
-      const state = markerState(item.id);
+      const state: MarkerState =
+        item.id === selectedItemId || item.id === hoveredItemId
+          ? "active"
+          : dimmedItemIds?.has(item.id)
+            ? "dimmed"
+            : "default";
       marker.setIcon(markerIcon(markerColor(item.type, typeColors), markerNumbers?.get(item.id), state));
       marker.setZIndexOffset(state === "active" ? 1000 : state === "dimmed" ? -1000 : 0);
     }
-    // markerState reads only the props listed here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dimmedItemIds, hoveredItemId, items, markerNumbers, selectedItemId, typeColors]);
 
   useEffect(() => {

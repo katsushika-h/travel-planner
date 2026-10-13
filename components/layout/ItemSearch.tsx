@@ -98,8 +98,8 @@ export function ItemSearch({
             placeholder="Search stops, places, tags"
             aria-label="Search items"
             role="combobox"
-            aria-expanded="true"
-            aria-controls={listId}
+            aria-expanded={results.length > 0}
+            aria-controls={results.length ? listId : undefined}
             aria-activedescendant={results.length ? `${listId}-${active}` : undefined}
             autoComplete="off"
             onChange={(event) => {

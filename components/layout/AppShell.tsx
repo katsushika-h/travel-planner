@@ -34,6 +34,7 @@ import { ExpensesView } from "@/components/views/ExpensesView";
 import { useTripData } from "@/components/layout/useTripData";
 import { useItemActions } from "@/components/layout/useItemActions";
 import { useItemSelection } from "@/components/layout/useItemSelection";
+import { menuItemClassName } from "@/components/ui/menu-item";
 import { ItemSearch } from "@/components/layout/ItemSearch";
 import { TripMenuContents, TripSwitcher, moveMenuFocus, useMenuDismiss } from "@/components/layout/TripMenu";
 import { eventItems, isNote } from "@/lib/note-domain";
@@ -230,7 +231,11 @@ export function AppShell() {
   };
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.defaultPrevented || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      if (
+        event.defaultPrevented ||
+        document.querySelector('[role="dialog"][aria-modal="true"], [aria-label="Trip menu"]')
+      )
+        return;
       const target = event.target;
       if (
         target instanceof HTMLElement &&
@@ -330,6 +335,23 @@ export function AppShell() {
             >
               <X />
             </Button>
+          </div>
+          <div className="border-b border-divider py-2">
+            <p className="px-4 pt-1 pb-2 text-xs text-muted">Views</p>
+            {(["days", "kanban", "table"] as const).map((id) => (
+              <button
+                key={id}
+                type="button"
+                aria-current={activeTab === id ? "page" : undefined}
+                onClick={() => {
+                  setActiveTab(id);
+                  closeMobileMenu();
+                }}
+                className={`${menuItemClassName} ${activeTab === id ? "font-medium" : ""}`}
+              >
+                {plannerTabLabels[id]}
+              </button>
+            ))}
           </div>
           <TripMenuContents {...tripMenuProps} onDone={() => closeMobileMenu()} />
         </div>
@@ -613,6 +635,8 @@ export function AppShell() {
             onClose={() => setSearchOpen(false)}
             onPick={(item) => {
               setSearchOpen(false);
+              // The inspector is not shown on Spend, so move to a view that has it first.
+              if (activeTab === "expenses") setActiveTab("days");
               inspectItem(item);
             }}
           />

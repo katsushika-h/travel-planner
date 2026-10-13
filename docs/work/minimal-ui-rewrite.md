@@ -75,6 +75,7 @@ Each agent, when finishing: tick its checklist here, fill in **Notes / Requests*
 - Trip menu pieces live in `components/layout/TripMenu.tsx` (desktop popover and the shared contents for the mobile More sheet). `components/trip/*` gained a `menuItem` prop that renders menu rows; their dialogs are untouched (WS5).
 - `typeTextColor(color, theme)` and `contrastRatio` are in `lib/type-color.ts` (tests: `tests/type-color.test.mjs`).
 - Not verified in a browser: Import Maps CSV file selection (only that the menu item and file input exist); Export was verified by intercepting the download (file name `Minimal-UI-QA.ics`) rather than saving a file.
+- Review fixes: mobile More sheet now has a Views section (Plan, Board, Table; current marked `aria-current`); global shortcuts are ignored while the trip menu is open; search pick on Spend switches to Plan before opening the editor; ItemSearch `aria-expanded`/`aria-controls` follow the result list; LeafletMap marker state is computed inside its effect (no eslint-disable).
 - Requests: none.
 
 
@@ -189,6 +190,7 @@ Not part of this rewrite. Needs a decision from the user first: routing provider
 _(Each workstream adds the checks it actually ran.)_
 
 - WS0: `npm run check` (lint, tsc, Prettier, 94 Node tests) passed. `npx next build --webpack` succeeded. Browser checks on port 3100 at desktop width (about 800px pane), 390px and 320px: all six tabs render; shortcuts 1-6 switch views; tab clicks work; trip menu opens, Escape closes and returns focus to the trigger; trip switch, Edit trip dialog, Export (.ics), Delete trip confirmation (cancelled), theme toggle (light and dark) work from both the desktop popover and the mobile sheet; search finds and opens an item; Map tile filter, numbered pins and OSM attribution present; no horizontal overflow at 320px.
+- WS0 review fixes: `npm run check` passed; browser on port 3100: at 375px the More sheet lists Plan/Board/Table and each opens its view and closes the sheet; with an item selected and the desktop trip menu open, Backspace, Delete and 2 do nothing (Backspace opens the delete confirmation once the menu is closed); search pick on Spend switches to Plan and opens the item.
 
 ## Next step
 
