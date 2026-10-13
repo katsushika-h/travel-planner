@@ -40,10 +40,9 @@ function textOptionClass(active: boolean) {
     active ? "border-foreground font-medium text-foreground" : "border-transparent text-muted hover:text-foreground"
   }`;
 }
-/** Weeks run in seven-day blocks from the trip's first day, so Day 1 opens the first week (as in the Minimal design). */
-function weekStartOf(date: string, tripStart: string) {
-  const days = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${tripStart}T00:00:00Z`)) / 86_400_000);
-  return shiftDate(tripStart, Math.floor(days / 7) * 7);
+function sundayOf(date: string) {
+  const value = new Date(`${date}T00:00:00Z`);
+  return shiftDate(date, -value.getUTCDay());
 }
 
 export function CalendarView({
@@ -115,7 +114,7 @@ export function CalendarView({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 3 } }));
   const ideas = eventItems(items).filter((item) => item.date === null);
   const scheduledItems = items.filter((item) => item.date !== null);
-  const weekStart = weekStartOf(focusDate, start);
+  const weekStart = sundayOf(focusDate);
   const weekDates = Array.from({ length: 7 }, (_, index) => shiftDate(weekStart, index));
   const requestDay = useCallback(
     (date: string) => {
