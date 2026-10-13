@@ -15,7 +15,8 @@ Travel Planner is a single-user itinerary app built with Next.js 16, React 19, T
 
 - `app/`: pages and API route handlers.
 - `components/layout/AppShell.tsx`: active trip, items, selection, editing, and workspace view coordination.
-- `components/views/`, `components/inspector/`, `components/trip/`: workspace views, item editing, and trip/item actions.
+- `components/layout/useItemActions.ts`: item create, move, reorder, type, and delete actions used by the shell.
+- `components/views/`, `components/inspector/`, `components/trip/`: workspace views, item editing, and trip/item actions. `components/views/calendar/` holds the Month, Week, and Ideas parts of `CalendarView`.
 - `lib/api-client.ts`, `lib/api-validation.ts`, `lib/date-utils.ts`, `lib/schedule-domain.ts`, `lib/schedule-order.ts`, `lib/travel-object-serialization.ts`: request flow and schedule logic.
 - `store/use-travel-store.ts`: persisted client UI preferences; `types/travel.ts`: shared browser types.
 - `prisma/schema.prisma`, `prisma/migrations/`: persisted model and migrations.
@@ -31,7 +32,7 @@ Travel Planner is a single-user itinerary app built with Next.js 16, React 19, T
 
 ## Commands and deployment
 
-Run `npm ci` to install, `npm run dev` for local development, and `npm run check` for canonical lint, type checking, and Node schedule-domain tests. For production build verification, run `npx next build --webpack`; the Dockerfile uses webpack. Run the narrowest relevant check while iterating, then `npm run check` before completing substantial changes when practical. Report only checks actually run.
+Run `npm ci` to install, `npm run dev` for local development, and `npm run check` for canonical lint, type checking, Prettier formatting, and Node schedule-domain tests. Run `npm run format` to apply Prettier. For production build verification, run `npx next build --webpack`; the Dockerfile uses webpack. Run the narrowest relevant check while iterating, then `npm run check` before completing substantial changes when practical. Report only checks actually run.
 
 Do not rebuild or push Docker images unless deployment is requested. The target is **Linux AMD64**: explicitly use `--platform linux/amd64` for both app and migrator images. Rebuild the migrator when migrations change. After building the app image for deployment, push it with `docker push hokusaik/travel-planner-app:latest`.
 

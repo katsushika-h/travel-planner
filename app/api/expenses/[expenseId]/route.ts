@@ -9,7 +9,9 @@ type Context = { params: Promise<{ expenseId: string }> };
 export async function GET(_request: Request, { params }: Context) {
   const { expenseId } = await params;
   const expense = await prisma.expense.findUnique({ where: { id: expenseId } });
-  return expense ? Response.json(serializeExpense(expense)) : Response.json({ error: "Expense not found." }, { status: 404 });
+  return expense
+    ? Response.json(serializeExpense(expense))
+    : Response.json({ error: "Expense not found." }, { status: 404 });
 }
 
 export async function PATCH(request: Request, { params }: Context) {
@@ -20,8 +22,12 @@ export async function PATCH(request: Request, { params }: Context) {
     const existing = await prisma.expense.findUnique({ where: { id: expenseId }, select: { tripId: true } });
     if (!existing) return Response.json({ error: "Expense not found." }, { status: 404 });
     if (data.travelObjectId) {
-      const linked = await prisma.travelObject.findUnique({ where: { id: data.travelObjectId }, select: { tripId: true } });
-      if (linked?.tripId !== existing.tripId) return Response.json({ error: "Linked item must belong to this trip." }, { status: 400 });
+      const linked = await prisma.travelObject.findUnique({
+        where: { id: data.travelObjectId },
+        select: { tripId: true },
+      });
+      if (linked?.tripId !== existing.tripId)
+        return Response.json({ error: "Linked item must belong to this trip." }, { status: 400 });
     }
     const expense = await prisma.expense.update({ where: { id: expenseId }, data });
     return Response.json(serializeExpense(expense));

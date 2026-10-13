@@ -3,7 +3,15 @@ import test from "node:test";
 import { decimalToThousandths, expenseTotals, plannedCostTotals } from "../lib/expense-domain.ts";
 import { readExpenseFields } from "../lib/expense-validation.ts";
 
-const base = { description: "  Train ticket  ", date: "2026-08-31", amount: "12.345", currency: "SGD", category: "transport", notes: null, travelObjectId: null };
+const base = {
+  description: "  Train ticket  ",
+  date: "2026-08-31",
+  amount: "12.345",
+  currency: "SGD",
+  category: "transport",
+  notes: null,
+  travelObjectId: null,
+};
 
 test("expense creation validates exact decimal amounts and calendar dates", () => {
   const parsed = readExpenseFields(base, "create");
@@ -20,7 +28,10 @@ test("expense creation validates exact decimal amounts and calendar dates", () =
 });
 
 test("expense updates validate only supplied fields and nullable links", () => {
-  assert.deepEqual(readExpenseFields({ notes: "", travelObjectId: null }, "update"), { notes: null, travelObjectId: null });
+  assert.deepEqual(readExpenseFields({ notes: "", travelObjectId: null }, "update"), {
+    notes: null,
+    travelObjectId: null,
+  });
   assert.deepEqual(readExpenseFields({ amount: "3.5" }, "update"), { amount: "3.500" });
   assert.throws(() => readExpenseFields({}, "update"), /Provide at least one field/);
   assert.throws(() => readExpenseFields({ category: "unknown" }, "update"), /supported expense category/);
@@ -35,8 +46,24 @@ test("actual expenses sum exactly by currency and category without mixing planne
   ];
   assert.equal(decimalToThousandths("1.005"), BigInt(1005));
   assert.deepEqual(expenseTotals(expenses), {
-    currencies: [{ currency: "SGD", amount: "0.300" }, { currency: "USD", amount: "1.005" }],
-    categories: [{ currency: "SGD", category: "food", amount: "0.300" }, { currency: "USD", category: "transport", amount: "1.005" }],
+    currencies: [
+      { currency: "SGD", amount: "0.300" },
+      { currency: "USD", amount: "1.005" },
+    ],
+    categories: [
+      { currency: "SGD", category: "food", amount: "0.300" },
+      { currency: "USD", category: "transport", amount: "1.005" },
+    ],
   });
-  assert.deepEqual(plannedCostTotals([{ cost: { amount: 5, currency: "SGD" } }, { cost: null }, { cost: { amount: 2, currency: "USD" } }]), [{ currency: "SGD", amount: 5 }, { currency: "USD", amount: 2 }]);
+  assert.deepEqual(
+    plannedCostTotals([
+      { cost: { amount: 5, currency: "SGD" } },
+      { cost: null },
+      { cost: { amount: 2, currency: "USD" } },
+    ]),
+    [
+      { currency: "SGD", amount: 5 },
+      { currency: "USD", amount: 2 },
+    ],
+  );
 });

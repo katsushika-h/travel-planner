@@ -1,6 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { allDayCalendarDays, allDayDropStartDate, canonicalScheduleFromInstants, elapsedDurationMinutes, endForAllDayCalendarDays, endForElapsedDuration, groupedMoveTarget, itemDateSpan, itemScheduleLabel, moveAllDayRange, moveFixedTimeRange, occursOnItineraryDate, oneHourEnd, placeUnfixedItem, resizeFixedTimeRange, scheduleAtTableStart, scheduleKind, schedulePatchForMove } from "../lib/schedule-domain.ts";
+import {
+  allDayCalendarDays,
+  allDayDropStartDate,
+  canonicalScheduleFromInstants,
+  elapsedDurationMinutes,
+  endForAllDayCalendarDays,
+  endForElapsedDuration,
+  groupedMoveTarget,
+  itemDateSpan,
+  itemScheduleLabel,
+  moveAllDayRange,
+  moveFixedTimeRange,
+  occursOnItineraryDate,
+  oneHourEnd,
+  placeUnfixedItem,
+  resizeFixedTimeRange,
+  scheduleAtTableStart,
+  scheduleKind,
+  schedulePatchForMove,
+} from "../lib/schedule-domain.ts";
 import { endDateTimeFor, shiftDate, startDateTimeFor, zonedDateTimeToUtc } from "../lib/date-utils.ts";
 import { serializeTravelObject } from "../lib/travel-object-serialization.ts";
 
@@ -13,12 +32,24 @@ test("calendar-day shifts cross leap days and year boundaries", () => {
 
 test("visible item spans use canonical dates and include the final day", () => {
   assert.deepEqual(itemDateSpan({ date: null, endDate: null }), { first: null, last: null });
-  assert.deepEqual(itemDateSpan({ date: "2026-09-24T00:00:00.000Z", endDate: null }), { first: "2026-09-24", last: "2026-09-24" });
-  assert.deepEqual(itemDateSpan({ date: "2026-09-24", endDate: "2026-09-26" }), { first: "2026-09-24", last: "2026-09-26" });
+  assert.deepEqual(itemDateSpan({ date: "2026-09-24T00:00:00.000Z", endDate: null }), {
+    first: "2026-09-24",
+    last: "2026-09-24",
+  });
+  assert.deepEqual(itemDateSpan({ date: "2026-09-24", endDate: "2026-09-26" }), {
+    first: "2026-09-24",
+    last: "2026-09-26",
+  });
 });
 
 test("unscheduled and flexible items have no confirmed elapsed duration", () => {
-  assert.equal(elapsedDurationMinutes({ date: null, endDate: null, startTime: null, endTime: null, isAllDay: false }, "Asia/Singapore"), null);
+  assert.equal(
+    elapsedDurationMinutes(
+      { date: null, endDate: null, startTime: null, endTime: null, isAllDay: false },
+      "Asia/Singapore",
+    ),
+    null,
+  );
   const flexible = { date: "2026-09-23", endDate: "2026-09-23", startTime: null, endTime: null, isAllDay: false };
   assert.equal(elapsedDurationMinutes(flexible, "Asia/Singapore"), null);
   assert.equal(startDateTimeFor(flexible, "Asia/Singapore"), null);
@@ -36,30 +67,108 @@ test("short schedule labels keep confirmed times distinct from flexible placemen
   assert.equal(itemScheduleLabel({ isAllDay: true, startTime: null, endTime: null }), "All day");
   assert.equal(itemScheduleLabel({ isAllDay: false, startTime: "09:00", endTime: "10:30" }), "09:00–10:30");
   assert.equal(itemScheduleLabel({ isAllDay: false, startTime: null, endTime: null }), null);
-  assert.equal(itemScheduleLabel({ isAllDay: false, startTime: null, endTime: null }, "Unscheduled time"), "Unscheduled time");
+  assert.equal(
+    itemScheduleLabel({ isAllDay: false, startTime: null, endTime: null }, "Unscheduled time"),
+    "Unscheduled time",
+  );
 });
 
 test("placing undated and flexible items preserves saved times and overnight defaults", () => {
   const flexible = placeUnfixedItem({ startTime: null, endTime: null, placementTime: "13:15" }, "2026-09-23");
-  assert.deepEqual(flexible, { kind: "flexible", date: "2026-09-23", endDate: "2026-09-23", startTime: null, endTime: null, placementTime: "13:15", isAllDay: false });
+  assert.deepEqual(flexible, {
+    kind: "flexible",
+    date: "2026-09-23",
+    endDate: "2026-09-23",
+    startTime: null,
+    endTime: null,
+    placementTime: "13:15",
+    isAllDay: false,
+  });
   assert.equal(startDateTimeFor(flexible, "Asia/Singapore"), null);
   const restored = placeUnfixedItem({ startTime: "14:00", endTime: "15:30", placementTime: null }, "2026-09-24");
-  assert.deepEqual(restored, { kind: "fixed", date: "2026-09-24", endDate: "2026-09-24", startTime: "14:00", endTime: "15:30", placementTime: null, isAllDay: false });
+  assert.deepEqual(restored, {
+    kind: "fixed",
+    date: "2026-09-24",
+    endDate: "2026-09-24",
+    startTime: "14:00",
+    endTime: "15:30",
+    placementTime: null,
+    isAllDay: false,
+  });
   const overnight = placeUnfixedItem({ startTime: null, endTime: null, placementTime: null }, "2026-09-24", "23:30");
-  assert.deepEqual(overnight, { kind: "fixed", date: "2026-09-24", endDate: "2026-09-25", startTime: "23:30", endTime: "00:30", placementTime: null, isAllDay: false });
+  assert.deepEqual(overnight, {
+    kind: "fixed",
+    date: "2026-09-24",
+    endDate: "2026-09-25",
+    startTime: "23:30",
+    endTime: "00:30",
+    placementTime: null,
+    isAllDay: false,
+  });
   assert.equal(endDateTimeFor(overnight, "Asia/Singapore"), "2026-09-24T16:30:00.000Z");
 });
 
 test("item move patches retain all-day spans and separate flexible from confirmed time", () => {
-  assert.deepEqual(schedulePatchForMove({ date: "2026-03-07", endDate: "2026-03-09", startTime: null, endTime: null, placementTime: null, isAllDay: true }, "2026-03-10", "11:00"), {
-    date: "2026-03-10", endDate: "2026-03-12", startTime: null, endTime: null, placementTime: null, dayOrder: null, isAllDay: true,
-  });
-  assert.deepEqual(schedulePatchForMove({ date: null, endDate: null, startTime: null, endTime: null, placementTime: null, isAllDay: false }, "2026-09-24"), {
-    date: "2026-09-24", endDate: "2026-09-24", startTime: null, endTime: null, placementTime: "09:00", dayOrder: null, isAllDay: false,
-  });
-  assert.deepEqual(schedulePatchForMove({ date: "2026-09-24", endDate: "2026-09-24", startTime: "09:00", endTime: "10:00", placementTime: null, isAllDay: false }, "2026-09-25", "13:00"), {
-    date: "2026-09-25", endDate: "2026-09-25", startTime: "13:00", endTime: "14:00", isAllDay: false, placementTime: null,
-  });
+  assert.deepEqual(
+    schedulePatchForMove(
+      {
+        date: "2026-03-07",
+        endDate: "2026-03-09",
+        startTime: null,
+        endTime: null,
+        placementTime: null,
+        isAllDay: true,
+      },
+      "2026-03-10",
+      "11:00",
+    ),
+    {
+      date: "2026-03-10",
+      endDate: "2026-03-12",
+      startTime: null,
+      endTime: null,
+      placementTime: null,
+      dayOrder: null,
+      isAllDay: true,
+    },
+  );
+  assert.deepEqual(
+    schedulePatchForMove(
+      { date: null, endDate: null, startTime: null, endTime: null, placementTime: null, isAllDay: false },
+      "2026-09-24",
+    ),
+    {
+      date: "2026-09-24",
+      endDate: "2026-09-24",
+      startTime: null,
+      endTime: null,
+      placementTime: "09:00",
+      dayOrder: null,
+      isAllDay: false,
+    },
+  );
+  assert.deepEqual(
+    schedulePatchForMove(
+      {
+        date: "2026-09-24",
+        endDate: "2026-09-24",
+        startTime: "09:00",
+        endTime: "10:00",
+        placementTime: null,
+        isAllDay: false,
+      },
+      "2026-09-25",
+      "13:00",
+    ),
+    {
+      date: "2026-09-25",
+      endDate: "2026-09-25",
+      startTime: "13:00",
+      endTime: "14:00",
+      isAllDay: false,
+      placementTime: null,
+    },
+  );
 });
 
 test("new fixed items end one elapsed hour later in the trip timezone", () => {
@@ -84,7 +193,10 @@ test("all-day moves keep the inclusive day span across DST", () => {
 test("fixed-time moves preserve wall-clock duration, including overnight and DST moves", () => {
   const moved = moveFixedTimeRange("2026-03-07", "2026-03-07", "17:00", "19:00", "2026-03-08", "17:00");
   assert.deepEqual(moved, {
-    date: "2026-03-08", endDate: "2026-03-08", startTime: "17:00", endTime: "19:00",
+    date: "2026-03-08",
+    endDate: "2026-03-08",
+    startTime: "17:00",
+    endTime: "19:00",
   });
   assert.equal(startDateTimeFor({ ...moved, isAllDay: false }, "America/New_York"), "2026-03-08T21:00:00.000Z");
   assert.equal(endDateTimeFor({ ...moved, isAllDay: false }, "America/New_York"), "2026-03-08T23:00:00.000Z");
@@ -95,7 +207,10 @@ test("fixed-time moves preserve wall-clock duration, including overnight and DST
 
 test("resizing a fixed item changes one edge and keeps its date range", () => {
   assert.deepEqual(resizeFixedTimeRange("2026-09-24", "2026-09-25", "23:00", "01:00", "start", "22:30"), {
-    date: "2026-09-24", endDate: "2026-09-25", startTime: "22:30", endTime: "01:00",
+    date: "2026-09-24",
+    endDate: "2026-09-25",
+    startTime: "22:30",
+    endTime: "01:00",
   });
   const resized = resizeFixedTimeRange("2026-03-08", null, "01:30", "03:30", "end", "04:30");
   assert.deepEqual(resized, { date: "2026-03-08", endDate: "2026-03-08", startTime: "01:30", endTime: "04:30" });
@@ -106,32 +221,76 @@ test("resizing a fixed item changes one edge and keeps its date range", () => {
 test("grouped moves preserve wall-clock offsets without compatibility timestamps", () => {
   const anchor = { date: "2026-03-07", startTime: "09:00", isAllDay: false };
   const later = { date: "2026-03-08", startTime: "11:30", isAllDay: false };
-  assert.deepEqual(groupedMoveTarget(anchor, later, "2026-03-14", "America/New_York", "10:00"), { date: "2026-03-15", time: "12:30" });
-  assert.deepEqual(groupedMoveTarget(anchor, anchor, "2026-03-14", "America/New_York"), { date: "2026-03-14", time: "09:00" });
+  assert.deepEqual(groupedMoveTarget(anchor, later, "2026-03-14", "America/New_York", "10:00"), {
+    date: "2026-03-15",
+    time: "12:30",
+  });
+  assert.deepEqual(groupedMoveTarget(anchor, anchor, "2026-03-14", "America/New_York"), {
+    date: "2026-03-14",
+    time: "09:00",
+  });
   const allDay = { date: "2026-03-09", startTime: null, isAllDay: true };
-  assert.deepEqual(groupedMoveTarget({ date: "2026-03-07", startTime: null, isAllDay: true }, allDay, "2026-03-14", "America/New_York"), { date: "2026-03-16", time: "00:00" });
+  assert.deepEqual(
+    groupedMoveTarget(
+      { date: "2026-03-07", startTime: null, isAllDay: true },
+      allDay,
+      "2026-03-14",
+      "America/New_York",
+    ),
+    { date: "2026-03-16", time: "00:00" },
+  );
   const gap = { date: "2026-03-08", startTime: "02:30", isAllDay: false };
-  assert.deepEqual(groupedMoveTarget(gap, gap, "2026-03-15", "America/New_York"), { date: "2026-03-15", time: "01:30" });
+  assert.deepEqual(groupedMoveTarget(gap, gap, "2026-03-15", "America/New_York"), {
+    date: "2026-03-15",
+    time: "01:30",
+  });
 });
 
 test("grouped move fallback keeps the target for flexible and undated items", () => {
   const fixed = { date: "2026-09-23", startTime: "13:00", isAllDay: false };
   const flexible = { date: "2026-09-24", startTime: null, isAllDay: false };
   const undated = { date: null, startTime: "08:00", isAllDay: false };
-  assert.deepEqual(groupedMoveTarget(fixed, flexible, "2026-09-25", "Asia/Singapore"), { date: "2026-09-25", time: "13:00" });
-  assert.deepEqual(groupedMoveTarget(undated, fixed, "2026-09-25", "Asia/Singapore"), { date: "2026-09-25", time: "09:00" });
-  assert.deepEqual(groupedMoveTarget(fixed, undated, "2026-09-25", "Asia/Singapore", "17:00"), { date: "2026-09-25", time: "17:00" });
+  assert.deepEqual(groupedMoveTarget(fixed, flexible, "2026-09-25", "Asia/Singapore"), {
+    date: "2026-09-25",
+    time: "13:00",
+  });
+  assert.deepEqual(groupedMoveTarget(undated, fixed, "2026-09-25", "Asia/Singapore"), {
+    date: "2026-09-25",
+    time: "09:00",
+  });
+  assert.deepEqual(groupedMoveTarget(fixed, undated, "2026-09-25", "Asia/Singapore", "17:00"), {
+    date: "2026-09-25",
+    time: "17:00",
+  });
 });
 
 test("elapsed duration remains UTC based and clamps negative ranges", () => {
-  assert.equal(elapsedDurationMinutes({ date: "2026-03-08", endDate: "2026-03-08", startTime: "01:30", endTime: "03:30", isAllDay: false }, "America/New_York"), 60);
-  assert.equal(elapsedDurationMinutes({ date: "2026-09-23", endDate: "2026-09-23", startTime: "10:00", endTime: "09:00", isAllDay: false }, "Asia/Singapore"), 0);
+  assert.equal(
+    elapsedDurationMinutes(
+      { date: "2026-03-08", endDate: "2026-03-08", startTime: "01:30", endTime: "03:30", isAllDay: false },
+      "America/New_York",
+    ),
+    60,
+  );
+  assert.equal(
+    elapsedDurationMinutes(
+      { date: "2026-09-23", endDate: "2026-09-23", startTime: "10:00", endTime: "09:00", isAllDay: false },
+      "Asia/Singapore",
+    ),
+    0,
+  );
 });
 
 test("Table duration edits produce canonical end fields across DST and midnight", () => {
   const spring = { date: "2026-03-08", endDate: "2026-03-08", startTime: "01:30", endTime: "03:30", isAllDay: false };
   assert.deepEqual(endForElapsedDuration(spring, 60, "America/New_York"), { endDate: "2026-03-08", endTime: "03:30" });
-  const overnight = { date: "2026-09-24", endDate: "2026-09-24", startTime: "23:30", endTime: "23:45", isAllDay: false };
+  const overnight = {
+    date: "2026-09-24",
+    endDate: "2026-09-24",
+    startTime: "23:30",
+    endTime: "23:45",
+    isAllDay: false,
+  };
   assert.deepEqual(endForElapsedDuration(overnight, 90, "Asia/Singapore"), { endDate: "2026-09-25", endTime: "01:00" });
   assert.equal(endForElapsedDuration(overnight, 0, "Asia/Singapore"), null);
 });
@@ -144,9 +303,16 @@ test("all-day Table length uses inclusive calendar days across DST", () => {
   const fall = { date: "2026-10-31", endDate: "2026-11-02", isAllDay: true };
   assert.equal(allDayCalendarDays(fall), 3);
   assert.deepEqual(endForAllDayCalendarDays(fall, 4), { endDate: "2026-11-03" });
-  assert.deepEqual(scheduleAtTableStart({ ...spring, startTime: null, endTime: null }, "2026-03-14", "12:00", "America/New_York"), {
-    date: "2026-03-14", endDate: "2026-03-16", startTime: null, endTime: null, placementTime: null,
-  });
+  assert.deepEqual(
+    scheduleAtTableStart({ ...spring, startTime: null, endTime: null }, "2026-03-14", "12:00", "America/New_York"),
+    {
+      date: "2026-03-14",
+      endDate: "2026-03-16",
+      startTime: null,
+      endTime: null,
+      placementTime: null,
+    },
+  );
 });
 
 test("all-day Table length ignores invalid and non-all-day edits", () => {
@@ -160,24 +326,77 @@ test("all-day Table length ignores invalid and non-all-day edits", () => {
 });
 
 test("Table duration edits skip items without fixed times and invalid lengths", () => {
-  assert.equal(endForElapsedDuration({ date: null, endDate: null, startTime: "09:00", endTime: "10:00", isAllDay: false }, 60, "Asia/Singapore"), null);
-  assert.equal(endForElapsedDuration({ date: "2026-09-24", endDate: "2026-09-24", startTime: null, endTime: null, isAllDay: false }, 60, "Asia/Singapore"), null);
-  assert.equal(endForElapsedDuration({ date: "2026-03-08", endDate: "2026-03-08", startTime: null, endTime: null, isAllDay: true }, 1440, "America/New_York"), null);
-  assert.equal(endForElapsedDuration({ date: "2026-09-24", endDate: "2026-09-24", startTime: "09:00", endTime: "10:00", isAllDay: false }, Number.NaN, "Asia/Singapore"), null);
-  assert.equal(endForElapsedDuration({ date: "2026-09-24", endDate: "2026-09-24", startTime: "09:00", endTime: "10:00", isAllDay: false }, 1.5, "Asia/Singapore"), null);
+  assert.equal(
+    endForElapsedDuration(
+      { date: null, endDate: null, startTime: "09:00", endTime: "10:00", isAllDay: false },
+      60,
+      "Asia/Singapore",
+    ),
+    null,
+  );
+  assert.equal(
+    endForElapsedDuration(
+      { date: "2026-09-24", endDate: "2026-09-24", startTime: null, endTime: null, isAllDay: false },
+      60,
+      "Asia/Singapore",
+    ),
+    null,
+  );
+  assert.equal(
+    endForElapsedDuration(
+      { date: "2026-03-08", endDate: "2026-03-08", startTime: null, endTime: null, isAllDay: true },
+      1440,
+      "America/New_York",
+    ),
+    null,
+  );
+  assert.equal(
+    endForElapsedDuration(
+      { date: "2026-09-24", endDate: "2026-09-24", startTime: "09:00", endTime: "10:00", isAllDay: false },
+      Number.NaN,
+      "Asia/Singapore",
+    ),
+    null,
+  );
+  assert.equal(
+    endForElapsedDuration(
+      { date: "2026-09-24", endDate: "2026-09-24", startTime: "09:00", endTime: "10:00", isAllDay: false },
+      1.5,
+      "Asia/Singapore",
+    ),
+    null,
+  );
 });
 
 test("Table start edits retain each fixed item's elapsed duration across DST", () => {
   const spring = { date: "2026-03-08", endDate: "2026-03-08", startTime: "01:30", endTime: "03:30", isAllDay: false };
-  const overnight = { date: "2026-09-24", endDate: "2026-09-25", startTime: "23:30", endTime: "01:00", isAllDay: false };
+  const overnight = {
+    date: "2026-09-24",
+    endDate: "2026-09-25",
+    startTime: "23:30",
+    endTime: "01:00",
+    isAllDay: false,
+  };
   assert.deepEqual(scheduleAtTableStart(spring, "2026-03-14", "10:00", "America/New_York"), {
-    date: "2026-03-14", endDate: "2026-03-14", startTime: "10:00", endTime: "11:00", placementTime: null,
+    date: "2026-03-14",
+    endDate: "2026-03-14",
+    startTime: "10:00",
+    endTime: "11:00",
+    placementTime: null,
   });
   assert.deepEqual(scheduleAtTableStart(spring, "2026-03-08", "02:30", "America/New_York"), {
-    date: "2026-03-08", endDate: "2026-03-08", startTime: "01:30", endTime: "03:30", placementTime: null,
+    date: "2026-03-08",
+    endDate: "2026-03-08",
+    startTime: "01:30",
+    endTime: "03:30",
+    placementTime: null,
   });
   assert.deepEqual(scheduleAtTableStart(overnight, "2026-09-26", "23:30", "Asia/Singapore"), {
-    date: "2026-09-26", endDate: "2026-09-27", startTime: "23:30", endTime: "01:00", placementTime: null,
+    date: "2026-09-26",
+    endDate: "2026-09-27",
+    startTime: "23:30",
+    endTime: "01:00",
+    placementTime: null,
   });
 });
 
@@ -186,11 +405,20 @@ test("Table start edits keep all-day items all-day and default unscheduled or fl
   const flexible = { date: "2026-09-24", endDate: "2026-09-24", startTime: null, endTime: null, isAllDay: false };
   const undated = { date: null, endDate: null, startTime: "08:00", endTime: "09:00", isAllDay: false };
   assert.deepEqual(scheduleAtTableStart(allDay, "2026-09-27", "12:00", "Asia/Singapore"), {
-    date: "2026-09-27", endDate: "2026-09-28", startTime: null, endTime: null, placementTime: null,
+    date: "2026-09-27",
+    endDate: "2026-09-28",
+    startTime: null,
+    endTime: null,
+    placementTime: null,
   });
-  for (const item of [flexible, undated]) assert.deepEqual(scheduleAtTableStart(item, "2026-09-27", "23:30", "Asia/Singapore"), {
-    date: "2026-09-27", endDate: "2026-09-28", startTime: "23:30", endTime: "00:30", placementTime: null,
-  });
+  for (const item of [flexible, undated])
+    assert.deepEqual(scheduleAtTableStart(item, "2026-09-27", "23:30", "Asia/Singapore"), {
+      date: "2026-09-27",
+      endDate: "2026-09-28",
+      startTime: "23:30",
+      endTime: "00:30",
+      placementTime: null,
+    });
 });
 
 test("Itinerary spans fixed and all-day ranges while flexible items stay on their start date", () => {
@@ -208,23 +436,56 @@ test("Itinerary spans fixed and all-day ranges while flexible items stay on thei
 
 test("invalid local dates and times are rejected", () => {
   assert.throws(() => zonedDateTimeToUtc("2026-02-30", "09:00", "Asia/Singapore"), RangeError);
-  assert.throws(() => moveFixedTimeRange("2026-09-23", "2026-09-23", "09:00", "10:00", "2026-09-24", "25:00"), RangeError);
+  assert.throws(
+    () => moveFixedTimeRange("2026-09-23", "2026-09-23", "09:00", "10:00", "2026-09-24", "25:00"),
+    RangeError,
+  );
 });
 
 test("travel-object serialization returns canonical date-only fields", () => {
-  const item = serializeTravelObject({ date: new Date("2026-09-24T00:00:00.000Z"), endDate: new Date("2026-09-25T00:00:00.000Z"), startTime: "23:30", endTime: "01:00", isAllDay: false });
-  assert.deepEqual(item, { date: "2026-09-24", endDate: "2026-09-25", startTime: "23:30", endTime: "01:00", isAllDay: false });
+  const item = serializeTravelObject({
+    date: new Date("2026-09-24T00:00:00.000Z"),
+    endDate: new Date("2026-09-25T00:00:00.000Z"),
+    startTime: "23:30",
+    endTime: "01:00",
+    isAllDay: false,
+  });
+  assert.deepEqual(item, {
+    date: "2026-09-24",
+    endDate: "2026-09-25",
+    startTime: "23:30",
+    endTime: "01:00",
+    isAllDay: false,
+  });
   assert.deepEqual(serializeTravelObject({ date: null, endDate: null }), { date: null, endDate: null });
 });
 
 test("CSV import instants project to canonical schedule fields", () => {
   assert.deepEqual(canonicalScheduleFromInstants(null, null, false, "Asia/Singapore"), {
-    date: null, endDate: null, startTime: null, endTime: null, isAllDay: false,
+    date: null,
+    endDate: null,
+    startTime: null,
+    endTime: null,
+    isAllDay: false,
   });
-  assert.deepEqual(canonicalScheduleFromInstants("2026-09-24T15:30:00.000Z", "2026-09-24T17:00:00.000Z", false, "Asia/Singapore"), {
-    date: "2026-09-24", endDate: "2026-09-25", startTime: "23:30", endTime: "01:00", isAllDay: false,
-  });
-  assert.deepEqual(canonicalScheduleFromInstants("2026-03-08T05:00:00.000Z", "2026-03-09T04:00:00.000Z", true, "America/New_York"), {
-    date: "2026-03-08", endDate: "2026-03-09", startTime: null, endTime: null, isAllDay: true,
-  });
+  assert.deepEqual(
+    canonicalScheduleFromInstants("2026-09-24T15:30:00.000Z", "2026-09-24T17:00:00.000Z", false, "Asia/Singapore"),
+    {
+      date: "2026-09-24",
+      endDate: "2026-09-25",
+      startTime: "23:30",
+      endTime: "01:00",
+      isAllDay: false,
+    },
+  );
+  assert.deepEqual(
+    canonicalScheduleFromInstants("2026-03-08T05:00:00.000Z", "2026-03-09T04:00:00.000Z", true, "America/New_York"),
+    {
+      date: "2026-03-08",
+      endDate: "2026-03-09",
+      startTime: null,
+      endTime: null,
+      isAllDay: true,
+    },
+  );
 });

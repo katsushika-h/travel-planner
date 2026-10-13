@@ -17,7 +17,10 @@ type Context = { params: Promise<{ objectId: string }> };
 
 export async function GET(_request: Request, { params }: Context) {
   const { objectId } = await params;
-  const travelObject = await prisma.travelObject.findUnique({ where: { id: objectId }, include: { trip: { select: { timezone: true, startDate: true } } } });
+  const travelObject = await prisma.travelObject.findUnique({
+    where: { id: objectId },
+    include: { trip: { select: { timezone: true, startDate: true } } },
+  });
 
   return travelObject
     ? Response.json(serializeTravelObject(travelObject))
@@ -41,7 +44,8 @@ export async function PATCH(request: Request, { params }: Context) {
       if (body.noteBody !== undefined) data.noteBody = readNoteBody(body.noteBody);
     } else Object.assign(data, readTravelObjectIdentity(body, "update"));
     Object.assign(data, readUpdateScheduleFields(body));
-    if (body.dayOrder !== undefined) data.dayOrder = body.dayOrder === null ? null : readNonNegativeInteger(body.dayOrder, "dayOrder");
+    if (body.dayOrder !== undefined)
+      data.dayOrder = body.dayOrder === null ? null : readNonNegativeInteger(body.dayOrder, "dayOrder");
     if (body.isAllDay !== undefined) {
       if (typeof body.isAllDay !== "boolean") throw new Error("isAllDay must be a boolean.");
       data.isAllDay = body.isAllDay;
@@ -52,10 +56,13 @@ export async function PATCH(request: Request, { params }: Context) {
       return Response.json({ error: "Provide at least one field to update." }, { status: 400 });
     }
 
-    const scheduleChanged = ["date", "endDate", "startTime", "endTime", "placementTime", "isAllDay", "dayOrder"].some((field) => Object.hasOwn(data, field));
+    const scheduleChanged = ["date", "endDate", "startTime", "endTime", "placementTime", "isAllDay", "dayOrder"].some(
+      (field) => Object.hasOwn(data, field),
+    );
     if (existing.kind === "note") {
-      const date = data.date !== undefined ? data.date as Date | null : existing.date;
-      if (data.endDate !== undefined && (data.endDate as Date | null)?.getTime() !== date?.getTime()) throw new Error("Notes belong to a single date.");
+      const date = data.date !== undefined ? (data.date as Date | null) : existing.date;
+      if (data.endDate !== undefined && (data.endDate as Date | null)?.getTime() !== date?.getTime())
+        throw new Error("Notes belong to a single date.");
       if (scheduleChanged) data.endDate = date;
     }
     if (scheduleChanged) normalizeUpdatedScheduleData(data, existing);
@@ -67,8 +74,11 @@ export async function PATCH(request: Request, { params }: Context) {
       });
       if (!scheduleChanged) return updated;
 
-      const finalDate = data.date !== undefined ? data.date as Date | null : existing.date;
-      const affectedDates = [existing.date, finalDate].filter((value, index, values): value is Date => value !== null && values.findIndex((candidate) => candidate?.getTime() === value.getTime()) === index);
+      const finalDate = data.date !== undefined ? (data.date as Date | null) : existing.date;
+      const affectedDates = [existing.date, finalDate].filter(
+        (value, index, values): value is Date =>
+          value !== null && values.findIndex((candidate) => candidate?.getTime() === value.getTime()) === index,
+      );
       for (const affectedDate of affectedDates) {
         await writeDateOrder(tx, existing.tripId, affectedDate, "schedule-change");
       }

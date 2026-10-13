@@ -15,16 +15,24 @@ async function resolve(url, responses = [new Response("ok")]) {
   const compiledModule = { exports: {} };
   let calls = 0;
   vm.runInNewContext(source, {
-    module: compiledModule, exports: compiledModule.exports, URL, Response, AbortSignal,
-    require: (name) => name === "@/lib/api-validation" ? validation : require(name),
+    module: compiledModule,
+    exports: compiledModule.exports,
+    URL,
+    Response,
+    AbortSignal,
+    require: (name) => (name === "@/lib/api-validation" ? validation : require(name)),
     fetch: async () => {
       assert.ok(calls < responses.length, "unexpected fetch");
       return responses[calls++];
     },
   });
-  const response = await compiledModule.exports.POST(new Request("http://localhost/api/maps/resolve", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }),
-  }));
+  const response = await compiledModule.exports.POST(
+    new Request("http://localhost/api/maps/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    }),
+  );
   assert.equal(response.status, 200);
   return response.json();
 }
@@ -45,7 +53,10 @@ test("place pin wins over camera coordinates, including encoded data", async () 
 
 test("location query and destination win over camera regardless of parameter order", async () => {
   for (const key of ["query", "q", "destination", "daddr"]) {
-    for (const params of [`center=35.68,139.76&${key}=35.6812,139.7671`, `${key}=35.6812,139.7671&center=35.68,139.76`]) {
+    for (const params of [
+      `center=35.68,139.76&${key}=35.6812,139.7671`,
+      `${key}=35.6812,139.7671&center=35.68,139.76`,
+    ]) {
       assertPoint(await resolve(`https://www.google.com/maps/@35.68,139.76,15z?${params}`), 35.6812, 139.7671);
     }
   }
@@ -63,7 +74,8 @@ test("invalid place coordinates fall back to valid camera coordinates", async ()
 test("short links resolve to the place pin after redirect", async () => {
   const expandedUrl = "https://www.google.com/maps/place/Station/@35.68,139.76,15z/data=!3d35.6812!4d139.7671";
   const result = await resolve("https://maps.app.goo.gl/example", [
-    new Response(null, { status: 302, headers: { location: expandedUrl } }), new Response("ok"),
+    new Response(null, { status: 302, headers: { location: expandedUrl } }),
+    new Response("ok"),
   ]);
   assertPoint(result, 35.6812, 139.7671);
   assert.equal(result.expandedUrl, expandedUrl);

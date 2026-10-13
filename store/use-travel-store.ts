@@ -37,10 +37,29 @@ export const useTravelStore = create<TravelStore>()(
       eventTypesByTrip: {},
       eventTypeColorsByTrip: {},
       eventTypeOrderByTrip: {},
-      addEventType: (tripId, type) => set((state) => ({ eventTypesByTrip: { ...state.eventTypesByTrip, [tripId]: [...new Set([...(state.eventTypesByTrip[tripId] ?? []), type])] } })),
-      removeEventType: (tripId, type) => set((state) => ({ eventTypesByTrip: { ...state.eventTypesByTrip, [tripId]: (state.eventTypesByTrip[tripId] ?? []).filter((entry) => entry !== type) } })),
-      setEventTypeColor: (tripId, type, color) => set((state) => ({ eventTypeColorsByTrip: { ...state.eventTypeColorsByTrip, [tripId]: { ...state.eventTypeColorsByTrip[tripId], [type]: color } } })),
-      setEventTypeOrder: (tripId, types) => set((state) => ({ eventTypeOrderByTrip: { ...state.eventTypeOrderByTrip, [tripId]: types } })),
+      addEventType: (tripId, type) =>
+        set((state) => ({
+          eventTypesByTrip: {
+            ...state.eventTypesByTrip,
+            [tripId]: [...new Set([...(state.eventTypesByTrip[tripId] ?? []), type])],
+          },
+        })),
+      removeEventType: (tripId, type) =>
+        set((state) => ({
+          eventTypesByTrip: {
+            ...state.eventTypesByTrip,
+            [tripId]: (state.eventTypesByTrip[tripId] ?? []).filter((entry) => entry !== type),
+          },
+        })),
+      setEventTypeColor: (tripId, type, color) =>
+        set((state) => ({
+          eventTypeColorsByTrip: {
+            ...state.eventTypeColorsByTrip,
+            [tripId]: { ...state.eventTypeColorsByTrip[tripId], [type]: color },
+          },
+        })),
+      setEventTypeOrder: (tripId, types) =>
+        set((state) => ({ eventTypeOrderByTrip: { ...state.eventTypeOrderByTrip, [tripId]: types } })),
       setActiveTripId: (activeTripId) => set({ activeTripId }),
       setActiveTab: (activeTab) => set({ activeTab }),
       setCalendarMode: (calendarMode) => set({ calendarMode }),

@@ -1,0 +1,10 @@
+.next/
+node_modules/
+prisma/migrations/
+package-lock.json
+next-env.d.ts
+*.md
+# Next.js rewrites this file; keep its own formatting.
+tsconfig.json
+# Deployment file; formatting changes are not worth the review risk.
+*.yml

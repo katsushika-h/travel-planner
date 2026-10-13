@@ -30,7 +30,8 @@ export function readTravelObjectContent(body: JsonRecord, mode: "create" | "upda
     notes?: string | null;
     tags?: string[];
   } = {};
-  if (creating || body.headerImage !== undefined) data.headerImage = body.headerImage === undefined ? null : readHeaderImage(body.headerImage);
+  if (creating || body.headerImage !== undefined)
+    data.headerImage = body.headerImage === undefined ? null : readHeaderImage(body.headerImage);
   if (creating || body.location !== undefined) {
     validateLocation(body.location);
     data.location = readOptionalJson(body.location, "location", { optional: creating });
@@ -39,7 +40,9 @@ export function readTravelObjectContent(body: JsonRecord, mode: "create" | "upda
     validateCost(body.cost);
     data.cost = readOptionalJson(body.cost, "cost", { optional: creating });
   }
-  if (creating || body.notes !== undefined) data.notes = body.notes === null ? null : readTrimmedString(body.notes, "notes", { optional: creating, maxBytes: 2500 });
+  if (creating || body.notes !== undefined)
+    data.notes =
+      body.notes === null ? null : readTrimmedString(body.notes, "notes", { optional: creating, maxBytes: 2500 });
   if (creating || body.tags !== undefined) data.tags = readTags(body.tags);
   return data;
 }
@@ -51,7 +54,8 @@ export function readTravelObjectIdentity(body: JsonRecord, mode: "create" | "upd
   const creating = mode === "create";
   const data: { title?: string; type?: string } = {};
   if (creating || body.title !== undefined) data.title = readTrimmedString(body.title, "title", { maxLength: 100 })!;
-  if (creating || body.type !== undefined) data.type = readEventType(creating ? body.type ?? "unclassified" : body.type, "type");
+  if (creating || body.type !== undefined)
+    data.type = readEventType(creating ? (body.type ?? "unclassified") : body.type, "type");
   return data;
 }
 
@@ -69,8 +73,10 @@ export function readTrimmedString(
   }
 
   const result = value.trim();
-  if (maxLength !== undefined && result.length > maxLength) throw new Error(`${field} must be ${maxLength} characters or fewer.`);
-  if (maxBytes !== undefined && new TextEncoder().encode(result).byteLength > maxBytes) throw new Error(`${field} must be ${maxBytes} bytes or fewer.`);
+  if (maxLength !== undefined && result.length > maxLength)
+    throw new Error(`${field} must be ${maxLength} characters or fewer.`);
+  if (maxBytes !== undefined && new TextEncoder().encode(result).byteLength > maxBytes)
+    throw new Error(`${field} must be ${maxBytes} bytes or fewer.`);
   return result;
 }
 
@@ -133,15 +139,19 @@ export function readTags(value: unknown) {
 
 export function validateCost(value: unknown) {
   if (value === undefined || value === null) return;
-  if (!isRecord(value) || typeof value.amount !== "number" || !Number.isFinite(value.amount) || value.amount < 0) throw new Error("cost must have a non-negative numeric amount.");
-  if (value.amount >= 10_000_000_000 || String(value.amount).replace(/\D/g, "").length > 10) throw new Error("cost amount must contain 10 digits or fewer.");
-  if (typeof value.currency !== "string" || !/^[A-Z]{3}$/.test(value.currency)) throw new Error("cost must have a three-letter currency code.");
+  if (!isRecord(value) || typeof value.amount !== "number" || !Number.isFinite(value.amount) || value.amount < 0)
+    throw new Error("cost must have a non-negative numeric amount.");
+  if (value.amount >= 10_000_000_000 || String(value.amount).replace(/\D/g, "").length > 10)
+    throw new Error("cost amount must contain 10 digits or fewer.");
+  if (typeof value.currency !== "string" || !/^[A-Z]{3}$/.test(value.currency))
+    throw new Error("cost must have a three-letter currency code.");
 }
 
 export function validateLocation(value: unknown) {
   if (value === undefined || value === null) return;
   if (!isRecord(value)) throw new Error("location must be a JSON object or null.");
-  if (value.name !== undefined && (typeof value.name !== "string" || value.name.length > 300)) throw new Error("location name must be 300 characters or fewer.");
+  if (value.name !== undefined && (typeof value.name !== "string" || value.name.length > 300))
+    throw new Error("location name must be 300 characters or fewer.");
 }
 
 export function readPositiveInteger(value: unknown, field: string) {
@@ -181,6 +191,8 @@ export function readHeaderImage(value: unknown) {
   try {
     const url = new URL(image);
     if (url.protocol === "https:" || url.protocol === "http:") return url.toString();
-  } catch { /* report the validation error below */ }
+  } catch {
+    /* report the validation error below */
+  }
   throw new Error("headerImage must be an http or https image URL.");
 }

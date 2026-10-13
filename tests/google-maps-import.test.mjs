@@ -19,16 +19,33 @@ test("CSV import keeps resolved and unresolved Maps links through object creatio
   };
 
   try {
-    const csv = "Title,Note,URL,Category,Date,End Date\nResolved,ok,https://maps.example/resolved,Food,2026-09-24,2026-09-25\nNo coordinates,ok,https://maps.example/without,New Type,2026-09-25,\nResolver failed,ok,https://maps.example/failed,Food,invalid,\n";
-    const result = await importGoogleMapsCsv(csv, { id: "trip-1", timezone: "Asia/Singapore" }, ["food"], (complete, total) => progress.push([complete, total]));
-    assert.deepEqual([result.created.length, result.failed.length, result.unresolvedCount, result.invalidDates, result.skipped], [3, 0, 2, 1, 0]);
+    const csv =
+      "Title,Note,URL,Category,Date,End Date\nResolved,ok,https://maps.example/resolved,Food,2026-09-24,2026-09-25\nNo coordinates,ok,https://maps.example/without,New Type,2026-09-25,\nResolver failed,ok,https://maps.example/failed,Food,invalid,\n";
+    const result = await importGoogleMapsCsv(
+      csv,
+      { id: "trip-1", timezone: "Asia/Singapore" },
+      ["food"],
+      (complete, total) => progress.push([complete, total]),
+    );
+    assert.deepEqual(
+      [result.created.length, result.failed.length, result.unresolvedCount, result.invalidDates, result.skipped],
+      [3, 0, 2, 1, 0],
+    );
     assert.deepEqual(result.newTypes, ["New Type"]);
-    assert.deepEqual(progress, [[0, 3], [1, 3], [2, 3], [3, 3]]);
-    assert.deepEqual(created.map(({ type, location }) => [type, location.googleMapsUrl, location.lat ?? null, location.lng ?? null]), [
-      ["food", "https://maps.example/resolved", 1.25, 103.75],
-      ["New Type", "https://maps.example/without", null, null],
-      ["food", "https://maps.example/failed", null, null],
+    assert.deepEqual(progress, [
+      [0, 3],
+      [1, 3],
+      [2, 3],
+      [3, 3],
     ]);
+    assert.deepEqual(
+      created.map(({ type, location }) => [type, location.googleMapsUrl, location.lat ?? null, location.lng ?? null]),
+      [
+        ["food", "https://maps.example/resolved", 1.25, 103.75],
+        ["New Type", "https://maps.example/without", null, null],
+        ["food", "https://maps.example/failed", null, null],
+      ],
+    );
     assert.deepEqual([created[0].date, created[0].endDate, created[0].isAllDay], ["2026-09-24", "2026-09-25", true]);
     assert.deepEqual([created[2].date, created[2].endDate], [null, null]);
     assert.ok(created.every((item) => item.tripId === "trip-1"));
@@ -51,10 +68,14 @@ test("CSV import returns successes and failed rows together", async () => {
   };
 
   try {
-    const csv = "Title,Note,URL,Category\nFirst,note,https://maps.example/first,Food\nSecond,note,https://maps.example/second,Failed Type\nThird,note,https://maps.example/third,Food\n";
+    const csv =
+      "Title,Note,URL,Category\nFirst,note,https://maps.example/first,Food\nSecond,note,https://maps.example/second,Failed Type\nThird,note,https://maps.example/third,Food\n";
     const result = await importGoogleMapsCsv(csv, { id: "trip-1", timezone: "Asia/Singapore" }, [], () => {});
     assert.deepEqual(createdTitles, ["First", "Third"]);
-    assert.deepEqual(result.created.map((item) => item.title), ["First", "Third"]);
+    assert.deepEqual(
+      result.created.map((item) => item.title),
+      ["First", "Third"],
+    );
     assert.deepEqual(result.failed, [{ title: "Second", reason: "Create failed" }]);
     assert.deepEqual(result.newTypes, ["Food"]);
   } finally {
@@ -67,7 +88,8 @@ test("CSV import skips saved names and repeated names in the same file", async (
   const createdTitles = [];
   const progress = [];
   globalThis.fetch = async (url, init) => {
-    if (url === "/api/travel-objects?tripId=trip-1") return Response.json([{ title: "Museum" }, { title: "A".repeat(100) }]);
+    if (url === "/api/travel-objects?tripId=trip-1")
+      return Response.json([{ title: "Museum" }, { title: "A".repeat(100) }]);
     const body = JSON.parse(init.body);
     if (url === "/api/maps/resolve") return Response.json({ lat: null, lng: null });
     assert.equal(url, "/api/travel-objects");
@@ -78,11 +100,17 @@ test("CSV import skips saved names and repeated names in the same file", async (
   try {
     const longTitle = "A".repeat(101);
     const csv = `Title,Note,URL,Category\nmuseum,note,https://maps.example/museum,Old\n${longTitle},note,https://maps.example/long,Old\nCafe,note,https://maps.example/cafe,Food\n CAFE ,note,https://maps.example/repeat,Food\nPark,note,https://maps.example/park,Outdoors\n`;
-    const result = await importGoogleMapsCsv(csv, { id: "trip-1", timezone: "Asia/Singapore" }, [], (complete, total) => progress.push([complete, total]));
+    const result = await importGoogleMapsCsv(csv, { id: "trip-1", timezone: "Asia/Singapore" }, [], (complete, total) =>
+      progress.push([complete, total]),
+    );
     assert.deepEqual(createdTitles, ["Cafe", "Park"]);
     assert.deepEqual([result.created.length, result.duplicateCount, result.failed.length], [2, 3, 0]);
     assert.deepEqual(result.newTypes, ["Food", "Outdoors"]);
-    assert.deepEqual(progress, [[0, 2], [1, 2], [2, 2]]);
+    assert.deepEqual(progress, [
+      [0, 2],
+      [1, 2],
+      [2, 2],
+    ]);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -95,7 +123,15 @@ test("CSV import does not create rows when existing items cannot be checked", as
     return Response.json({ error: "Trip unavailable" }, { status: 500 });
   };
   try {
-    await assert.rejects(importGoogleMapsCsv("Title,Note,URL\nCafe,note,https://maps.example/cafe", { id: "trip-1", timezone: "Asia/Singapore" }, [], () => {}), /Trip unavailable/);
+    await assert.rejects(
+      importGoogleMapsCsv(
+        "Title,Note,URL\nCafe,note,https://maps.example/cafe",
+        { id: "trip-1", timezone: "Asia/Singapore" },
+        [],
+        () => {},
+      ),
+      /Trip unavailable/,
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }

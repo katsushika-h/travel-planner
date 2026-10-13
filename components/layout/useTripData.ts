@@ -18,24 +18,41 @@ export function useTripData(activeTripId: string | null, setActiveTripId: (id: s
   const activeTripKey = activeTrip?.id;
   // Read the selection when trips arrive without refetching the list on every trip switch.
   const activeTripIdRef = useRef(activeTripId);
-  useLayoutEffect(() => { activeTripIdRef.current = activeTripId; }, [activeTripId]);
+  useLayoutEffect(() => {
+    activeTripIdRef.current = activeTripId;
+  }, [activeTripId]);
 
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 30000);
-    void api.trips(controller.signal).then((result) => {
-      if (cancelled) return;
-      setTrips(result);
-      setTripsLoadError(null);
-      if (!result.some((trip) => trip.id === activeTripIdRef.current)) setActiveTripId(result[0]?.id ?? null);
-    }).catch((cause) => {
-      if (!cancelled) setTripsLoadError(controller.signal.aborted ? "The trip request timed out. Check your connection and try again." : cause instanceof Error ? cause.message : "Could not load trips.");
-    }).finally(() => {
+    void api
+      .trips(controller.signal)
+      .then((result) => {
+        if (cancelled) return;
+        setTrips(result);
+        setTripsLoadError(null);
+        if (!result.some((trip) => trip.id === activeTripIdRef.current)) setActiveTripId(result[0]?.id ?? null);
+      })
+      .catch((cause) => {
+        if (!cancelled)
+          setTripsLoadError(
+            controller.signal.aborted
+              ? "The trip request timed out. Check your connection and try again."
+              : cause instanceof Error
+                ? cause.message
+                : "Could not load trips.",
+          );
+      })
+      .finally(() => {
+        window.clearTimeout(timeout);
+        if (!cancelled) setLoadingTrips(false);
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
       window.clearTimeout(timeout);
-      if (!cancelled) setLoadingTrips(false);
-    });
-    return () => { cancelled = true; controller.abort(); window.clearTimeout(timeout); };
+    };
   }, [setActiveTripId, tripsReloadNonce]);
 
   useEffect(() => {
@@ -43,18 +60,54 @@ export function useTripData(activeTripId: string | null, setActiveTripId: (id: s
     let cancelled = false;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 30000);
-    void api.objects(activeTripKey, controller.signal).then((result) => {
-      if (cancelled) return;
-      setItems(result);
-      setItemsLoadError(null);
-      setItemsTripId(activeTripKey);
-    }).catch((cause) => {
-      if (!cancelled) setItemsLoadError(controller.signal.aborted ? "The itinerary request timed out. Check your connection and try again." : cause instanceof Error ? cause.message : "Could not load itinerary.");
-    }).finally(() => {
+    void api
+      .objects(activeTripKey, controller.signal)
+      .then((result) => {
+        if (cancelled) return;
+        setItems(result);
+        setItemsLoadError(null);
+        setItemsTripId(activeTripKey);
+      })
+      .catch((cause) => {
+        if (!cancelled)
+          setItemsLoadError(
+            controller.signal.aborted
+              ? "The itinerary request timed out. Check your connection and try again."
+              : cause instanceof Error
+                ? cause.message
+                : "Could not load itinerary.",
+          );
+      })
+      .finally(() => {
+        window.clearTimeout(timeout);
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
       window.clearTimeout(timeout);
-    });
-    return () => { cancelled = true; controller.abort(); window.clearTimeout(timeout); };
+    };
   }, [activeTripKey, itemsReloadNonce]);
 
-  return { trips, setTrips, items, setItems, loadingTrips, tripsLoadError, retryTrips: () => { setLoadingTrips(true); setTripsLoadError(null); setTripsReloadNonce((nonce) => nonce + 1); }, itemsTripId, setItemsTripId, itemsLoadError, retryItems: () => { setItemsTripId(null); setItemsLoadError(null); setItemsReloadNonce((nonce) => nonce + 1); }, activeTrip };
+  return {
+    trips,
+    setTrips,
+    items,
+    setItems,
+    loadingTrips,
+    tripsLoadError,
+    retryTrips: () => {
+      setLoadingTrips(true);
+      setTripsLoadError(null);
+      setTripsReloadNonce((nonce) => nonce + 1);
+    },
+    itemsTripId,
+    setItemsTripId,
+    itemsLoadError,
+    retryItems: () => {
+      setItemsTripId(null);
+      setItemsLoadError(null);
+      setItemsReloadNonce((nonce) => nonce + 1);
+    },
+    activeTrip,
+  };
 }

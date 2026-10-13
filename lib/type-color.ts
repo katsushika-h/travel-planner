@@ -10,7 +10,10 @@ const defaultColors: Record<string, string> = {
 const palette = ["#14b8a6", "#3b82f6", "#a855f7", "#ec4899", "#f97316", "#84cc16", "#64748b"];
 
 export function defaultTypeColor(type: string) {
-  return defaultColors[type] ?? palette[[...type].reduce((sum, character) => sum + character.charCodeAt(0), 0) % palette.length];
+  return (
+    defaultColors[type] ??
+    palette[[...type].reduce((sum, character) => sum + character.charCodeAt(0), 0) % palette.length]
+  );
 }
 
 export function typeColor(type: string, colors: Record<string, string>) {
