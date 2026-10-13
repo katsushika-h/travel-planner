@@ -1,18 +1,22 @@
 "use client";
 
 import { eventItems, weekDropPositions } from "@/lib/note-domain";
-import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { formatTripDate } from "@/lib/date-utils";
+import { formatTripDate, shiftDate } from "@/lib/date-utils";
 import { compareScheduleOrder, weekFixedLayers, weekFlexibleWindows } from "@/lib/schedule-order";
 import { occursOnItineraryDate } from "@/lib/schedule-domain";
 import { typeColor } from "@/lib/type-color";
 import type { TravelObject, Trip } from "@/types/travel";
-import { selectionRing } from "./calendar-shared";
+import { isBookedItem, selectionRing } from "./calendar-shared";
 
 const weekHourStart = 0;
 const weekHourEnd = 24;
 const weekRowHeight = 44;
+const weekGridColumns = "grid grid-cols-[48px_repeat(7,minmax(0,1fr))] sm:grid-cols-[56px_repeat(7,minmax(0,1fr))]";
+const weekDayMs = 24 * 60 * 60 * 1000;
+/** `weekFixedLayers` steps 8px per overlap; the Minimal design indents 12px. */
+const weekLayerStep = 12;
 
 function weekMinutes(value: string | null) {
   if (!value) return null;
@@ -42,7 +46,7 @@ function WeekTimeSlot({
         onCreateItem(date, weekTimeLabel(minutes));
       }}
       title="Double-click to add an item at this time"
-      className={`h-[44px] border-t border-stone-200/80 dark:border-neutral-800 ${isOver ? "bg-emerald-50/80 dark:bg-emerald-950/30" : ""}`}
+      className={`h-[44px] border-t border-divider ${isOver ? "bg-surface" : ""}`}
     />
   );
 }
@@ -92,7 +96,7 @@ function WeekResizeHandle({
       aria-label={`Adjust ${edge} time for ${item.title}`}
       tabIndex={0}
       onPointerDown={onPointerDown}
-      className={`absolute left-1/2 z-30 h-6 w-14 -translate-x-1/2 cursor-ns-resize rounded-full bg-emerald-500 opacity-100 shadow-sm transition-opacity sm:h-2 sm:w-12 sm:opacity-0 sm:group-hover:opacity-100 ${edge === "start" ? "-top-3 sm:-top-1" : "-bottom-3 sm:-bottom-1"}`}
+      className={`absolute left-1/2 z-30 h-6 w-14 -translate-x-1/2 cursor-ns-resize rounded-full bg-foreground opacity-100 transition-opacity sm:h-2 sm:w-12 sm:opacity-0 sm:group-hover:opacity-100 ${edge === "start" ? "-top-3 sm:-top-1" : "-bottom-3 sm:-bottom-1"}`}
     />
   );
 }
@@ -101,13 +105,17 @@ function WeekFixedItem({
   item,
   color,
   layer,
+  selected,
+  primary,
   onSelect,
   onResize,
 }: {
   item: TravelObject;
   color: string;
   layer: { left: number; zIndex: number };
-  onSelect: (item: TravelObject) => void;
+  selected: boolean;
+  primary: boolean;
+  onSelect: (item: TravelObject, additive?: boolean) => void;
   onResize: (item: TravelObject, edge: "start" | "end", time: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -118,36 +126,40 @@ function WeekFixedItem({
   const start = weekMinutes(item.startTime);
   const end = weekMinutes(item.endTime) ?? (start ?? weekHourStart * 60) + 60;
   const top = Math.max(0, (((start ?? weekHourStart * 60) - weekHourStart * 60) / 60) * weekRowHeight);
-  const height = Math.max(34, ((end - (start ?? weekHourStart * 60)) / 60) * weekRowHeight);
+  const height = Math.max(30, ((end - (start ?? weekHourStart * 60)) / 60) * weekRowHeight - 3);
   const previewStart = preview?.edge === "start" ? weekMinutes(preview.time)! : start!;
   const previewEnd = preview?.edge === "end" ? weekMinutes(preview.time)! : end;
   const ghostTop = ((previewStart - (start ?? weekHourStart * 60)) / 60) * weekRowHeight;
   const ghostHeight = Math.max(15, ((previewEnd - previewStart) / 60) * weekRowHeight);
+  const depth = Math.max(0, Math.round((layer.left - 4) / 8));
   return (
     <button
       ref={setNodeRef}
       {...attributes}
       {...listeners}
       type="button"
-      onClick={() => onSelect(item)}
+      onClick={(event) => onSelect(item, event.shiftKey)}
       style={{
         top,
         height,
-        left: layer.left,
+        left: 4 + depth * weekLayerStep,
         right: 4,
         zIndex: isDragging ? 40 : layer.zIndex,
         borderLeftColor: color,
         ...(transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : {}),
       }}
-      className={`group absolute overflow-visible rounded-md border border-l-4 bg-background/95 px-2 py-1.5 text-left text-[10px] shadow-sm ${isDragging ? "opacity-40" : ""}`}
+      className={`group absolute flex flex-col items-stretch justify-start overflow-visible border-l-[3px] bg-surface px-2 py-[5px] text-left ${depth ? "shadow-[0_0_0_1px_var(--background),0_2px_8px_rgb(0_0_0/0.12)] dark:shadow-[0_0_0_1px_var(--background),0_2px_10px_rgb(0_0_0/0.6)]" : ""} ${selectionRing(selected, primary)} ${isDragging ? "opacity-40" : ""}`}
     >
+      {isBookedItem(item) && (
+        <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-foreground" />
+      )}
       {preview && (
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 z-20 rounded-md border-2 border-dashed border-emerald-400 bg-emerald-400/15"
+          className="pointer-events-none absolute inset-x-0 z-20 border border-dashed border-accent bg-accent/10"
           style={{ top: ghostTop, height: ghostHeight }}
         >
-          <span className="absolute -top-4 right-0 rounded bg-emerald-700 px-1 text-[8px] font-medium text-white">
+          <span className="absolute -top-4 right-0 bg-foreground px-1 font-mono text-[9px] text-background">
             {previewStart === previewEnd ? preview.time : `${weekTimeLabel(previewStart)}–${weekTimeLabel(previewEnd)}`}
           </span>
         </span>
@@ -159,9 +171,9 @@ function WeekFixedItem({
         onPreview={(edge, time) => setPreview({ edge, time })}
         onEnd={() => setPreview(null)}
       />
-      <span className="block truncate font-semibold">{item.title}</span>
-      <span className="mt-0.5 block truncate text-[9px] text-muted-foreground">
-        {item.startTime}–{item.endTime} · {item.type}
+      <span className="block truncate text-xs font-medium leading-tight">{item.title}</span>
+      <span className="block truncate font-mono text-[10px] leading-snug text-muted">
+        {item.startTime}–{item.endTime}
       </span>
       <WeekResizeHandle
         item={item}
@@ -176,7 +188,7 @@ function WeekFixedItem({
 
 function WeekFlexibleGap({ date, order }: { date: string; order: number }) {
   const { setNodeRef, isOver } = useDroppable({ id: `week-flex:${date}:${order}` });
-  return <div ref={setNodeRef} className={`h-1 rounded transition ${isOver ? "bg-emerald-500" : ""}`} />;
+  return <div ref={setNodeRef} className={`h-1 transition ${isOver ? "bg-accent" : ""}`} />;
 }
 
 function WeekClusterItem({
@@ -204,98 +216,163 @@ function WeekClusterItem({
       type="button"
       title={item.title}
       onClick={(event) => onSelect(item, event.shiftKey)}
-      style={transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : undefined}
-      className={`flex min-h-6 w-full min-w-0 items-center gap-1.5 rounded border bg-background px-1.5 text-left text-[10px] font-medium shadow-sm ${selectionRing(selected, primary)} ${isDragging ? "opacity-40" : ""}`}
+      style={{
+        borderLeftColor: color,
+        ...(transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : {}),
+      }}
+      className={`flex min-h-6 w-full min-w-0 items-center gap-1.5 border border-l-[3px] border-divider bg-background px-1.5 text-left text-[11px] ${selectionRing(selected, primary)} ${isDragging ? "opacity-40" : ""}`}
     >
-      <span className="shrink-0 font-mono text-[9px] font-normal text-muted-foreground">
+      <span className="shrink-0 font-mono text-[10px] text-faint">
         {item.dayOrder != null ? item.dayOrder + 1 : "·"}
       </span>
-      <span aria-hidden className="size-1.5 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
       <span className="min-w-0 flex-1 truncate">{item.title}</span>
     </button>
   );
 }
 
-function WeekAllDayItem({
-  item,
-  date,
+type AllDaySegment = {
+  item: TravelObject;
+  startColumn: number;
+  dayCount: number;
+  lane: number;
+  nights: number;
+};
+
+/** All-day items become one bar spanning the week days they occupy, stacked into lanes. */
+function allDaySegments(items: TravelObject[], dates: string[]) {
+  const spans = eventItems(items)
+    .filter((item) => item.isAllDay && item.date)
+    .sort(compareScheduleOrder)
+    .map((item) => {
+      const first = item.date!.slice(0, 10);
+      const last = (item.endDate ?? item.date!).slice(0, 10);
+      // A stay covers its nights: the check-out day is not an occupied column.
+      const lastColumn = item.type === "hotel" && last > first ? shiftDate(last, -1) : last;
+      const columns = dates.flatMap((date, index) =>
+        occursOnItineraryDate(item, date) && date <= lastColumn ? [index] : [],
+      );
+      if (!columns.length) return null;
+      const nights = Math.round((Date.parse(`${last}T00:00:00Z`) - Date.parse(`${first}T00:00:00Z`)) / weekDayMs);
+      return { item, startColumn: columns[0], dayCount: columns.length, nights };
+    })
+    .filter((span): span is NonNullable<typeof span> => span !== null)
+    .sort((a, b) => a.startColumn - b.startColumn || b.dayCount - a.dayCount);
+  const laneEnds: number[] = [];
+  const segments: AllDaySegment[] = spans.map((span) => {
+    let lane = laneEnds.findIndex((end) => end <= span.startColumn);
+    if (lane < 0) lane = laneEnds.length;
+    laneEnds[lane] = span.startColumn + span.dayCount;
+    return { ...span, lane };
+  });
+  return { segments, laneCount: laneEnds.length };
+}
+
+function tripDayNumber(trip: Trip, date: string) {
+  const first = trip.startDate?.slice(0, 10);
+  const last = trip.endDate?.slice(0, 10);
+  if (!first || date < first || (last && date > last)) return null;
+  return Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${first}T00:00:00Z`)) / weekDayMs) + 1;
+}
+
+function WeekAllDayCell({ date }: { date: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
+  return <div ref={setNodeRef} className={isOver ? "bg-surface" : ""} />;
+}
+
+function WeekAllDayBar({
+  segment,
+  weekStart,
   color,
   selected,
   primary,
   onSelect,
 }: {
-  item: TravelObject;
-  date: string;
+  segment: AllDaySegment;
+  weekStart: string;
   color: string;
   selected: boolean;
   primary: boolean;
   onSelect: (item: TravelObject, additive?: boolean) => void;
 }) {
+  const { item, startColumn, dayCount, lane, nights } = segment;
+  // The grabbed day keeps its offset under the pointer, as in Month.
+  const [draggedDate, setDraggedDate] = useState<string>();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `week-all-day:${date}:${item.id}`,
-    data: { item, draggedDate: date },
+    id: `week-all-day:${weekStart}:${item.id}`,
+    data: { item, draggedDate },
   });
+  const suffix = item.type === "hotel" ? `${nights} ${nights === 1 ? "night" : "nights"}` : `${nights + 1} days`;
   return (
     <button
       ref={setNodeRef}
       {...attributes}
       {...listeners}
       type="button"
+      title={item.title}
       onClick={(event) => onSelect(item, event.shiftKey)}
+      onPointerDownCapture={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const column = Math.floor(((event.clientX - rect.left) / rect.width) * dayCount);
+        setDraggedDate(shiftDate(weekStart, startColumn + Math.min(Math.max(column, 0), dayCount - 1)));
+      }}
       style={{
-        borderLeftColor: color,
+        left: `calc(${(startColumn / 7) * 100}% + 6px)`,
+        width: `calc(${(dayCount / 7) * 100}% - 12px)`,
+        top: 6 + lane * 26,
+        borderTopColor: color,
         ...(transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : {}),
       }}
-      className={`flex h-6 w-full min-w-0 items-center rounded border border-l-4 bg-background px-1.5 text-left text-[9px] shadow-sm ${selectionRing(selected, primary)} ${isDragging ? "opacity-40" : ""}`}
-      title={item.title}
+      className={`absolute z-10 flex h-[22px] min-w-0 items-baseline gap-1.5 border-t bg-background pt-[3px] text-left text-xs ${selected ? "text-accent" : ""} ${primary ? "font-medium" : ""} ${isDragging ? "opacity-40" : ""}`}
     >
-      <span className="truncate font-medium">{item.title}</span>
+      <span className="truncate">{item.title}</span>
+      <span className="shrink-0 text-muted">· {suffix}</span>
     </button>
   );
 }
 
-function WeekAllDayLane({
-  date,
-  items,
-  height,
+function WeekAllDayBand({
+  dates,
+  segments,
+  laneCount,
   typeColors,
   selectedIds,
   primarySelectedId,
   onSelect,
 }: {
-  date: string;
-  items: TravelObject[];
-  height: number;
+  dates: string[];
+  segments: AllDaySegment[];
+  laneCount: number;
   typeColors: Record<string, string>;
   selectedIds: ReadonlySet<string>;
   primarySelectedId: string | null;
   onSelect: (item: TravelObject, additive?: boolean) => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `day:${date}` });
+  const stays = segments.every(({ item }) => item.type === "hotel");
   return (
-    <div
-      ref={setNodeRef}
-      style={{ height }}
-      className={`space-y-1 overflow-y-auto border-b px-1 py-1 ${isOver ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-stone-50/70 dark:bg-neutral-950/40"}`}
-    >
-      {items.map((item) => (
-        <WeekAllDayItem
-          key={item.id}
-          item={item}
-          date={date}
-          color={typeColor(item.type, typeColors)}
-          selected={selectedIds.has(item.id)}
-          primary={primarySelectedId === item.id}
-          onSelect={onSelect}
-        />
-      ))}
+    <div className={`${weekGridColumns} border-b border-divider`}>
+      <div className="pt-[9px] text-[11px] text-muted">{stays ? "Stays" : "All day"}</div>
+      <div className="relative col-span-7" style={{ height: laneCount * 26 + 10 }}>
+        <div className="absolute inset-0 grid grid-cols-7">
+          {dates.map((date) => (
+            <WeekAllDayCell key={date} date={date} />
+          ))}
+        </div>
+        {segments.map((segment) => (
+          <WeekAllDayBar
+            key={segment.item.id}
+            segment={segment}
+            weekStart={dates[0]}
+            color={stays || segment.item.type === "hotel" ? "var(--ink)" : typeColor(segment.item.type, typeColors)}
+            selected={selectedIds.has(segment.item.id)}
+            primary={primarySelectedId === segment.item.id}
+            onSelect={onSelect}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
-const weekWindowHatch: CSSProperties = {
-  backgroundImage: "repeating-linear-gradient(135deg, rgba(120, 113, 108, 0.08) 0 6px, transparent 6px 12px)",
-};
 const weekWindowCompactHeight = 22;
 
 // Flexible items fill the free time between their fixed neighbours; a gap too short for the list collapses to one line.
@@ -337,7 +414,7 @@ function WeekFlexibleWindow({
   const { setNodeRef, isOver } = useDroppable({
     id: `week-cluster:${date}:${anchor.replace(":", "")}:${dropOrder.get(items[0]?.id) ?? 0}`,
   });
-  const frame = `rounded-md border border-dashed ${isOver ? "border-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/60" : "border-stone-300 bg-stone-50/90 dark:border-neutral-600 dark:bg-neutral-900/90"}`;
+  const frame = `border border-dashed ${isOver ? "border-accent bg-surface" : "border-input-rule"}`;
   const list = items.map((item) => (
     <div key={item.id}>
       <WeekFlexibleGap date={date} order={dropOrder.get(item.id) ?? 0} />
@@ -358,9 +435,9 @@ function WeekFlexibleWindow({
         aria-label={`Flexible: ${description}`}
         title={description}
         className={`absolute inset-x-1 z-20 flex flex-col overflow-hidden p-1 ${frame}`}
-        style={{ top, height, ...weekWindowHatch }}
+        style={{ top, height }}
       >
-        <span className="truncate px-0.5 text-[9px] text-muted-foreground">{label}</span>
+        <span className="truncate px-0.5 text-[10px] text-muted">{label}</span>
         {list}
       </div>
     );
@@ -379,20 +456,20 @@ function WeekFlexibleWindow({
         aria-label={`${items.length} flexible ${items.length === 1 ? "item" : "items"}, ${description}`}
         title={description}
         onClick={onToggle}
-        className={`flex w-full min-w-0 items-center gap-1 px-1.5 text-left text-[10px] text-muted-foreground shadow-sm ${frame}`}
-        style={{ height: weekWindowCompactHeight, ...weekWindowHatch }}
+        className={`flex w-full min-w-0 items-center gap-1 bg-background px-1.5 text-left text-[10px] text-muted ${frame}`}
+        style={{ height: weekWindowCompactHeight }}
       >
-        <span className="shrink-0 font-semibold text-foreground">+{items.length} flexible</span>
+        <span className="shrink-0 font-medium text-foreground">+{items.length} flexible</span>
         <span className="min-w-0 truncate">· {items.map((item) => item.title).join(", ")}</span>
       </button>
       {expanded && (
-        <div className="absolute inset-x-0 top-full z-50 mt-1 rounded-md border bg-background p-1.5 shadow-xl">
+        <div className="absolute inset-x-0 top-full z-50 mt-1 border border-input-rule bg-background p-1.5 shadow-[0_8px_24px_rgb(0_0_0/0.15)] dark:shadow-[0_8px_24px_rgb(0_0_0/0.6)]">
           <div className="flex items-center justify-between gap-1">
-            <span className="truncate text-[9px] text-muted-foreground">{label}</span>
+            <span className="truncate text-[10px] text-muted">{label}</span>
             <button
               type="button"
               onClick={onCollapse}
-              className="min-h-11 shrink-0 rounded px-1.5 text-[10px] hover:bg-muted sm:min-h-6"
+              className="min-h-11 shrink-0 px-1.5 text-[10px] underline underline-offset-2 hover:text-accent sm:min-h-6"
               aria-label="Close flexible items"
             >
               Close
@@ -408,7 +485,6 @@ function WeekFlexibleWindow({
 function WeekDayColumn({
   date,
   items,
-  allDayHeight,
   trip,
   typeColors,
   selectedIds,
@@ -418,12 +494,10 @@ function WeekDayColumn({
   onExpandedChange,
   onSelect,
   onResize,
-  onSelectDay,
   onCreateItem,
 }: {
   date: string;
   items: TravelObject[];
-  allDayHeight: number;
   trip: Trip;
   typeColors: Record<string, string>;
   selectedIds: ReadonlySet<string>;
@@ -433,13 +507,11 @@ function WeekDayColumn({
   onExpandedChange: (key: string | null) => void;
   onSelect: (item: TravelObject, additive?: boolean) => void;
   onResize: (item: TravelObject, edge: "start" | "end", time: string) => void;
-  onSelectDay: () => void;
   onCreateItem: (date: string, order?: number, time?: string) => void;
 }) {
   const visibleItems = eventItems(items);
-  const allDayItems = visibleItems.filter((item) => item.isAllDay).sort(compareScheduleOrder);
   const orderedItems = visibleItems.filter((item) => !item.isAllDay).sort(compareScheduleOrder);
-  const fixedItems = orderedItems.filter((item) => !item.isAllDay && item.startTime && item.endTime);
+  const fixedItems = orderedItems.filter((item) => item.startTime && item.endTime);
   const dropOrder = weekDropPositions(items, date);
   const fixedLayers = weekFixedLayers(fixedItems);
   const toTop = (minutes: number) => (minutes / 60) * weekRowHeight;
@@ -488,34 +560,8 @@ function WeekDayColumn({
   });
   return (
     <section
-      className={`relative ${expandedChunk?.startsWith(`${date}:`) || windows.some((slot) => slot.items.some((item) => item.id === draggedItemId)) ? "z-40" : "z-0"} min-w-0 border-l bg-white dark:bg-neutral-900`}
+      className={`relative ${expandedChunk?.startsWith(`${date}:`) || windows.some((slot) => slot.items.some((item) => item.id === draggedItemId)) ? "z-40" : "z-0"} min-w-0 border-l border-divider`}
     >
-      <button
-        type="button"
-        onClick={onSelectDay}
-        className="relative z-10 flex h-14 w-full flex-col justify-center border-b px-2 text-left hover:bg-stone-50 dark:hover:bg-neutral-800"
-      >
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-          {formatTripDate(`${date}T12:00:00Z`, trip.timezone, { weekday: "short" })}
-        </span>
-        <span className="truncate text-xs font-semibold">
-          {formatTripDate(`${date}T12:00:00Z`, trip.timezone, { month: "short", day: "numeric" })}
-        </span>
-        <span className="text-[9px] text-muted-foreground">
-          {visibleItems.length} {visibleItems.length === 1 ? "place" : "places"}
-        </span>
-      </button>
-      {allDayHeight > 0 && (
-        <WeekAllDayLane
-          date={date}
-          items={allDayItems}
-          height={allDayHeight}
-          typeColors={typeColors}
-          selectedIds={selectedIds}
-          primarySelectedId={primarySelectedId}
-          onSelect={onSelect}
-        />
-      )}
       <div className="relative min-h-[1056px]">
         {Array.from({ length: weekHourEnd - weekHourStart }, (_, index) => (
           <WeekTimeSlot
@@ -531,6 +577,8 @@ function WeekDayColumn({
             item={item}
             color={typeColor(item.type, typeColors)}
             layer={fixedLayers.get(item.id)!}
+            selected={selectedIds.has(item.id)}
+            primary={primarySelectedId === item.id}
             onSelect={onSelect}
             onResize={onResize}
           />
@@ -562,13 +610,30 @@ function WeekDayColumn({
           <button
             type="button"
             onClick={() => onCreateItem(date, items.filter((item) => item.date?.slice(0, 10) === date).length)}
-            className="absolute inset-x-2 top-4 min-h-11 rounded border border-dashed py-3 text-[10px] text-muted-foreground"
+            className="absolute inset-x-2 top-4 min-h-11 border border-dashed border-input-rule py-3 text-[11px] text-faint hover:text-foreground"
           >
             Add item
           </button>
         )}
       </div>
     </section>
+  );
+}
+
+function WeekDayHeader({ date, trip, onSelectDay }: { date: string; trip: Trip; onSelectDay: () => void }) {
+  const dayNumber = tripDayNumber(trip, date);
+  return (
+    <button
+      type="button"
+      onClick={onSelectDay}
+      className="flex min-w-0 items-baseline gap-1.5 px-1.5 pb-3 pt-3.5 text-left hover:bg-surface sm:gap-2 sm:px-2.5"
+    >
+      <span className="font-mono text-xl font-light sm:text-2xl">{date.slice(8, 10)}</span>
+      <span className="truncate text-xs text-muted">
+        {formatTripDate(`${date}T12:00:00Z`, trip.timezone, { weekday: "short" })}
+        {dayNumber ? ` · Day ${dayNumber}` : ""}
+      </span>
+    </button>
   );
 }
 
@@ -601,46 +666,76 @@ export function WeekPlanner({
   onSelectDay: (date: string) => void;
   onCreateItem: (date: string, order?: number, time?: string) => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const datedItems = dates.map((date) =>
     items.filter((item) => (item.isAllDay ? occursOnItineraryDate(item, date) : item.date?.slice(0, 10) === date)),
   );
-  const allDayRows = Math.max(0, ...datedItems.map((dayItems) => dayItems.filter((item) => item.isAllDay).length));
-  const allDayHeight = allDayRows ? allDayRows * 28 + 8 : 0;
+  const { segments, laneCount } = allDaySegments(items, dates);
+  // Open on the first item of the week rather than midnight; all 24 hours stay reachable by scrolling.
+  const firstMinutes = Math.min(
+    ...datedItems.flatMap((dayItems) =>
+      eventItems(dayItems)
+        .filter((item) => !item.isAllDay)
+        .map((item) => weekMinutes(item.startTime) ?? weekMinutes(item.placementTime) ?? 9 * 60),
+    ),
+    8 * 60,
+  );
+  const weekKey = dates[0];
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: Math.max(0, (firstMinutes / 60) * weekRowHeight - weekRowHeight / 2) });
+    // Re-anchor only when the visible week changes, never while items are being edited.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekKey]);
   return (
-    <div className="min-h-0 flex-1 overflow-auto bg-stone-50/60 dark:bg-neutral-950">
-      <div className="grid min-w-[980px] grid-cols-[44px_repeat(7,minmax(120px,1fr))]">
-        <div className="relative bg-white pt-14 text-right text-[10px] text-muted-foreground dark:bg-neutral-900">
-          {allDayHeight > 0 && (
-            <div style={{ height: allDayHeight }} className="border-b px-1 pt-1 text-[9px]">
-              All day
-            </div>
+    <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto px-4 pb-6 sm:px-7">
+      <div className="min-w-[900px]">
+        <div className="sticky top-0 z-50 border-t border-foreground bg-background">
+          <div className={weekGridColumns}>
+            <div />
+            {dates.map((date) => (
+              <WeekDayHeader key={date} date={date} trip={trip} onSelectDay={() => onSelectDay(date)} />
+            ))}
+          </div>
+          {laneCount > 0 && (
+            <WeekAllDayBand
+              dates={dates}
+              segments={segments}
+              laneCount={laneCount}
+              typeColors={typeColors}
+              selectedIds={selectedIds}
+              primarySelectedId={primarySelectedId}
+              onSelect={onSelect}
+            />
           )}
-          {Array.from({ length: weekHourEnd - weekHourStart }, (_, index) => (
-            <div key={index} className="h-[44px] border-t px-1 pt-1">
-              {String(weekHourStart + index).padStart(2, "0")}:00
-            </div>
-          ))}
-          <div className="absolute bottom-0 right-1 text-[10px]">24:00</div>
         </div>
-        {dates.map((date, index) => (
-          <WeekDayColumn
-            key={date}
-            date={date}
-            items={datedItems[index]}
-            allDayHeight={allDayHeight}
-            trip={trip}
-            typeColors={typeColors}
-            selectedIds={selectedIds}
-            primarySelectedId={primarySelectedId}
-            expandedChunk={expandedDate}
-            draggedItemId={draggedItemId}
-            onExpandedChange={onExpandedChange}
-            onSelect={onSelect}
-            onResize={onResize}
-            onSelectDay={() => onSelectDay(date)}
-            onCreateItem={onCreateItem}
-          />
-        ))}
+        <div className={`${weekGridColumns} border-b border-divider`}>
+          <div className="relative text-right font-mono text-[11px] text-faint">
+            {Array.from({ length: weekHourEnd - weekHourStart }, (_, index) => (
+              <div key={index} className="relative h-[44px]">
+                <span className={`absolute right-2 ${index === 0 ? "top-0.5" : "-top-[7px]"}`}>
+                  {String(weekHourStart + index).padStart(2, "0")}:00
+                </span>
+              </div>
+            ))}
+          </div>
+          {dates.map((date, index) => (
+            <WeekDayColumn
+              key={date}
+              date={date}
+              items={datedItems[index]}
+              trip={trip}
+              typeColors={typeColors}
+              selectedIds={selectedIds}
+              primarySelectedId={primarySelectedId}
+              expandedChunk={expandedDate}
+              draggedItemId={draggedItemId}
+              onExpandedChange={onExpandedChange}
+              onSelect={onSelect}
+              onResize={onResize}
+              onCreateItem={onCreateItem}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

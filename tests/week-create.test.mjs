@@ -20,7 +20,8 @@ vm.runInNewContext(compiled, {
   exports: compiledModule.exports,
   require(name) {
     if (name === "react/jsx-runtime") return require(name);
-    if (name === "react") return { useState: (initial) => [initial, () => {}], useRef: (current) => ({ current }) };
+    if (name === "react")
+      return { useState: (initial) => [initial, () => {}], useRef: (current) => ({ current }), useEffect() {} };
     if (name === "@dnd-kit/core") return { useDroppable: () => ({}), useDraggable: () => ({}) };
     if (name === "@/lib/note-domain") return { eventItems, weekDropPositions };
     if (name === "@/lib/schedule-order")
@@ -28,7 +29,7 @@ vm.runInNewContext(compiled, {
     if (name === "@/lib/date-utils") return { formatTripDate: () => "Date" };
     if (name === "@/lib/schedule-domain") return { occursOnItineraryDate: (item, date) => item.date === date };
     if (name === "@/lib/type-color") return { typeColor: () => "#000000" };
-    if (name === "./calendar-shared") return { selectionRing: () => "" };
+    if (name === "./calendar-shared") return { selectionRing: () => "", isBookedItem: () => false };
     return {};
   },
 });
