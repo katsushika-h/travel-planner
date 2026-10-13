@@ -182,10 +182,10 @@ const JourneyCard = memo(function JourneyCard({
           onClick={(event) =>
             window.matchMedia("(max-width: 639px)").matches ? onInspect(item) : onSelect(item, event.shiftKey)
           }
-          className="flex min-w-0 flex-1 items-start gap-3 py-4 pr-2 text-left"
+          className="flex min-w-0 flex-1 items-start gap-3 py-4 in-data-[density=compact]:py-2 pr-2 text-left"
         >
           <span
-            className={`w-[72px] shrink-0 font-mono ${time.small ? "pt-1.5 text-xs" : "text-[22px] font-light leading-8"} ${primary ? "text-accent" : time.flexible ? "text-muted" : ""}`}
+            className={`w-[72px] shrink-0 font-mono ${time.small ? "pt-1.5 text-xs" : "text-[22px] font-light leading-8 in-data-[density=compact]:text-base in-data-[density=compact]:leading-6"} ${primary ? "text-accent" : time.flexible ? "text-muted" : ""}`}
           >
             {time.text}
           </span>

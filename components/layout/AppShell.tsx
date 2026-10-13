@@ -18,6 +18,7 @@ import {
   MoreHorizontal,
   Plus,
   ReceiptText,
+  Rows3,
   Search,
   X,
 } from "lucide-react";
@@ -107,6 +108,8 @@ export function AppShell() {
           ? "spend"
           : "more";
   const theme = useTravelStore((state) => state.theme);
+  const compact = useTravelStore((state) => state.compact);
+  const toggleCompact = useTravelStore((state) => state.toggleCompact);
   useLayoutEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("dark", theme === "dark");
@@ -302,6 +305,7 @@ export function AppShell() {
   return (
     <main
       style={{ colorScheme: theme }}
+      data-density={compact ? "compact" : "comfortable"}
       className={`flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground sm:min-h-[620px] ${theme === "dark" ? "dark" : ""}`}
     >
       {mobileSheetOpen && (
@@ -378,6 +382,16 @@ export function AppShell() {
           <>
             <button
               type="button"
+              aria-label="Compact rows"
+              aria-pressed={compact}
+              title={compact ? "Compact rows: on" : "Compact rows: off"}
+              onClick={toggleCompact}
+              className={`grid size-10 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring ${compact ? "text-accent" : "text-muted hover:text-foreground"}`}
+            >
+              <Rows3 className="size-[18px]" strokeWidth={1.5} />
+            </button>
+            <button
+              type="button"
               aria-label="Search items"
               title="Search items"
               onClick={() => setSearchOpen(true)}
@@ -418,6 +432,15 @@ export function AppShell() {
             <div className="flex shrink-0 items-center">
               <button
                 type="button"
+                aria-label="Compact rows"
+                aria-pressed={compact}
+                onClick={toggleCompact}
+                className={`grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring ${compact ? "text-accent" : "text-muted"}`}
+              >
+                <Rows3 className="size-[18px]" strokeWidth={1.5} />
+              </button>
+              <button
+                type="button"
                 aria-label="Search items"
                 onClick={() => setSearchOpen(true)}
                 className="grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
@@ -435,7 +458,23 @@ export function AppShell() {
             </div>
           )}
         </header>
-        {error && <div className="mx-5 mt-4 border border-danger px-4 py-3 text-sm text-danger">{error}</div>}
+        {error && (
+          <div
+            role="alert"
+            className="mx-5 mt-4 flex items-start justify-between gap-3 border border-danger py-3 pr-2 pl-4 text-sm text-danger"
+          >
+            <span className="min-w-0 flex-1 break-words">{error}</span>
+            <button
+              type="button"
+              aria-label="Dismiss error"
+              title="Dismiss"
+              onClick={() => setError("")}
+              className="-my-2 grid size-11 shrink-0 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring sm:size-9"
+            >
+              <X className="size-4" strokeWidth={1.5} />
+            </button>
+          </div>
+        )}
         {loadingTrips ? (
           <div className="grid flex-1 place-items-center">
             <LoaderCircle className="animate-spin text-muted" aria-label="Loading trips" />

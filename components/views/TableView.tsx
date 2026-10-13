@@ -541,10 +541,12 @@ export function TableView({
                         className="size-4 accent-foreground"
                       />
                     </td>
-                    <td className={`whitespace-nowrap px-2 py-1.5 font-mono text-[13px] ${day ? "" : "text-accent"}`}>
+                    <td
+                      className={`whitespace-nowrap px-2 py-1.5 in-data-[density=compact]:py-0.5 font-mono text-[13px] ${day ? "" : "text-accent"}`}
+                    >
                       {showDay ? (day ? shortDayLabel(day) : "Idea") : ""}
                     </td>
-                    <td className="min-w-52 whitespace-nowrap px-1 py-1.5">
+                    <td className="min-w-52 whitespace-nowrap px-1 py-1.5 in-data-[density=compact]:py-0.5">
                       <InlineInput
                         label={`Start date for ${item.title}`}
                         type={!item.date || item.startTime ? "datetime-local" : "date"}
@@ -554,7 +556,7 @@ export function TableView({
                         className="font-mono text-[13px]"
                       />
                     </td>
-                    <td className="min-w-52 max-w-[320px] px-1 py-1.5">
+                    <td className="min-w-52 max-w-[320px] px-1 py-1.5 in-data-[density=compact]:py-0.5">
                       <InlineInput
                         label={`Title for ${item.title}`}
                         value={item.title}
@@ -565,7 +567,7 @@ export function TableView({
                         className="font-medium"
                       />
                     </td>
-                    <td className="min-w-36 px-1 py-1.5">
+                    <td className="min-w-36 px-1 py-1.5 in-data-[density=compact]:py-0.5">
                       <div className="flex items-center gap-1 pl-1">
                         <span
                           className="size-2 shrink-0 rounded-full"
@@ -582,10 +584,13 @@ export function TableView({
                         />
                       </div>
                     </td>
-                    <td className="max-w-48 truncate px-2 py-1.5 text-muted" title={placeName(item)}>
+                    <td
+                      className="max-w-48 truncate px-2 py-1.5 in-data-[density=compact]:py-0.5 text-muted"
+                      title={placeName(item)}
+                    >
                       {placeName(item)}
                     </td>
-                    <td className="min-w-28 whitespace-nowrap px-1 py-1.5">
+                    <td className="min-w-28 whitespace-nowrap px-1 py-1.5 in-data-[density=compact]:py-0.5">
                       <div className="flex items-center gap-1">
                         <InlineInput
                           label={`Length in ${item.isAllDay ? "days" : "minutes"} for ${item.title}`}
@@ -609,7 +614,7 @@ export function TableView({
                         )}
                       </div>
                     </td>
-                    <td className="min-w-32 whitespace-nowrap px-1 py-1.5">
+                    <td className="min-w-32 whitespace-nowrap px-1 py-1.5 in-data-[density=compact]:py-0.5">
                       <div className="flex items-center justify-end gap-1">
                         {currency && costAmount(item) != null && (
                           <span className="font-mono text-xs text-faint">{currency}</span>
@@ -640,7 +645,7 @@ export function TableView({
                         />
                       </div>
                     </td>
-                    <td className="min-w-56 px-1 py-1.5">
+                    <td className="min-w-56 px-1 py-1.5 in-data-[density=compact]:py-0.5">
                       <InlineInput
                         label={`Tags for ${item.title}`}
                         value={(item.tags ?? []).join(", ")}

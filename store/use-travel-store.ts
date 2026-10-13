@@ -34,6 +34,8 @@ type TravelStore = {
   /** Persisted from the old sidebar layout; no longer read by the header layout. Kept so stored state stays valid. */
   sidebarCollapsed: boolean;
   theme: "light" | "dark";
+  /** Denser rows in Plan, Day, Board and Table. */
+  compact: boolean;
   eventTypesByTrip: Record<string, string[]>;
   eventTypeColorsByTrip: Record<string, Record<string, string>>;
   eventTypeOrderByTrip: Record<string, string[]>;
@@ -46,6 +48,7 @@ type TravelStore = {
   setCalendarMode: (mode: CalendarMode) => void;
   toggleSidebar: () => void;
   toggleTheme: () => void;
+  toggleCompact: () => void;
 };
 
 export const useTravelStore = create<TravelStore>()(
@@ -56,6 +59,7 @@ export const useTravelStore = create<TravelStore>()(
       calendarMode: "month",
       sidebarCollapsed: false,
       theme: "light",
+      compact: false,
       eventTypesByTrip: {},
       eventTypeColorsByTrip: {},
       eventTypeOrderByTrip: {},
@@ -87,6 +91,7 @@ export const useTravelStore = create<TravelStore>()(
       setCalendarMode: (calendarMode) => set({ calendarMode }),
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       toggleTheme: () => set((state) => ({ theme: state.theme === "light" ? "dark" : "light" })),
+      toggleCompact: () => set((state) => ({ compact: !state.compact })),
     }),
     { name: "travel-planner-ui" },
   ),

@@ -92,7 +92,7 @@ function Card({
         onDoubleClick={(event) => event.stopPropagation()}
         {...attributes}
         {...listeners}
-        className={`flex w-full scroll-mx-4 touch-pan-y cursor-grab flex-col gap-1 border-b border-divider px-2 py-3 text-left transition-colors hover:bg-surface sm:touch-none ${selected ? "bg-surface-selected" : ""} ${primary ? "shadow-[inset_2px_0_0_var(--accent)]" : ""} ${isDragging ? "opacity-40" : ""}`}
+        className={`flex w-full scroll-mx-4 touch-pan-y cursor-grab flex-col gap-1 border-b border-divider px-2 py-3 in-data-[density=compact]:py-1.5 text-left transition-colors hover:bg-surface sm:touch-none ${selected ? "bg-surface-selected" : ""} ${primary ? "shadow-[inset_2px_0_0_var(--accent)]" : ""} ${isDragging ? "opacity-40" : ""}`}
       >
         <CardText item={item} />
       </button>

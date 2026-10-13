@@ -148,18 +148,20 @@ export function StopRow({
         aria-controls={expanded ? bodyId : undefined}
         onClick={(event) => onPick(item, event.shiftKey || event.metaKey || event.ctrlKey)}
         {...listeners}
-        className="grid w-full grid-cols-[76px_24px_minmax(0,1fr)_auto] items-baseline gap-x-3 py-5 text-left focus-visible:outline-2 focus-visible:outline-foreground sm:grid-cols-[112px_28px_minmax(0,1fr)_auto] sm:gap-x-4"
+        className="grid w-full grid-cols-[76px_24px_minmax(0,1fr)_auto] items-baseline gap-x-3 py-5 in-data-[density=compact]:py-2 text-left focus-visible:outline-2 focus-visible:outline-foreground sm:grid-cols-[112px_28px_minmax(0,1fr)_auto] sm:gap-x-4"
       >
         <span
-          className={`font-mono font-light tracking-tight ${/^~?\d{2}:\d{2}$/.test(timeLabel) ? "text-xl sm:text-[28px]" : "text-base sm:text-xl"} ${accentWhenOpen ?? (confirmed ? "text-foreground" : "text-muted")}`}
+          className={`font-mono font-light tracking-tight ${/^~?\d{2}:\d{2}$/.test(timeLabel) ? "text-xl sm:text-[28px] in-data-[density=compact]:text-base in-data-[density=compact]:sm:text-xl" : "text-base sm:text-xl in-data-[density=compact]:sm:text-base"} ${accentWhenOpen ?? (confirmed ? "text-foreground" : "text-muted")}`}
         >
           {timeLabel}
         </span>
         <span className={`font-mono text-xs ${accentWhenOpen ?? "text-faint"}`}>
           {number != null ? String(number).padStart(2, "0") : "—"}
         </span>
-        <span className="flex min-w-0 flex-col gap-1">
-          <span className="truncate text-base font-medium tracking-tight sm:text-lg">{item.title}</span>
+        <span className="flex min-w-0 flex-col gap-1 in-data-[density=compact]:gap-0">
+          <span className="truncate text-base font-medium tracking-tight sm:text-lg in-data-[density=compact]:sm:text-base">
+            {item.title}
+          </span>
           <span className="truncate text-[13px] text-muted">{stopMeta(item)}</span>
         </span>
         <span className="font-mono text-[13px] text-muted">{cost}</span>
