@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import { api } from "@/lib/api-client";
+import { createSerialQueue } from "@/lib/serial-queue";
 import { sortTravelObjects } from "@/lib/schedule-order";
 import type { TravelObject, UpdateTravelObjectInput } from "@/types/travel";
 
@@ -19,6 +20,8 @@ export function useItemSaveQueue(
   const saveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const savingIds = useRef(new Set<string>());
   const refreshTripId = useRef<string | null>(null);
+  // One request at a time: concurrent schedule PATCHes race in the server's dayOrder compaction.
+  const serialSave = useRef(createSerialQueue());
 
   /** Reload once after the last concurrent save, since schedule writes can reorder siblings. */
   async function refreshAfterScheduleSaves() {
@@ -47,7 +50,7 @@ export function useItemSaveQueue(
           (field) => field in patch,
         );
         try {
-          const updated = await api.updateObject(id, patch);
+          const updated = await serialSave.current(() => api.updateObject(id, patch));
           const newer = saveQueues.current.get(id) ?? {};
           setItems((current) =>
             activeTripIdRef.current === activeTripId
