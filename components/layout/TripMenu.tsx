@@ -235,7 +235,7 @@ export function TripSwitcher(props: Omit<TripMenuProps, "onDone">) {
         aria-controls={open ? panelId : undefined}
         aria-label={activeTrip ? `Switch trip, current trip ${activeTrip.title}` : "Choose a trip"}
         onClick={() => setOpen((current) => !current)}
-        className="flex min-h-11 max-w-[min(28rem,60vw)] items-baseline gap-3 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+        className="flex min-h-11 max-w-[min(28rem,60vw)] items-baseline gap-3 text-left outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-4 focus-visible:outline-ring"
       >
         <span className="truncate text-xl font-medium tracking-tight">{activeTrip?.title ?? "Choose a trip"}</span>
         {activeTrip && (

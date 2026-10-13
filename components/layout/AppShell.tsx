@@ -366,7 +366,7 @@ export function AppShell() {
                 aria-current={activeTab === id ? "page" : undefined}
                 title={`${plannerTabLabels[id]} (${plannerTabShortcuts[id]})`}
                 onClick={() => setActiveTab(id)}
-                className={`min-h-11 py-3 text-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${activeTab === id ? "font-medium text-foreground shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted hover:text-foreground"}`}
+                className={`min-h-11 py-3 text-sm outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring ${activeTab === id ? "font-medium text-foreground shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted hover:text-foreground"}`}
               >
                 {plannerTabLabels[id]}
               </button>
@@ -381,7 +381,7 @@ export function AppShell() {
               aria-label="Search items"
               title="Search items"
               onClick={() => setSearchOpen(true)}
-              className="grid size-10 place-items-center text-foreground outline-none focus-visible:outline-2 focus-visible:outline-ring"
+              className="grid size-10 place-items-center text-foreground outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
             >
               <Search className="size-[18px]" strokeWidth={1.5} />
             </button>
@@ -390,7 +390,7 @@ export function AppShell() {
               aria-label="Add an item"
               title="Add an item"
               onClick={() => void openCreateItem()}
-              className="grid size-10 place-items-center rounded-full border border-foreground text-foreground outline-none transition-colors hover:bg-foreground hover:text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="grid size-10 place-items-center rounded-full border border-foreground text-foreground outline-none transition-colors hover:bg-foreground hover:text-background focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               <Plus className="size-4" strokeWidth={1.5} />
             </button>
@@ -404,7 +404,7 @@ export function AppShell() {
             onClick={openMobileMenu}
             aria-expanded={mobileSidebarOpen}
             aria-label="Choose trip and open workspace menu"
-            className="flex min-h-11 min-w-0 items-baseline gap-2 text-left outline-none focus-visible:outline-2 focus-visible:outline-ring"
+            className="flex min-h-11 min-w-0 items-baseline gap-2 text-left outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
           >
             <span className="truncate text-base font-medium tracking-tight">{activeTrip?.title ?? "Choose trip"}</span>
             {activeTrip && (
@@ -420,7 +420,7 @@ export function AppShell() {
                 type="button"
                 aria-label="Search items"
                 onClick={() => setSearchOpen(true)}
-                className="grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-ring"
+                className="grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
               >
                 <Search className="size-[18px]" strokeWidth={1.5} />
               </button>
@@ -428,7 +428,7 @@ export function AppShell() {
                 type="button"
                 aria-label="Add an item"
                 onClick={() => void openCreateItem()}
-                className="grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-ring"
+                className="grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
               >
                 <Plus className="size-[18px]" strokeWidth={1.5} />
               </button>
