@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Filter, RotateCcw } from "lucide-react";
-import { dateParts, startDateTimeFor } from "@/lib/date-utils";
 import {
   allDayCalendarDays,
   elapsedDurationMinutes,
@@ -54,7 +53,7 @@ function InlineInput({
 }: {
   value: string;
   label: string;
-  type?: "text" | "number" | "datetime-local";
+  type?: "text" | "number" | "date" | "datetime-local";
   min?: string;
   step?: string;
   onFocus: () => void;
@@ -159,9 +158,9 @@ export function TableView({
         switch (sortKey) {
           case "startDate":
             result = compareNullable(
-              startDateTimeFor(a, trip.timezone),
-              startDateTimeFor(b, trip.timezone),
-              (left, right) => Date.parse(left) - Date.parse(right),
+              a.date ? `${a.date.slice(0, 10)}T${a.startTime ?? "00:00"}` : null,
+              b.date ? `${b.date.slice(0, 10)}T${b.startTime ?? "00:00"}` : null,
+              (left, right) => left.localeCompare(right),
             );
             break;
           case "title":
@@ -256,16 +255,15 @@ export function TableView({
     if (!selectedIds.has(item.id)) onSelect(item);
   }
   function localStart(item: TravelObject) {
-    const start = startDateTimeFor(item, trip.timezone);
-    if (!start) return "";
-    const parts = dateParts(start, trip.timezone);
-    return `${parts.date}T${parts.time}`;
+    if (!item.date) return "";
+    const date = item.date.slice(0, 10);
+    return item.startTime ? `${date}T${item.startTime}` : date;
   }
   function commitStart(item: TravelObject, value: string) {
     onChangeItems(editIds(item), (candidate) => {
       if (!value) return { date: null, endDate: null, placementTime: null, dayOrder: null };
       const [date, time] = value.split("T");
-      return scheduleAtTableStart(candidate, date, time, trip.timezone);
+      return scheduleAtTableStart(candidate, date, time ?? candidate.startTime ?? "", trip.timezone);
     });
   }
   function commitDuration(item: TravelObject, value: string) {
@@ -449,7 +447,7 @@ export function TableView({
                 <td className="min-w-52 whitespace-nowrap px-2 py-2 text-stone-600 dark:text-stone-300">
                   <InlineInput
                     label={`Start date for ${item.title}`}
-                    type="datetime-local"
+                    type={!item.date || item.startTime ? "datetime-local" : "date"}
                     value={localStart(item)}
                     onFocus={() => beginEdit(item)}
                     onCommit={(value) => commitStart(item, value)}
