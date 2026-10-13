@@ -170,7 +170,7 @@ const JourneyCard = memo(function JourneyCard({
           onClick={(event) =>
             window.matchMedia("(max-width: 639px)").matches ? onInspect(item) : onSelect(item, event.shiftKey)
           }
-          className="block h-36 w-full overflow-hidden text-left sm:h-44"
+          className="block h-36 w-full overflow-hidden text-left sm:h-44 in-data-[density=compact]:hidden"
         >
           <img src={item.headerImage} alt="" className="size-full object-cover" />
         </button>
@@ -182,7 +182,7 @@ const JourneyCard = memo(function JourneyCard({
           onClick={(event) =>
             window.matchMedia("(max-width: 639px)").matches ? onInspect(item) : onSelect(item, event.shiftKey)
           }
-          className="flex min-w-0 flex-1 items-start gap-3 py-4 in-data-[density=compact]:py-2 pr-2 text-left"
+          className="flex min-w-0 flex-1 items-start gap-3 py-4 in-data-[density=compact]:items-baseline in-data-[density=compact]:py-1 pr-2 text-left"
         >
           <span
             className={`w-[72px] shrink-0 font-mono ${time.small ? "pt-1.5 text-xs" : "text-[22px] font-light leading-8 in-data-[density=compact]:text-base in-data-[density=compact]:leading-6"} ${primary ? "text-accent" : time.flexible ? "text-muted" : ""}`}
@@ -192,25 +192,31 @@ const JourneyCard = memo(function JourneyCard({
           <span className={`w-5 shrink-0 pt-1.5 font-mono text-[11px] ${active ? "text-accent" : "text-faint"}`}>
             {number != null ? String(number).padStart(2, "0") : "—"}
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1 in-data-[density=compact]:flex in-data-[density=compact]:items-baseline in-data-[density=compact]:gap-3">
+            <span className="flex min-w-0 items-center gap-2 in-data-[density=compact]:shrink-0 in-data-[density=compact]:max-w-[55%]">
               <span aria-hidden className="size-2 shrink-0" style={{ backgroundColor: color }} />
               <span className="min-w-0 truncate text-[17px] font-medium leading-tight">{item.title}</span>
             </span>
-            <span className="mt-1 flex items-baseline justify-between gap-3 text-[13px] text-muted">
+            <span className="mt-1 flex items-baseline justify-between gap-3 text-[13px] text-muted in-data-[density=compact]:mt-0 in-data-[density=compact]:min-w-0 in-data-[density=compact]:flex-1 in-data-[density=compact]:text-xs">
               <span className="min-w-0 truncate">{detail.join(" · ")}</span>
               {cost && <span className="shrink-0 font-mono text-xs">{cost}</span>}
             </span>
-            {!location && <span className="mt-0.5 block text-xs text-accent">No location</span>}
+            {!location && (
+              <span className="mt-0.5 block text-xs text-accent in-data-[density=compact]:hidden">No location</span>
+            )}
             {item.location?.openingHours?.[0] && (
-              <span className="mt-1.5 line-clamp-1 block text-xs text-faint">{item.location.openingHours[0]}</span>
+              <span className="mt-1.5 line-clamp-1 block text-xs text-faint in-data-[density=compact]:hidden">
+                {item.location.openingHours[0]}
+              </span>
             )}
             {item.notes && (
-              <span className="mt-2 line-clamp-2 block text-[13px] leading-relaxed text-muted">{item.notes}</span>
+              <span className="mt-2 line-clamp-2 block text-[13px] leading-relaxed text-muted in-data-[density=compact]:hidden">
+                {item.notes}
+              </span>
             )}
           </span>
         </button>
-        <div className="flex shrink-0 flex-col items-end justify-between py-3">
+        <div className="flex shrink-0 flex-col items-end justify-between py-3 in-data-[density=compact]:flex-row in-data-[density=compact]:items-center in-data-[density=compact]:gap-1 in-data-[density=compact]:py-0">
           <button
             type="button"
             data-reorder-handle
@@ -227,7 +233,7 @@ const JourneyCard = memo(function JourneyCard({
               target="_blank"
               rel="noreferrer"
               aria-label={`Open ${item.title} in Maps`}
-              className="px-1 py-2 text-xs underline underline-offset-2 hover:text-accent max-sm:flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center max-sm:justify-center"
+              className="px-1 py-2 in-data-[density=compact]:py-0 text-xs underline underline-offset-2 hover:text-accent max-sm:flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center max-sm:justify-center"
             >
               Maps
             </a>
