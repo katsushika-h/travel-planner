@@ -14,8 +14,7 @@ import {
   rectIntersection,
   type CollisionDetection,
 } from "@dnd-kit/core";
-import { ChevronLeft, ChevronRight, Clock, Lightbulb, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DayJourneyView } from "@/components/views/DayJourneyView";
 import { dateParts, formatTripDate, monthGrid, shiftDate } from "@/lib/date-utils";
 import { useTravelStore } from "@/store/use-travel-store";
@@ -35,6 +34,12 @@ const monthCollisionDetection: CollisionDetection = (args) => {
   const collisions = pointerWithin(args);
   return collisions.length ? collisions : rectIntersection(args);
 };
+/** Plain-text view options with an ink underline on the active one. */
+function textOptionClass(active: boolean) {
+  return `min-h-11 border-b px-0.5 text-sm transition-colors sm:min-h-9 ${
+    active ? "border-foreground font-medium text-foreground" : "border-transparent text-muted hover:text-foreground"
+  }`;
+}
 function sundayOf(date: string) {
   const value = new Date(`${date}T00:00:00Z`);
   return shiftDate(date, -value.getUTCDay());
@@ -277,146 +282,138 @@ export function CalendarView({
   const activeDragItems = activeItem
     ? [activeItem, ...items.filter((item) => item.id !== activeItem.id && selectedIds.has(item.id))]
     : [];
+  function rangeTitle(from: string, to: string) {
+    const label = (date: string, options: Intl.DateTimeFormatOptions) =>
+      formatTripDate(`${date}T12:00:00Z`, trip.timezone, options);
+    const sameMonth = from.slice(0, 7) === to.slice(0, 7);
+    const year =
+      from.slice(0, 4) === today.slice(0, 4) && to.slice(0, 4) === today.slice(0, 4) ? "" : `, ${to.slice(0, 4)}`;
+    return `${label(from, { month: "long", day: "numeric" })} – ${label(to, sameMonth ? { day: "numeric" } : { month: "long", day: "numeric" })}${year}`;
+  }
   const title =
     mode === "month"
       ? new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(month)
       : mode === "week"
-        ? `${formatTripDate(`${weekDates[0]}T12:00:00Z`, trip.timezone, { month: "short", day: "numeric" })} – ${formatTripDate(`${weekDates[6]}T12:00:00Z`, trip.timezone, { month: "short", day: "numeric", year: "numeric" })}`
-        : `${formatTripDate(`${start}T12:00:00Z`, trip.timezone, { month: "short", day: "numeric" })} – ${formatTripDate(`${tripEnd}T12:00:00Z`, trip.timezone, { month: "short", day: "numeric", year: "numeric" })}`;
+        ? rangeTitle(weekDates[0], weekDates[6])
+        : rangeTitle(start, tripEnd);
+  const modes: Mode[] = ["month", "week", "day"];
+  const modeShortcuts: Record<Mode, string> = { month: "Q", week: "W", day: "E" };
+  const iconButton =
+    "grid size-11 shrink-0 place-items-center text-foreground hover:bg-surface sm:size-9 [&_svg]:size-4";
+  function chooseMode(view: Mode) {
+    setMode(view);
+    if (view === "day") requestDay(focusDate);
+  }
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-neutral-900">
-      <div className="hidden flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:flex">
-        <div>
-          <p className="text-sm font-semibold">{title}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {mode === "week"
-              ? "Choose a day, then arrange its visit order"
-              : mode === "day"
-                ? "Continuous itinerary · map follows the active day"
-                : `Times shown in ${trip.timezone}`}
-          </p>
-        </div>
-        <div className="flex max-w-full flex-wrap items-center gap-2">
-          {mode !== "month" && (
-            <>
-              <Button
-                variant={ideasOpen ? "secondary" : "outline"}
-                size="sm"
-                title="Open Ideas (Space)"
-                onClick={() => setIdeasOpen((open) => !open)}
-              >
-                <Lightbulb size={14} /> Ideas{" "}
-                <span className="rounded-full bg-background/70 px-1.5 text-[10px]">{ideas.length}</span>
-                <kbd className="rounded border px-1 text-[9px] font-normal opacity-70">Space</kbd>
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => onCreateItem()}>
-                <Plus size={14} /> Add idea
-              </Button>
-            </>
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <div className="hidden flex-wrap items-center justify-between gap-x-6 gap-y-2 px-7 pb-4 pt-5 sm:flex">
+        <div className="flex min-w-0 items-center gap-1">
+          <button type="button" className={iconButton} onClick={() => navigate(-1)} aria-label="Previous period">
+            <ChevronLeft strokeWidth={1.5} />
+          </button>
+          <button type="button" className={iconButton} onClick={() => navigate(1)} aria-label="Next period">
+            <ChevronRight strokeWidth={1.5} />
+          </button>
+          <h1 className="ml-2 truncate text-[22px] font-medium tracking-[-0.01em]">{title}</h1>
+          {mode === "month" && (
+            <span className="ml-3 hidden truncate text-xs text-faint lg:inline">Times in {trip.timezone}</span>
           )}
-          <div className="flex rounded-lg border p-0.5">
-            {(["month", "week", "day"] as Mode[]).map((view) => (
-              <Button
-                key={view}
-                variant={mode === view ? "secondary" : "ghost"}
-                size="sm"
-                className="capitalize"
-                onClick={() => {
-                  setMode(view);
-                  if (view === "day") requestDay(focusDate);
-                }}
-              >
-                {view}
-                <kbd className="ml-1 rounded border px-1 text-[9px] font-normal opacity-60">
-                  {view === "month" ? "Q" : view === "week" ? "W" : "E"}
-                </kbd>
-              </Button>
-            ))}
-          </div>
-          <Button variant="ghost" size="icon-sm" onClick={() => navigate(-1)} aria-label="Previous period">
-            <ChevronLeft />
-          </Button>
-          <Button variant="outline" size="sm" onClick={goToToday}>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+          <button type="button" className="min-h-9 text-muted hover:text-foreground" onClick={goToToday}>
             Today
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
+          </button>
+          <button
+            type="button"
+            className="min-h-9 text-muted hover:text-foreground"
             onClick={() => (mode === "day" ? requestDay(start) : setFocusDate(start))}
           >
             Trip start
-          </Button>
-          <Button variant="ghost" size="icon-sm" onClick={() => navigate(1)} aria-label="Next period">
-            <ChevronRight />
-          </Button>
-        </div>
-      </div>
-      <div className="shrink-0 border-b bg-background px-3 py-2 sm:hidden">
-        <div className="flex min-h-10 items-center justify-between gap-2">
-          <strong className="min-w-0 truncate text-sm">{mode === "day" ? "Day itinerary" : title}</strong>
-          {mode === "day" ? (
-            <div className="flex gap-2">
-              <Button
-                className="min-h-11"
-                variant={ideasOpen ? "secondary" : "outline"}
-                size="sm"
+          </button>
+          {mode !== "month" && (
+            <>
+              <button
+                type="button"
+                aria-pressed={ideasOpen}
+                title="Ideas (Space)"
+                className={`min-h-9 ${ideasOpen ? "text-foreground" : "text-muted hover:text-foreground"}`}
                 onClick={() => setIdeasOpen((open) => !open)}
               >
-                <Lightbulb size={14} /> Ideas {ideas.length}
-              </Button>
-              <Button className="min-h-11" variant="outline" size="sm" onClick={() => onCreateItem()}>
-                <Plus size={14} /> Idea
-              </Button>
+                Ideas <span className="font-mono">{ideas.length}</span>
+              </button>
+              <button type="button" className="min-h-9 text-muted hover:text-foreground" onClick={() => onCreateItem()}>
+                Add idea
+              </button>
+            </>
+          )}
+          <span aria-hidden="true" className="h-4 w-px bg-divider" />
+          <div className="flex gap-6">
+            {modes.map((view) => (
+              <button
+                key={view}
+                type="button"
+                aria-pressed={mode === view}
+                title={`${view === "month" ? "Month" : view === "week" ? "Week" : "Day"} (${modeShortcuts[view]})`}
+                className={`capitalize ${textOptionClass(mode === view)}`}
+                onClick={() => chooseMode(view)}
+              >
+                {view}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="shrink-0 border-b border-divider bg-background px-4 py-2 sm:hidden">
+        <div className="flex min-h-11 items-center justify-between gap-2">
+          <strong className="min-w-0 truncate text-[15px] font-medium">
+            {mode === "day" ? "Day itinerary" : title}
+          </strong>
+          {mode === "day" ? (
+            <div className="flex gap-4 text-sm">
+              <button
+                type="button"
+                aria-pressed={ideasOpen}
+                className={`min-h-11 ${ideasOpen ? "text-foreground" : "text-muted"}`}
+                onClick={() => setIdeasOpen((open) => !open)}
+              >
+                Ideas <span className="font-mono">{ideas.length}</span>
+              </button>
+              <button type="button" className="min-h-11 text-muted" onClick={() => onCreateItem()}>
+                Add idea
+              </button>
             </div>
           ) : (
-            <div className="flex gap-1">
-              <Button
-                className="size-11"
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate(-1)}
-                aria-label="Previous period"
-              >
-                <ChevronLeft />
-              </Button>
-              <Button
-                className="size-11"
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate(1)}
-                aria-label="Next period"
-              >
-                <ChevronRight />
-              </Button>
+            <div className="flex">
+              <button type="button" className={iconButton} onClick={() => navigate(-1)} aria-label="Previous period">
+                <ChevronLeft strokeWidth={1.5} />
+              </button>
+              <button type="button" className={iconButton} onClick={() => navigate(1)} aria-label="Next period">
+                <ChevronRight strokeWidth={1.5} />
+              </button>
             </div>
           )}
         </div>
         {mode !== "day" && (
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <div className="flex rounded-lg border p-0.5">
-              {(["month", "week", "day"] as Mode[]).map((view) => (
-                <Button
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex gap-5">
+              {modes.map((view) => (
+                <button
                   key={view}
-                  variant={mode === view ? "secondary" : "ghost"}
-                  size="sm"
-                  className="min-h-11 capitalize"
-                  onClick={() => {
-                    setMode(view);
-                    if (view === "day") requestDay(focusDate);
-                  }}
+                  type="button"
+                  aria-pressed={mode === view}
+                  className={`capitalize ${textOptionClass(mode === view)}`}
+                  onClick={() => chooseMode(view)}
                 >
                   {view}
-                </Button>
+                </button>
               ))}
             </div>
-            <Button className="min-h-11" variant="ghost" size="sm" onClick={goToToday}>
+            <button type="button" className="min-h-11 text-sm text-muted" onClick={goToToday}>
               Today
-            </Button>
+            </button>
           </div>
         )}
-        {mode === "week" && (
-          <p className="mt-2 text-xs text-muted-foreground">Swipe sideways to see the rest of the week.</p>
-        )}
+        {mode === "week" && <p className="pb-1 text-xs text-faint">Swipe sideways to see the rest of the week.</p>}
       </div>
       {mode === "month" ? (
         <DndContext
@@ -530,23 +527,6 @@ export function CalendarView({
           </DragOverlay>
         </DndContext>
       )}
-      <div className="hidden items-center gap-2 border-t px-4 py-2 text-xs text-muted-foreground sm:flex">
-        <Clock size={13} />
-        {mode === "month"
-          ? "Drag items to another date. Double-click a date to add an item."
-          : mode === "week"
-            ? "Double-click a time slot to add an item. Drag ideas into exact visit-order gaps."
-            : "Scroll the whole trip; the map follows the active day. Drag cards into exact order gaps."}
-        {mode !== "month" && (
-          <span className="ml-auto">
-            Press{" "}
-            <kbd className="rounded border bg-stone-100 px-1.5 py-0.5 font-mono text-[10px] dark:bg-neutral-800">
-              Space
-            </kbd>{" "}
-            to toggle Ideas
-          </span>
-        )}
-      </div>
     </div>
   );
 }

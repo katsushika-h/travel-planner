@@ -3,8 +3,7 @@
 import { eventItems } from "@/lib/note-domain";
 import { useState, type CSSProperties } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { GripVertical, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import { dateParts, formatTripDate, shiftDate, startDateTimeFor } from "@/lib/date-utils";
 import { compareScheduleOrder, isTimedItem, sortDayDisplayItems } from "@/lib/schedule-order";
 import { itemDateSpan, occursOnItineraryDate } from "@/lib/schedule-domain";
@@ -39,9 +38,7 @@ function EventChip({
       ? formatTripDate(start, timezone, { hour: "numeric", minute: "2-digit" })
       : "Flexible";
   const style: CSSProperties = {
-    backgroundColor: `${color}20`,
-    borderColor: `${color}70`,
-    color,
+    borderLeftColor: color,
     ...(transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : {}),
   };
   return (
@@ -50,13 +47,12 @@ function EventChip({
       style={style}
       onClick={(event) => onSelect(item, event.shiftKey)}
       onDoubleClick={(event) => event.stopPropagation()}
-      className={`group flex w-full items-start gap-1 rounded-md border px-1.5 py-1 text-left text-[11px] leading-tight shadow-sm hover:brightness-95 ${selectionRing(selected, primary)} ${isDragging ? "z-20 opacity-40" : ""}`}
+      className={`flex w-full items-baseline gap-1.5 border-l-[3px] bg-surface px-1.5 py-1 text-left text-[11px] leading-tight hover:bg-surface-selected ${selectionRing(selected, primary)} ${isDragging ? "z-20 opacity-40" : ""}`}
       {...attributes}
       {...listeners}
     >
-      <GripVertical size={11} className="mt-0.5 shrink-0 opacity-40 group-hover:opacity-100" />
+      <span className="hidden shrink-0 font-mono text-[10px] text-muted sm:inline">{time}</span>
       <span className="min-w-0 flex-1 truncate font-medium">{item.title}</span>
-      <span className="hidden shrink-0 text-[10px] opacity-75 sm:inline">{time}</span>
     </button>
   );
 }
@@ -92,10 +88,10 @@ function DayCell({
       ref={setNodeRef}
       onDoubleClick={() => onCreateItem(date)}
       title="Double-click to add an item"
-      className={`min-h-[116px] border-b border-r p-1.5 transition-colors sm:min-h-[132px] ${date.slice(0, 7) === currentMonth ? "bg-white dark:bg-neutral-900" : "bg-stone-50/70 dark:bg-neutral-950"} ${isOver ? "bg-emerald-50 ring-2 ring-inset ring-emerald-400 dark:bg-emerald-950" : ""}`}
+      className={`min-h-[116px] border-b border-r border-divider p-1.5 transition-colors sm:min-h-[132px] ${date.slice(0, 7) === currentMonth ? "" : "bg-surface/40"} ${isOver ? "bg-surface ring-1 ring-inset ring-accent" : ""}`}
     >
       <div
-        className={`mb-1 flex h-6 w-6 items-center justify-center text-xs ${date === today ? "rounded-full bg-emerald-700 font-semibold text-white" : "text-stone-500 dark:text-stone-400"}`}
+        className={`mb-1 flex h-6 w-6 items-center justify-center font-mono text-xs ${date === today ? "rounded-full bg-foreground font-medium text-background" : date.slice(0, 7) === currentMonth ? "text-muted" : "text-faint"}`}
       >
         {day}
       </div>
@@ -152,9 +148,7 @@ function MultiDayBar({
     left: `calc(${(startColumn / 7) * 100}% + 2px)`,
     width: `calc(${(dayCount / 7) * 100}% - 4px)`,
     top: `${29 + lane * 23}px`,
-    backgroundColor: `${color}30`,
-    borderColor: `${color}80`,
-    color,
+    ...(startsHere ? { borderLeftColor: color } : {}),
     ...(transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : {}),
   };
   return (
@@ -169,7 +163,7 @@ function MultiDayBar({
         setDraggedDate(shiftDate(weekStart, startColumn + Math.min(Math.max(column, 0), dayCount - 1)));
       }}
       title={item.title}
-      className={`absolute z-10 flex h-5 items-center gap-1 border px-1.5 text-left text-[10px] font-medium shadow-sm hover:brightness-95 ${startsHere ? "rounded-l-md" : "border-l-0"} ${endsHere ? "rounded-r-md" : "border-r-0"} ${selectionRing(selected, primary)} ${isDragging ? "opacity-40" : ""}`}
+      className={`absolute z-10 flex h-5 items-center gap-1 bg-surface px-1.5 text-left text-[11px] font-medium hover:bg-surface-selected ${startsHere ? "border-l-[3px]" : ""} ${endsHere ? "" : "pr-0.5"} ${selectionRing(selected, primary)} ${isDragging ? "opacity-40" : ""}`}
       {...attributes}
       {...listeners}
     >
@@ -264,24 +258,22 @@ export function MonthView({
               day: "numeric",
             });
             return (
-              <section key={date} className="border-b px-3 py-3">
+              <section key={date} className="border-b border-divider px-4 py-3">
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => onOpenDay(date)} className="min-h-11 min-w-0 flex-1 text-left">
-                    <span className="block truncate text-sm font-semibold">{label}</span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="block truncate text-[15px] font-medium">{label}</span>
+                    <span className="text-xs text-muted">
                       {dayItems.length} {dayItems.length === 1 ? "item" : "items"}
                     </span>
                   </button>
-                  <Button
+                  <button
                     type="button"
-                    variant="outline"
-                    size="icon"
-                    className="size-11"
+                    className="grid size-11 shrink-0 place-items-center rounded-full border border-foreground"
                     onClick={() => onCreateItem(date)}
                     aria-label={`Add item on ${label}`}
                   >
-                    <Plus size={16} />
-                  </Button>
+                    <Plus size={16} strokeWidth={1.5} />
+                  </button>
                 </div>
                 {dayItems.length ? (
                   <div className="mt-2 space-y-1">
@@ -290,36 +282,33 @@ export function MonthView({
                         key={item.id}
                         type="button"
                         onClick={() => onInspect(item)}
-                        className="flex min-h-11 w-full items-center gap-3 rounded-lg bg-stone-50 px-3 py-2 text-left dark:bg-neutral-800"
+                        className="flex min-h-11 w-full items-center gap-3 border-l-[3px] bg-surface px-3 py-2 text-left"
+                        style={{ borderLeftColor: typeColor(item.type, typeColors) }}
                       >
-                        <span className="w-12 shrink-0 text-[11px] font-medium text-muted-foreground">
+                        <span className="w-14 shrink-0 font-mono text-[11px] text-muted">
                           {item.isAllDay ? "All day" : isTimedItem(item) ? item.startTime : "Flexible"}
                         </span>
-                        <span
-                          className="size-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: typeColor(item.type, typeColors) }}
-                        />
                         <span className="min-w-0 truncate text-sm">{item.title}</span>
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-1 text-xs text-muted-foreground">No plans yet.</p>
+                  <p className="mt-1 text-xs text-faint">No plans yet.</p>
                 )}
               </section>
             );
           })
         ) : (
-          <div className="grid min-h-48 place-items-center px-6 text-center text-sm text-muted-foreground">
+          <div className="grid min-h-48 place-items-center px-6 text-center text-sm text-muted">
             No trip dates in this month.
           </div>
         )}
       </div>
-      <div className="hidden min-h-0 flex-1 overflow-auto sm:block">
-        <div className="min-w-[700px]">
-          <div className="sticky top-0 z-20 grid grid-cols-7 border-b bg-stone-50 text-center text-[10px] font-semibold uppercase tracking-wider text-stone-500 dark:bg-neutral-800 dark:text-stone-300 sm:text-xs">
+      <div className="hidden min-h-0 flex-1 overflow-auto px-7 pb-6 sm:block">
+        <div className="min-w-[700px] border-l border-t border-divider border-t-foreground">
+          <div className="sticky top-0 z-20 grid grid-cols-7 border-b border-divider bg-background text-left text-xs text-muted">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-              <div key={day} className="py-2">
+              <div key={day} className="px-2 py-2.5">
                 {day}
               </div>
             ))}
