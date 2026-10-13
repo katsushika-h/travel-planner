@@ -1,7 +1,7 @@
 "use client";
 
 import { useDraggable } from "@dnd-kit/core";
-import { GripVertical, StickyNote, Trash2 } from "lucide-react";
+import { GripVertical, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { TravelObject } from "@/types/travel";
@@ -105,11 +105,6 @@ export function ItemNoteCard({
     >
       <div className="flex min-w-0">
         <div className="flex w-9 shrink-0 items-start justify-center pt-1 text-faint">
-          <StickyNote
-            size={13}
-            aria-hidden
-            className="mt-2 group-hover/note:hidden group-focus-within/note:hidden max-sm:hidden"
-          />
           <button
             type="button"
             data-reorder-handle
