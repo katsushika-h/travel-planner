@@ -16,12 +16,12 @@ export const plannerTabLabels: Record<PlannerTab, string> = {
   expenses: "Spend",
 };
 
-/** Header order of the views. Number shortcuts keep their original keys (1 Calendar … 6 Spend). */
+/** Header order of the views. Number shortcuts follow it (1 Plan … 6 Spend). */
 export const plannerTabOrder: PlannerTab[] = ["days", "calendar", "kanban", "table", "map", "expenses"];
 export const plannerTabShortcuts: Record<PlannerTab, string> = {
-  calendar: "1",
-  kanban: "2",
-  days: "3",
+  days: "1",
+  calendar: "2",
+  kanban: "3",
   table: "4",
   map: "5",
   expenses: "6",

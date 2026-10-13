@@ -33,7 +33,7 @@ Each workstream has its own notes file under [minimal-ui/](minimal-ui/README.md)
 Read these before editing:
 
 1. `AGENTS.md` (important invariants), this plan, your workstream file, [minimal-ui/README.md](minimal-ui/README.md) (done-checks), and the design README. Read the relevant guide in `node_modules/next/dist/docs/` before writing Next.js code.
-2. **Behaviour must not change.** Keep `date`/`endDate`/`startTime`/`endTime`/`placementTime`/`dayOrder` handling, drag and drop, multi-select, keyboard shortcuts (1–6 views, Q/W/E calendar modes, Space for Ideas, Delete with confirmation), autosave, Maps URL handling, attachments, and expense rules (actual expenses separate from planned costs; totals per currency, no conversion).
+2. **Behaviour must not change.** Keep `date`/`endDate`/`startTime`/`endTime`/`placementTime`/`dayOrder` handling, drag and drop, multi-select, keyboard shortcuts (1–6 views in header order: 1 Plan, 2 Calendar, 3 Board, 4 Table, 5 Map, 6 Spend — renumbered by user decision on 2026-10-13; Q/W/E calendar modes, Space for Ideas, Delete with confirmation), autosave, Maps URL handling, attachments, and expense rules (actual expenses separate from planned costs; totals per currency, no conversion).
 3. **Do not change persisted state.** Keep the `PlannerTab` values (`calendar`, `kanban`, `days`, `table`, `map`, `expenses`), `calendarMode`, `theme` and `sidebarCollapsed` in `store/use-travel-store.ts`. Labels come from `plannerTabLabels` (`days` is **Plan**, `kanban` **Board**, `expenses` **Spend**).
 4. **Use theme tokens, not colours.** Use the CSS variables and Tailwind token classes from WS0 (`bg-background`, `text-foreground`, `text-muted`, `text-faint`, `border-divider`, `bg-surface`, `bg-panel`, `text-accent`, `text-danger`, `border-input-rule`, `font-mono`). Type colours come from `typeColor()` and `typeTextColor()` in `lib/type-color.ts`. Do not add hard-coded colours. Unlike stock shadcn, `accent` here is the vermilion highlight (selected stop, "Idea", warnings), not a neutral hover colour: use `bg-surface` for hover and `bg-surface-selected` for selected rows, never `hover:bg-accent`.
 5. **Mobile stays working.** The mobile contract in [mobile-ui-implementation.md](mobile-ui-implementation.md) must keep working at 320–390px.
@@ -73,7 +73,6 @@ Running at most three workstreams at once keeps machine load and merge work mana
 
 ## Open decisions
 
-- **Number shortcuts vs header order.** The header shows Plan first, but shortcuts keep the original mapping (1 Calendar, 2 Board, 3 Plan, 4 Table, 5 Map, 6 Spend). Waiting on the user: renumber to match the header, keep, or put Calendar first in the header.
 - **Plan view cross-day moves** (WS1 default): drag onto a day in the day strip instead of the old multi-column layout. The user can override.
 
 ---
