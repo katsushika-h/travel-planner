@@ -74,49 +74,44 @@ try {
     ],
   );
 
-  const forward = await request("/api/travel-objects/reorder", "POST", {
+  // Fixed-time items keep chronological order (ADR 0005); a timed reorder out of sequence is normalized back.
+  const timedOutOfOrder = await request("/api/travel-objects/reorder", "POST", {
     tripId,
     objectId: a.id,
     date: "2026-09-24",
     dayOrder: 3,
   });
-  assert.equal(forward.status, 200);
+  assert.equal(timedOutOfOrder.status, 200);
   assert.ok(
-    forward.body.every((item) =>
+    timedOutOfOrder.body.every((item) =>
       ["startDateTime", "endDateTime", "dayIndex"].every((field) => !Object.hasOwn(item, field)),
     ),
   );
   assert.deepEqual(
-    forward.body.filter((item) => item.date === "2026-09-24").map((item) => item.title),
-    ["B", "C", "A"],
+    timedOutOfOrder.body.filter((item) => item.date === "2026-09-24").map((item) => [item.title, item.dayOrder]),
+    [
+      ["A", 0],
+      ["B", 1],
+      ["C", 2],
+    ],
   );
-  const backward = await request("/api/travel-objects/reorder", "POST", {
-    tripId,
-    objectId: a.id,
-    date: "2026-09-24",
-    dayOrder: 0,
-  });
+
+  // Flexible items take the requested position forward, backward, and before the last item.
+  const p = await create("P", "2026-09-29", null, null);
+  await create("Q", "2026-09-29", null, null);
+  await create("R", "2026-09-29", null, null);
+  const flexibleTitles = (result) => result.body.filter((item) => item.date === "2026-09-29").map((item) => item.title);
+  const reorderP = (dayOrder) =>
+    request("/api/travel-objects/reorder", "POST", { tripId, objectId: p.id, date: "2026-09-29", dayOrder });
+  const forward = await reorderP(3);
+  assert.equal(forward.status, 200);
+  assert.deepEqual(flexibleTitles(forward), ["Q", "R", "P"]);
+  const backward = await reorderP(0);
   assert.equal(backward.status, 200);
-  assert.deepEqual(
-    backward.body.filter((item) => item.date === "2026-09-24").map((item) => item.title),
-    ["A", "B", "C"],
-  );
-  const beforeLast = await request("/api/travel-objects/reorder", "POST", {
-    tripId,
-    objectId: a.id,
-    date: "2026-09-24",
-    dayOrder: 2,
-  });
+  assert.deepEqual(flexibleTitles(backward), ["P", "Q", "R"]);
+  const beforeLast = await reorderP(2);
   assert.equal(beforeLast.status, 200);
-  assert.deepEqual(
-    beforeLast.body.filter((item) => item.date === "2026-09-24").map((item) => item.title),
-    ["B", "A", "C"],
-  );
-  assert.equal(
-    (await request("/api/travel-objects/reorder", "POST", { tripId, objectId: a.id, date: "2026-09-24", dayOrder: 0 }))
-      .status,
-    200,
-  );
+  assert.deepEqual(flexibleTitles(beforeLast), ["Q", "P", "R"]);
 
   const overnight = await create("Overnight", "2026-09-24", "23:30", "01:00", "2026-09-25");
   const crossDay = await request("/api/travel-objects/reorder", "POST", {
