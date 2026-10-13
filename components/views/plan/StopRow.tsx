@@ -71,12 +71,12 @@ export function NoteBlock({ item, date, order }: { item: TravelObject; date: str
       }}
       data-travel-object-id={item.id}
       {...listeners}
-      className={`border-b border-divider py-3 ${isDragging ? "opacity-40" : ""} ${isOver ? "shadow-[inset_0_2px_0_var(--accent)]" : ""}`}
+      className={`border-b border-divider py-1.5 ${isDragging ? "opacity-40" : ""} ${isOver ? "shadow-[inset_0_2px_0_var(--accent)]" : ""}`}
     >
-      <div className="border border-dashed border-input-rule px-4 py-3 text-sm sm:ml-[156px]">
-        {title && <p className="font-medium">{title}</p>}
+      <div className="px-1 text-[13px] sm:ml-[156px]">
+        {title && <p className="font-medium text-muted">{title}</p>}
         {item.noteBody ? (
-          <p className="whitespace-pre-wrap leading-relaxed text-muted">{item.noteBody}</p>
+          <p className="whitespace-pre-wrap leading-snug text-faint">{item.noteBody}</p>
         ) : (
           !title && <p className="text-faint">Empty note</p>
         )}
