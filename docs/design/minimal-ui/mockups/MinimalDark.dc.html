@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wayfarer, minimal dark plan and map</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&amp;family=Geist+Mono:wght@300;400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0E0E}
+a{color:#EDEDEC;text-underline-offset:3px}a:hover{color:#FF6A4D}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="min-height: 940px; display: flex; flex-direction: column; background: #0E0E0E; color: #EDEDEC; font-family: Geist, system-ui, sans-serif; font-size: 15px">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 40px; padding: 28px 48px 0">
+    <button type="button" aria-label="Switch trip, current trip Kyoto and Osaka" style="display: flex; align-items: baseline; gap: 12px; min-height: 44px; padding: 0; border: 0; background: transparent; cursor: pointer">
+      <span style="font-weight: 500; font-size: 20px; letter-spacing: -0.01em">Kyoto &amp; Osaka</span>
+      <span style="font-size: 14px; color: #9A9A98">Apr 3 – 10</span>
+    </button>
+    <nav aria-label="Views" style="flex: 1; display: flex; flex-wrap: wrap; gap: 28px">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="6">
+        <a href="#" aria-current="{{t.current}}" style="padding: 12px 0; font-size: 14px; text-decoration: none; {{t.style}}">{{t.label}}</a>
+      </sc-for>
+    </nav>
+    <button type="button" aria-label="Search" style="width: 40px; height: 40px; border: 0; background: transparent; display: grid; place-items: center; cursor: pointer">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EDEDEC" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+    </button>
+    <button type="button" aria-label="Add a stop" style="width: 40px; height: 40px; border: 1px solid #EDEDEC; border-radius: 50%; background: transparent; display: grid; place-items: center; cursor: pointer">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EDEDEC" stroke-width="1.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+    </button>
+  </header>
+
+  <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 40px 48px 0">
+    <div style="display: flex; gap: 4px; overflow-x: auto; max-width: 100%">
+      <sc-for list="{{days}}" as="d" hint-placeholder-count="8">
+        <button type="button" aria-pressed="{{d.selected}}" aria-label="{{d.aria}}" style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 52px; padding: 6px 0 10px; border: 0; background: transparent; cursor: pointer; {{d.style}}">
+          <span style="font-size: 11px; color: #9A9A98">{{d.dow}}</span>
+          <span style="font-family: 'Geist Mono', monospace; font-size: 20px; font-weight: 300">{{d.dom}}</span>
+        </button>
+      </sc-for>
+    </div>
+    <span style="font-size: 14px; color: #9A9A98">Monday · 6 stops · ¥18,700</span>
+  </div>
+
+  <div style="flex: 1; display: flex; flex-wrap: wrap; gap: 48px; padding: 24px 48px 48px">
+    <ol aria-label="Day 3 stops" style="flex: 1 1 520px; min-width: 0; list-style: none; margin: 0; padding: 0; border-top: 1px solid #EDEDEC; align-self: flex-start">
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+        <li style="border-bottom: 1px solid #242424">
+          <button type="button" onClick="{{r.pick}}" aria-expanded="{{r.expanded}}" style="width: 100%; display: grid; grid-template-columns: 112px 28px minmax(0, 1fr) auto; align-items: baseline; column-gap: 16px; padding: 20px 0; border: 0; background: transparent; text-align: left; cursor: pointer">
+            <span style="font-family: 'Geist Mono', monospace; font-size: 28px; font-weight: 300; letter-spacing: -0.02em; color: {{r.timeColor}}">{{r.time}}</span>
+            <span style="font-family: 'Geist Mono', monospace; font-size: 12px; color: {{r.badgeColor}}">{{r.badge}}</span>
+            <span style="min-width: 0; display: flex; flex-direction: column; gap: 4px">
+              <span style="font-size: 18px; font-weight: 500; letter-spacing: -0.01em">{{r.title}}</span>
+              <span style="font-size: 13px; color: #9A9A98">{{r.meta}}</span>
+            </span>
+            <span style="font-family: 'Geist Mono', monospace; font-size: 13px; color: #9A9A98">{{r.cost}}</span>
+          </button>
+          <sc-if value="{{r.expanded}}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-wrap: wrap; gap: 12px 32px; padding: 0 0 22px 156px">
+              <p style="flex: 1 1 260px; margin: 0; line-height: 1.6; color: #C9C9C7">{{r.notes}}</p>
+              <div style="display: flex; gap: 20px; font-size: 14px"><a href="https://www.google.com/maps">Maps</a><a href="#">Edit</a></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{r.hasLeg}}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 0 0 16px 128px; font-size: 13px; color: #9A9A98">
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"></circle><path d="m9 21 2-6 3 3v3M7 12l3-4 4 1 3 3M11 15l1-5"></path></svg>
+              <span><span style="font-family: 'Geist Mono', monospace; color: #EDEDEC">{{r.leg.min}} min</span> walk · {{r.leg.km}} km</span>
+              <span style="color: {{r.leg.noteColor}}">{{r.leg.note}}</span>
+              <a href="{{r.leg.href}}" style="margin-left: auto">Directions</a>
+            </div>
+          </sc-if>
+        </li>
+      </sc-for>
+    </ol>
+
+    <section aria-label="Map of day 3" style="flex: 1 1 420px; min-width: 0; align-self: flex-start; aspect-ratio: 838 / 876; position: relative; overflow: hidden; background: #161616">
+      <img src="/_blob/e9333d16f4488a0e6654a246bb82124d" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; filter: {{mapFilter}}">
+      <svg aria-hidden="true" width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style="position: absolute; inset: 0">
+        <path d="{{routeD}}" fill="none" stroke="#0E0E0E" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>
+        <path d="{{routeD}}" fill="none" stroke="#EDEDEC" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>
+      </svg>
+      <sc-for list="{{pins}}" as="p" hint-placeholder-count="5">
+        <button type="button" onClick="{{p.pick}}" aria-label="{{p.label}}" style="position: absolute; transform: translate(-50%, -50%); display: grid; place-items: center; border-radius: 50%; font-family: 'Geist Mono', monospace; cursor: pointer; {{p.style}}">{{p.n}}</button>
+      </sc-for>
+      <div style="position: absolute; left: 16px; right: 16px; bottom: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 12px; color: #C9C9C7">
+        <span style="padding: 4px 8px; background: rgba(14,14,14,0.9)">1 stop without a location · <a href="#">add link</a></span>
+        <span style="padding: 4px 8px; background: rgba(14,14,14,0.9)">© OpenStreetMap contributors</span>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"mapStyle":{"editor":"enum","options":["color","mono"],"default":"color"},"accent":{"editor":"color","default":"#FF6A4D","options":["#FF6A4D","#7CA7FF","#EDEDEC"]},"$preview":{"width":1440,"height":940}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 'kiyomizu' }; }
+  renderVals() {
+    const accent = this.props.accent ?? '#FF6A4D';
+    const mapFilter = (this.props.mapStyle ?? 'color') === 'mono' ? 'grayscale(1) invert(1) brightness(0.78) contrast(1.15)' : 'invert(1) hue-rotate(180deg) brightness(0.88) contrast(0.92) saturate(0.75)';
+    const stops = [
+      { id: 'arabica', time: '08:30', title: 'Coffee at % Arabica', meta: 'Food · Higashiyama · done', cost: '¥1,200', x: 47.2, y: 57.1, done: true, notes: 'Grab a latte to go; the line is short before 9.' },
+      { id: 'kiyomizu', time: '09:15', title: 'Kiyomizu-dera', meta: 'Sightseeing · until 11:00', cost: '¥500', x: 76.7, y: 79.9, notes: 'Enter by the Nio-mon gate and finish on the stage before 10. Walk down Sannenzaka afterwards.' },
+      { id: 'okutan', time: '~12:00', title: 'Yudofu lunch · Okutan', meta: 'Food · flexible · no location', cost: '¥4,400', flex: true, notes: 'No map location yet. Paste a Google Maps link to pin it.' },
+      { id: 'kodaiji', time: '13:30', title: 'Kodai-ji', meta: 'Sightseeing · until 15:00', cost: '¥600', x: 55, y: 42.9, notes: 'Bamboo grove behind the main hall.' },
+      { id: 'yasaka', time: '15:30', title: 'Yasaka Shrine', meta: 'Sightseeing · Gion', cost: 'Free', x: 40.6, y: 22.7, notes: 'Cut through Maruyama Park on the way.' },
+      { id: 'kaiseki', time: '18:30', title: 'Kaiseki dinner', meta: 'Food · Gion · booked', cost: '¥12,000', x: 21.1, y: 29.9, notes: 'Reservation under your name. Arrive 10 minutes early.' }
+    ];
+    let n = 0; stops.forEach((s) => { s.n = s.x != null ? ++n : null; });
+    const pick = (id) => () => this.setState({ sel: this.state.sel === id ? null : id });
+    const tabs = ['Plan', 'Calendar', 'Board', 'Table', 'Map', 'Spend'];
+    const days = [['Sat', '03'], ['Sun', '04'], ['Mon', '05'], ['Tue', '06'], ['Wed', '07'], ['Thu', '08'], ['Fri', '09'], ['Sat', '10']];
+    const mapped = stops.filter((s) => s.n);
+    // Walking legs from the OSRM foot profile (FOSSGIS), projected onto the map image.
+    const ROUTE_D = 'M47.15 57.53 L47.61 57.61 L47.78 57.68 L47.92 57.79 L48.07 57.94 L48.27 58.11 L48.48 58.25 L49.97 59.03 L50.21 59.12 L50.52 59.2 L52.18 59.42 L52.82 59.56 L52.96 59.59 L53.11 59.65 L53.24 59.7 L53.36 59.76 L54.0 60.18 L54.12 60.28 L54.25 60.41 L54.38 60.57 L54.47 60.71 L54.61 60.98 L54.67 61.11 L54.7 61.26 L54.74 61.65 L54.77 62.02 L54.79 63.02 L54.6 66.58 L54.59 66.92 L54.58 68.07 L54.55 68.46 L54.14 69.65 L53.81 70.43 L53.38 71.37 L53.28 71.57 L55.56 72.51 L55.75 72.59 L55.95 72.68 L56.13 72.77 L58.31 74.07 L59.01 74.5 L59.14 74.59 L59.27 74.69 L59.46 74.84 L59.8 75.16 L59.96 75.3 L60.13 75.44 L60.32 75.55 L60.51 75.66 L60.71 75.75 L60.92 75.83 L61.13 75.88 L61.34 75.93 L61.57 75.96 L61.79 75.96 L65.09 75.89 L65.54 75.88 L65.67 75.88 L65.86 75.89 L65.98 75.92 L65.89 76.45 L66.59 76.97 L66.66 77.01 L67.22 77.27 L67.53 77.4 L67.39 77.82 L68.01 78.02 L68.64 78.23 L69.37 78.47 L69.47 78.5 L69.61 78.55 L69.37 79.16 L70.48 79.53 L70.56 79.34 L71.83 79.75 L72.18 79.87 L72.74 80.21 L73.29 80.7 L73.41 80.72 L73.93 80.68 L73.97 80.68 L75.04 80.61 L75.42 80.55 L75.53 80.97 L75.95 80.9 L76.03 81.33 L77.84 81.04 L77.67 80.07 M77.67 80.07 L77.84 81.04 L76.03 81.33 L75.95 80.9 L75.53 80.97 L75.42 80.55 L75.04 80.61 L73.97 80.68 L73.93 80.68 L73.41 80.72 L73.29 80.7 L72.74 80.21 L72.18 79.87 L71.83 79.75 L70.56 79.34 L70.48 79.53 L69.37 79.16 L69.61 78.55 L69.47 78.5 L69.37 78.47 L68.64 78.23 L68.01 78.02 L67.39 77.82 L67.53 77.4 L67.22 77.27 L66.66 77.01 L66.59 76.97 L65.89 76.45 L65.98 75.92 L65.86 75.89 L65.67 75.88 L65.54 75.88 L65.09 75.89 L61.79 75.96 L61.57 75.96 L61.34 75.93 L61.13 75.88 L60.92 75.83 L60.71 75.75 L60.51 75.66 L60.32 75.55 L60.13 75.44 L59.96 75.3 L59.8 75.16 L59.46 74.84 L59.27 74.69 L59.14 74.59 L59.01 74.5 L58.31 74.07 L56.13 72.77 L55.95 72.68 L55.75 72.59 L55.56 72.51 L53.28 71.57 L53.38 71.37 L53.81 70.43 L54.14 69.65 L54.55 68.46 L54.58 68.07 L54.59 66.92 L54.6 66.58 L54.79 63.02 L54.77 62.02 L54.74 61.65 L54.7 61.26 L54.67 61.11 L54.61 60.98 L54.47 60.71 L54.38 60.57 L54.25 60.41 L54.12 60.28 L54.0 60.18 L53.36 59.76 L53.41 59.6 L53.53 59.21 L53.58 59.03 L53.61 58.85 L53.62 58.69 L53.61 58.28 L53.61 58.07 L53.57 57.12 L53.5 55.83 L53.48 55.46 L53.42 54.98 L53.37 54.54 L53.29 54.11 L52.88 52.85 L52.84 52.29 L52.8 51.51 L53.08 51.48 L53.36 51.46 L53.97 51.46 L54.21 51.35 L55.89 51.33 L56.19 51.24 L56.82 51.02 L56.73 50.65 L56.63 50.33 L55.73 50.53 L55.22 50.6 L54.52 50.68 L54.36 50.72 L53.3 50.76 L53.3 50.57 L53.3 50.25 L53.07 50.18 L52.66 50.03 L52.51 49.97 L52.53 48.46 L52.92 48.47 L52.96 48.19 L53.12 46.93 L53.18 46.44 L53.25 45.92 L53.31 45.5 L53.37 45.03 L53.39 44.92 L53.43 44.65 L53.58 43.53 L56.17 43.82 L56.18 43.72 L54.92 43.58 M54.92 43.58 L56.18 43.72 L56.17 43.82 L53.58 43.53 L53.1 43.48 L53.07 43.47 L52.77 43.44 L52.39 43.4 L48.59 43.21 L48.4 43.2 L48.45 42.11 L48.46 41.98 L48.49 41.23 L48.58 39.28 L48.66 37.57 L48.71 36.51 L48.79 34.58 L46.63 34.52 L45.59 34.38 L44.26 34.16 L41.04 33.76 L40.77 33.65 L40.91 33.6 L40.99 30.67 L40.97 29.93 L40.94 29.6 L40.92 29.54 L40.9 29.47 L40.89 29.4 L40.9 29.33 L40.93 29.29 L40.98 29.26 L41.02 29.26 L41.03 29.07 L41.03 28.86 L40.55 28.86 L40.56 28.79 L40.58 27.04 L40.64 26.29 L40.64 26.26 L40.73 25.2 L40.19 25.16 L40.23 24.68 L40.28 24.18 L40.06 23.83 L39.89 23.63 L39.78 23.36 L39.88 22.09 L39.89 22.04 L42.03 22.2 L42.02 22.28 L40.6 22.17 M40.6 22.17 L42.02 22.28 L42.03 22.2 L39.89 22.04 L39.88 22.09 L39.28 22.04 L39.17 21.82 L38.87 21.24 L38.72 21.29 L37.67 21.5 L37.18 21.64 L36.96 21.73 L36.78 21.85 L36.68 22.02 L36.63 22.21 L36.59 22.45 L36.59 22.68 L36.31 22.65 L36.06 22.63 L35.44 22.56 L34.9 22.51 L34.8 22.5 L34.36 22.45 L34.23 22.44 L33.92 23.98 L33.07 23.85 L32.41 23.75 L32.42 23.44 L32.15 23.05 L31.88 22.88 L31.37 22.83 L30.93 22.79 L26.65 22.53 L22.41 22.42 L21.44 22.42 L21.22 22.42 L21.22 24.74 L20.89 26.74 L20.5 28.86 L20.42 29.27 L20.33 29.74';
+    const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+    const at = { arabica: [34.9984, 135.7797], kiyomizu: [34.9949, 135.785], kodaiji: [35.0006, 135.7811], yasaka: [35.0037, 135.7785], kaiseki: [35.0026, 135.775] };
+    const legDefs = { arabica: ['arabica', 'kiyomizu', 11, 0.8, '09:00', '09:15'], okutan: ['kiyomizu', 'kodaiji', 16, 1.2, null, null, 'from Kiyomizu-dera · lunch has no location'], kodaiji: ['kodaiji', 'yasaka', 9, 0.7, '15:00', '15:30'], yasaka: ['yasaka', 'kaiseki', 7, 0.5, '16:00', '18:30'] };
+    const legFor = (id) => {
+      const d = legDefs[id]; if (!d) return { hasLeg: false, leg: {} };
+      const [from, to, min, km, end, start, via] = d;
+      const spare = end ? toMin(start) - toMin(end) - min : null; const tight = spare !== null && spare < 5;
+      const note = via || (spare === null ? '' : tight ? 'Tight · ' + spare + ' min to spare' : spare < 60 ? spare + ' min to spare' : '');
+      return { hasLeg: true, leg: { min, km, note, noteColor: tight ? accent : '#9A9A98', href: 'https://www.google.com/maps/dir/?api=1&origin=' + at[from].join(',') + '&destination=' + at[to].join(',') + '&travelmode=walking' } };
+    };
+    return {
+      mapFilter,
+      tabs: tabs.map((label, i) => ({ label, current: i === 0 ? 'page' : 'false', style: i === 0 ? 'color: #EDEDEC; font-weight: 500; box-shadow: inset 0 -1px 0 #EDEDEC' : 'color: #9A9A98' })),
+      days: days.map(([dow, dom], i) => ({ dow, dom, aria: dow + ' April ' + Number(dom), selected: i === 2 ? 'true' : 'false', style: i === 2 ? 'box-shadow: inset 0 -2px 0 #EDEDEC' : 'color: #8A8A88' })),
+      rows: stops.map((s) => {
+        const on = this.state.sel === s.id;
+        return { ...s, ...legFor(s.id), badge: s.n ? String(s.n).padStart(2, '0') : '—', expanded: on, pick: pick(s.id),
+          timeColor: on ? accent : s.done ? '#6E6E6C' : s.flex ? '#9A9A98' : '#EDEDEC', badgeColor: on ? accent : '#8A8A88' };
+      }),
+      pins: mapped.map((s) => {
+        const on = this.state.sel === s.id;
+        return { n: s.n, pick: pick(s.id), label: 'Stop ' + s.n + ', ' + s.title,
+          style: 'left: ' + s.x + '%; top: ' + s.y + '%; ' + (on ? 'width: 36px; height: 36px; font-size: 13px; background: ' + accent + '; color: #0E0E0E; border: 0; z-index: 2' : 'width: 26px; height: 26px; font-size: 11px; background: #0E0E0E; color: #EDEDEC; border: 1px solid #EDEDEC') };
+      }),
+      routeD: ROUTE_D
+    };
+  }
+}
+</script>
+</body>
+</html>

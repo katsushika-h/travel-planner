@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wayfarer, Night Departures with map</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0D1014}
+a{color:#F2B33D}a:hover{color:#FFD27A}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="min-height: 940px; display: flex; flex-direction: column; background: #0D1014; color: #E9E6DF; font-family: 'IBM Plex Sans Condensed', system-ui, sans-serif; font-size: 15px">
+
+  <!-- One-line header: trip switcher replaces the sidebar -->
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 14px 24px; border-bottom: 1px solid #222831; background: #0A0C0F">
+    <span aria-label="Wayfarer" style="display: grid; place-items: center; width: 30px; height: 30px; border: 1.5px solid #F2B33D; border-radius: 50%">
+      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F2B33D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15.5 8.5-2 5-5 2 2-5z"></path></svg>
+    </span>
+    <button type="button" aria-label="Switch trip, current trip Kyoto and Osaka" style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px 0 4px; border: 0; border-radius: 6px; background: transparent; cursor: pointer">
+      <span style="display: flex; flex-direction: column; align-items: flex-start">
+        <span style="font-weight: 700; font-size: 20px; letter-spacing: 0.05em; text-transform: uppercase; line-height: 1.1">Kyoto &amp; Osaka</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #8B929C">03–10 APR · ASIA/TOKYO · JPY</span>
+      </span>
+      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B929C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+    </button>
+    <nav aria-label="Views" style="flex: 1; display: flex; flex-wrap: wrap; gap: 2px">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="6">
+        <a href="#" aria-current="{{t.current}}" style="padding: 10px 12px; border-radius: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.12em; text-decoration: none; {{t.style}}">{{t.label}}</a>
+      </sc-for>
+    </nav>
+    <button type="button" aria-label="Search" style="width: 40px; height: 40px; border: 1px solid #2A313B; border-radius: 6px; background: #12161B; display: grid; place-items: center; cursor: pointer">
+      <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#B7BDC6" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+    </button>
+    <button type="button" style="min-height: 40px; padding: 0 16px; border: 0; border-radius: 6px; background: #F2B33D; color: #0D1014; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer">+ Add</button>
+  </header>
+
+  <!-- Day strip -->
+  <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 24px">
+    <div style="display: flex; gap: 6px; overflow-x: auto; max-width: 100%">
+      <sc-for list="{{days}}" as="d" hint-placeholder-count="8">
+        <button type="button" aria-pressed="{{d.selected}}" style="flex: 0 0 auto; display: flex; align-items: baseline; gap: 6px; min-height: 40px; padding: 0 12px; border-radius: 6px; cursor: pointer; {{d.style}}">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 17px; font-weight: 600">{{d.dom}}</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.1em">{{d.dow}}</span>
+        </button>
+      </sc-for>
+    </div>
+    <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.06em; color: #8B929C">DAY 3 · 6 STOPS · ¥18,700 PLANNED</span>
+  </div>
+
+  <!-- Board + map -->
+  <div style="flex: 1; display: flex; flex-wrap: wrap; gap: 16px; padding: 0 24px 24px">
+    <section aria-label="Day 3 stops" style="flex: 1 1 560px; min-width: 0; border-radius: 10px; background: #12161B; border: 1px solid #222831; overflow: hidden; align-self: flex-start">
+      <ol style="list-style: none; margin: 0; padding: 0">
+        <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+          <li style="border-top: 1px solid #1E242C; {{r.rowStyle}}">
+            <button type="button" onClick="{{r.pick}}" aria-expanded="{{r.expanded}}" style="width: 100%; display: grid; grid-template-columns: 86px 30px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; padding: 14px 18px; border: 0; background: transparent; text-align: left; cursor: pointer">
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 19px; font-weight: 600; color: {{r.timeColor}}">{{r.time}}</span>
+              <span style="display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; {{r.badgeStyle}}">{{r.badge}}</span>
+              <span style="min-width: 0; display: flex; flex-direction: column; gap: 2px">
+                <span style="font-weight: 600; font-size: 17px">{{r.title}}</span>
+                <span style="display: flex; flex-wrap: wrap; gap: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.06em; color: #8B929C"><span style="color: {{r.color}}">{{r.type}}</span><span>{{r.place}}</span><span>{{r.cost}}</span></span>
+              </span>
+              <span style="padding: 3px 8px; border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; {{r.statusStyle}}">{{r.status}}</span>
+            </button>
+            <sc-if value="{{r.expanded}}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-wrap: wrap; gap: 12px 28px; padding: 0 18px 16px 146px">
+                <p style="flex: 1 1 260px; margin: 0; line-height: 1.5; color: #D4D0C8">{{r.notes}}</p>
+                <div style="display: flex; flex-direction: column; gap: 6px; font-size: 14px">
+                  <a href="https://www.google.com/maps">Open in Google Maps</a>
+                  <a href="#">Edit stop</a>
+                </div>
+              </div>
+            </sc-if>
+          </li>
+        </sc-for>
+      </ol>
+    </section>
+
+    <!-- Map of the active day -->
+    <section aria-label="Map of day 3" style="flex: 1 1 420px; min-width: 0; min-height: 560px; position: relative; border-radius: 10px; border: 1px solid #222831; overflow: hidden; background: #151A20">
+      <svg aria-hidden="true" width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style="position: absolute; inset: 0">
+        <rect width="100" height="100" fill="#151A20"></rect>
+        <path d="M30 0 C 32 20, 28 40, 33 60 S 30 85, 34 100" fill="none" stroke="#1F3442" stroke-width="3" vector-effect="non-scaling-stroke" style="stroke-width: 14px"></path>
+        <g stroke="#232A33" stroke-width="1" vector-effect="non-scaling-stroke" fill="none">
+          <path d="M0 22 H100" vector-effect="non-scaling-stroke"></path><path d="M0 40 H100" vector-effect="non-scaling-stroke"></path><path d="M0 55 H100" vector-effect="non-scaling-stroke"></path><path d="M0 74 H100" vector-effect="non-scaling-stroke"></path>
+          <path d="M44 0 V100" vector-effect="non-scaling-stroke"></path><path d="M58 0 V100" vector-effect="non-scaling-stroke"></path><path d="M72 0 V100" vector-effect="non-scaling-stroke"></path><path d="M86 0 V100" vector-effect="non-scaling-stroke"></path>
+          <path d="M40 12 L 80 92" vector-effect="non-scaling-stroke"></path>
+        </g>
+        <rect x="62" y="44" width="16" height="16" fill="#18241D"></rect>
+        <polyline points="{{routePoints}}" fill="none" stroke="#F2B33D" stroke-width="2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke" opacity="0.8"></polyline>
+      </svg>
+      <span style="position: absolute; left: 34%; top: 6%; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #4A6578">KAMO RIVER</span>
+      <span style="position: absolute; left: 63%; top: 50%; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #3D5A47">MARUYAMA PARK</span>
+      <sc-for list="{{pins}}" as="p" hint-placeholder-count="5">
+        <button type="button" onClick="{{p.pick}}" aria-label="{{p.label}}" style="position: absolute; transform: translate(-50%, -50%); display: grid; place-items: center; border-radius: 50%; font-family: 'IBM Plex Mono', monospace; font-weight: 600; cursor: pointer; {{p.style}}">{{p.n}}</button>
+      </sc-for>
+      <div style="position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 6px">
+        <button type="button" aria-label="Zoom in" style="width: 36px; height: 36px; border: 1px solid #2A313B; border-radius: 6px; background: #0D1014; color: #E9E6DF; font-size: 18px; cursor: pointer">+</button>
+        <button type="button" aria-label="Zoom out" style="width: 36px; height: 36px; border: 1px solid #2A313B; border-radius: 6px; background: #0D1014; color: #E9E6DF; font-size: 18px; cursor: pointer">−</button>
+      </div>
+      <div style="position: absolute; left: 12px; bottom: 12px; right: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+        <span style="padding: 8px 12px; border-radius: 6px; background: rgba(13,16,20,0.92); border: 1px dashed #59616C; font-size: 13px; color: #D4D0C8">1 stop has no location · <a href="#">add a Google Maps link</a></span>
+        <span style="padding: 2px 6px; border-radius: 4px; background: rgba(13,16,20,0.85); font-size: 11px; color: #B7BDC6">© OpenStreetMap contributors</span>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":940}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 'kiyomizu' }; }
+  renderVals() {
+    const C = { FOOD: '#F08A3C', SIGHTSEEING: '#3FC1A8' };
+    const S = { DONE: 'color: #8B929C; border: 1px solid #39414C', NOW: 'background: #F2B33D; color: #0D1014', FLEXIBLE: 'color: #B7BDC6; border: 1px dashed #59616C', 'ON TIME': 'color: #3FC1A8; border: 1px solid #2A5E55', BOOKED: 'color: #8FB8FF; border: 1px solid #34507E' };
+    const stops = [
+      { id: 'arabica', time: '08:30', title: 'Coffee at % Arabica', type: 'FOOD', place: 'HIGASHIYAMA', cost: '¥1,200', status: 'DONE', x: 50, y: 50, notes: 'Grab a latte to go; the line is short before 9.' },
+      { id: 'kiyomizu', time: '09:15', title: 'Kiyomizu-dera', type: 'SIGHTSEEING', place: 'HIGASHIYAMA', cost: '¥500', status: 'NOW', x: 66, y: 76, notes: 'Enter by the Nio-mon gate and finish on the stage before 10. Walk down Sannenzaka afterwards.' },
+      { id: 'okutan', time: '~12:00', title: 'Yudofu lunch · Okutan', type: 'FOOD', place: 'KIYOMIZU', cost: '¥4,400', status: 'FLEXIBLE', notes: 'No map location yet. Paste a Google Maps link to pin it.' },
+      { id: 'kodaiji', time: '13:30', title: 'Kodai-ji', type: 'SIGHTSEEING', place: 'HIGASHIYAMA', cost: '¥600', status: 'ON TIME', x: 64, y: 40, notes: 'Bamboo grove behind the main hall.' },
+      { id: 'yasaka', time: '15:30', title: 'Yasaka Shrine', type: 'SIGHTSEEING', place: 'GION', cost: 'FREE', status: 'ON TIME', x: 56, y: 28, notes: 'Cut through Maruyama Park on the way.' },
+      { id: 'kaiseki', time: '18:30', title: 'Kaiseki dinner', type: 'FOOD', place: 'GION', cost: '¥12,000', status: 'BOOKED', x: 42, y: 20, notes: 'Reservation under your name. Arrive 10 minutes early.' }
+    ];
+    let n = 0;
+    stops.forEach((s) => { s.n = s.x != null ? ++n : null; });
+    const pick = (id) => () => this.setState({ sel: this.state.sel === id ? null : id });
+    const tabs = ['PLAN', 'CALENDAR', 'BOARD', 'TABLE', 'MAP', 'SPEND'];
+    const days = [['SAT', '03'], ['SUN', '04'], ['MON', '05'], ['TUE', '06'], ['WED', '07'], ['THU', '08'], ['FRI', '09'], ['SAT', '10']];
+    const mapped = stops.filter((s) => s.n);
+    return {
+      tabs: tabs.map((label, i) => ({ label, current: i === 0 ? 'page' : 'false', style: i === 0 ? 'background: #1A1F26; color: #F2B33D' : 'color: #8B929C' })),
+      days: days.map(([dow, dom], i) => ({ dow, dom, selected: i === 2 ? 'true' : 'false', style: i === 2 ? 'border: 1px solid #F2B33D; background: #F2B33D; color: #0D1014' : 'border: 1px solid #2A313B; background: #12161B; color: #E9E6DF' })),
+      rows: stops.map((s) => {
+        const on = this.state.sel === s.id;
+        return { ...s, color: C[s.type], badge: s.n ?? '–', expanded: on, pick: pick(s.id), statusStyle: S[s.status],
+          timeColor: s.status === 'DONE' ? '#6B727C' : s.status === 'FLEXIBLE' ? '#B7BDC6' : '#F2B33D',
+          badgeStyle: s.n ? (on ? 'background: #F2B33D; color: #0D1014' : 'background: #0D1014; color: #E9E6DF; border: 1.5px solid ' + C[s.type]) : 'border: 1.5px dashed #59616C; color: #8B929C',
+          rowStyle: on ? 'background: #1A1F26; box-shadow: inset 3px 0 0 #F2B33D' : '' };
+      }),
+      pins: mapped.map((s) => {
+        const on = this.state.sel === s.id;
+        return { n: s.n, pick: pick(s.id), label: 'Stop ' + s.n + ', ' + s.title,
+          style: 'left: ' + s.x + '%; top: ' + s.y + '%; ' + (on ? 'width: 40px; height: 40px; font-size: 15px; background: #F2B33D; color: #0D1014; border: 2px solid #0D1014; box-shadow: 0 0 0 6px rgba(242,179,61,0.25); z-index: 2' : 'width: 30px; height: 30px; font-size: 12px; background: #0D1014; color: #E9E6DF; border: 2px solid ' + C[s.type]) };
+      }),
+      routePoints: mapped.map((s) => s.x + ',' + s.y).join(' ')
+    };
+  }
+}
+</script>
+</body>
+</html>

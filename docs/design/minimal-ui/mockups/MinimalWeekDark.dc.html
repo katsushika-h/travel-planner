@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wayfarer, minimal dark week calendar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&amp;family=Geist+Mono:wght@300;400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E0E0E}
+a{color:#EDEDEC;text-underline-offset:3px}a:hover{color:#FF6A4D}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="min-height: 940px; display: flex; flex-direction: column; background: #0E0E0E; color: #EDEDEC; font-family: Geist, system-ui, sans-serif; font-size: 15px">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 40px; padding: 28px 48px 0">
+    <button type="button" aria-label="Switch trip, current trip Kyoto and Osaka" style="display: flex; align-items: baseline; gap: 12px; min-height: 44px; padding: 0; border: 0; background: transparent; cursor: pointer">
+      <span style="font-weight: 500; font-size: 20px; letter-spacing: -0.01em">Kyoto &amp; Osaka</span>
+      <span style="font-size: 14px; color: #9A9A98">Apr 3 – 10</span>
+    </button>
+    <nav aria-label="Views" style="flex: 1; display: flex; flex-wrap: wrap; gap: 28px">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="6">
+        <a href="#" aria-current="{{t.current}}" style="padding: 12px 0; font-size: 14px; text-decoration: none; {{t.style}}">{{t.label}}</a>
+      </sc-for>
+    </nav>
+    <button type="button" aria-label="Search" style="width: 40px; height: 40px; border: 0; background: transparent; display: grid; place-items: center; cursor: pointer">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EDEDEC" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+    </button>
+    <button type="button" aria-label="Add a stop" style="width: 40px; height: 40px; border: 1px solid #EDEDEC; border-radius: 50%; background: transparent; display: grid; place-items: center; cursor: pointer">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EDEDEC" stroke-width="1.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+    </button>
+  </header>
+
+  <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 36px 48px 20px">
+    <div style="display: flex; align-items: center; gap: 4px">
+      <button type="button" aria-label="Previous week" style="width: 36px; height: 36px; border: 0; background: transparent; display: grid; place-items: center; cursor: pointer"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EDEDEC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"></path></svg></button>
+      <button type="button" aria-label="Next week" style="width: 36px; height: 36px; border: 0; background: transparent; display: grid; place-items: center; cursor: pointer"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EDEDEC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"></path></svg></button>
+      <h1 style="margin: 0 0 0 8px; font-weight: 500; font-size: 22px; letter-spacing: -0.01em">April 3 – 9</h1>
+    </div>
+    <div style="display: flex; align-items: center; gap: 28px; font-size: 14px">
+      <button type="button" style="padding: 8px 0; border: 0; background: transparent; color: #9A9A98; cursor: pointer">Ideas <span style="font-family: 'Geist Mono', monospace">5</span></button>
+      <span aria-hidden="true" style="width: 1px; height: 16px; background: #2A2A2A"></span>
+      <button type="button" style="padding: 8px 0; border: 0; background: transparent; color: #9A9A98; cursor: pointer">Month</button>
+      <button type="button" aria-pressed="true" style="padding: 8px 0; border: 0; background: transparent; font-weight: 500; box-shadow: inset 0 -1px 0 #EDEDEC; cursor: pointer">Week</button>
+      <button type="button" style="padding: 8px 0; border: 0; background: transparent; color: #9A9A98; cursor: pointer">Day</button>
+    </div>
+  </div>
+
+  <div style="flex: 1; padding: 0 48px 48px; overflow-x: auto">
+    <div style="min-width: 900px; border-top: 1px solid #EDEDEC">
+      <div style="display: grid; grid-template-columns: 56px repeat(7, minmax(0, 1fr))">
+        <div></div>
+        <sc-for list="{{cols}}" as="c" hint-placeholder-count="7">
+          <div style="display: flex; align-items: baseline; gap: 8px; padding: 14px 10px 12px">
+            <span style="font-family: 'Geist Mono', monospace; font-size: 24px; font-weight: 300">{{c.dom}}</span>
+            <span style="font-size: 12px; color: #9A9A98">{{c.dow}} · Day {{c.n}}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display: grid; grid-template-columns: 56px repeat(7, minmax(0, 1fr)); padding: 6px 0 10px; border-bottom: 1px solid #242424">
+        <div style="grid-row: 1; grid-column: 1; font-size: 11px; color: #9A9A98">Stays</div>
+        <div style="grid-row: 1; grid-column: 2 / span 4; margin: 0 6px; padding: 3px 0; border-top: 1px solid #A78BFA; font-size: 12px">Hotel Kanra Kyoto <span style="color: #9A9A98">· 4 nights</span></div>
+        <div style="grid-row: 1; grid-column: 6 / span 3; margin: 0 0 0 6px; padding: 3px 0; border-top: 1px solid #A78BFA; font-size: 12px">Cross Hotel Osaka <span style="color: #9A9A98">· 3 nights</span></div>
+      </div>
+      <div style="display: grid; grid-template-columns: 56px repeat(7, minmax(0, 1fr))">
+        <div style="position: relative; height: 616px">
+          <sc-for list="{{hours}}" as="h" hint-placeholder-count="14">
+            <span style="position: absolute; left: 0; top: {{h.top}}; font-family: 'Geist Mono', monospace; font-size: 11px; color: #7A7A78">{{h.label}}</span>
+          </sc-for>
+        </div>
+        <sc-for list="{{cols}}" as="c" hint-placeholder-count="7">
+          <div style="position: relative; height: 616px; border-left: 1px solid #1C1C1C; background-image: repeating-linear-gradient(to bottom, transparent 0 43px, #191919 43px 44px)">
+            <sc-for list="{{c.fixed}}" as="e" hint-placeholder-count="2">
+              <div style="position: absolute; right: 4px; box-sizing: border-box; padding: 5px 8px; background: #1C1C1C; overflow: hidden; border-left: 3px solid {{e.color}}; left: {{e.left}}; z-index: {{e.z}}; top: {{e.top}}; height: {{e.h}}; {{e.shadow}}">
+                <div style="font-size: 12px; font-weight: 500; line-height: 1.25">{{e.title}}</div>
+                <div style="font-family: 'Geist Mono', monospace; font-size: 10px; color: #9A9A98">{{e.time}}</div>
+              </div>
+            </sc-for>
+            <sc-for list="{{c.windows}}" as="w" hint-placeholder-count="1">
+              <div style="position: absolute; left: 4px; right: 4px; box-sizing: border-box; padding: 5px; border: 1px dashed #4A4A48; display: flex; flex-direction: column; gap: 3px; top: {{w.top}}; height: {{w.h}}">
+                <span style="font-size: 10px; color: #9A9A98">{{w.label}}</span>
+                <sc-for list="{{w.items}}" as="i" hint-placeholder-count="1">
+                  <span style="display: flex; gap: 6px; padding: 3px 6px; background: #141414; border: 1px solid #2A2A2A; border-left: 3px solid {{i.color}}; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"><span style="font-family: 'Geist Mono', monospace; color: #7A7A78">{{i.n}}</span>{{i.title}}</span>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":940}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const H = 44, START = 8;
+    const toH = (t) => { const [h, m] = t.split(':').map(Number); return h + m / 60; };
+    const y = (t) => ((toH(t) - START) * H) + 'px';
+    const hgt = (a, b) => Math.max((toH(b) - toH(a)) * H - 3, 30) + 'px';
+    // Type colours from lib/type-color.ts.
+    const T = { flight: '#0ea5e9', commute: '#f59e0b', hotel: '#8b5cf6', food: '#f97316', sightseeing: '#f43f5e', activity: '#10b981', unclassified: '#64748b' };
+    const fx = (type, title, a, b, booked) => ({ title, color: T[type], time: a + '–' + b, a, b, booked, top: y(a), h: hgt(a, b) });
+    // Like weekFixedLayers in the app: indent one step per earlier overlapping card; later cards sit in front.
+    const layered = (items) => items.map((e, i) => {
+      const depth = items.slice(0, i).filter((p) => p.a < e.b && p.b > e.a).length;
+      const shadows = [];
+      if (e.booked) shadows.push('inset 0 1px 0 #EDEDEC');
+      if (depth) shadows.push('0 0 0 1px #0E0E0E', '0 2px 10px rgba(0,0,0,0.6)');
+      return { ...e, left: (4 + depth * 12) + 'px', z: 10 + i, shadow: shadows.length ? 'box-shadow: ' + shadows.join(', ') : '' };
+    });
+    const win = (a, b, label, items) => ({ top: (((toH(a) - START) * H) + 2) + 'px', h: ((toH(b) - toH(a)) * H - 4) + 'px', label, items: items.map(([n, type, title]) => ({ n, title, color: T[type] })) });
+    const week = [
+      ['Sat', '03', [fx('flight', 'SQ 618 · lands KIX', '08:00', '15:20', true), fx('commute', 'Haruka Express', '16:00', '17:20', true), fx('hotel', 'Check in · Kanra', '18:00', '18:30')], [win('18:30', '21:00', 'Flexible · after 18:30', [[4, 'food', 'Dinner near Nishiki']])]],
+      ['Sun', '04', [fx('sightseeing', 'Fushimi Inari', '08:00', '09:30'), fx('sightseeing', 'Tofuku-ji', '10:00', '11:00')], [win('11:00', '13:00', 'Flexible · after 11:00', [[3, 'food', 'Lunch · udon']])]],
+      ['Mon', '05', [fx('food', 'Coffee', '08:30', '09:00'), fx('sightseeing', 'Kiyomizu-dera', '09:15', '11:00'), fx('sightseeing', 'Kodai-ji', '13:30', '15:00'), fx('sightseeing', 'Yasaka Shrine', '15:30', '16:00'), fx('food', 'Kaiseki dinner', '18:30', '20:30', true)], [win('11:00', '13:30', 'Flexible · 11:00–13:30', [[3, 'food', 'Yudofu lunch']])]],
+      ['Tue', '06', [fx('sightseeing', 'Bamboo grove', '08:00', '10:00'), fx('activity', 'Okochi Sanso villa', '09:00', '10:30', true), fx('sightseeing', 'Tenryu-ji garden', '10:15', '11:30')], []],
+      ['Wed', '07', [fx('commute', 'Train to Osaka', '10:00', '10:30', true), fx('hotel', 'Check in · Cross', '15:00', '15:30')], []],
+      ['Thu', '08', [], [win('09:00', '10:40', 'Flexible · anytime', [[1, 'unclassified', 'Umeda Sky Building'], [2, 'food', 'Kuromon Market']])]],
+      ['Fri', '09', [], [win('18:00', '19:20', 'Flexible · anytime', [[1, 'food', 'Dotonbori street food']])]]
+    ];
+    const hours = []; for (let h = START; h <= START + 13; h++) hours.push({ label: String(h).padStart(2, '0') + ':00', top: ((h - START) * H + (h === START ? 2 : -7)) + 'px' });
+    const tabs = ['Plan', 'Calendar', 'Board', 'Table', 'Map', 'Spend'];
+    return {
+      tabs: tabs.map((label, i) => ({ label, current: i === 1 ? 'page' : 'false', style: i === 1 ? 'color: #EDEDEC; font-weight: 500; box-shadow: inset 0 -1px 0 #EDEDEC' : 'color: #9A9A98' })),
+      hours,
+      cols: week.map(([dow, dom, fixed, windows], i) => ({ dow, dom, n: i + 1, fixed: layered(fixed), windows }))
+    };
+  }
+}
+</script>
+</body>
+</html>

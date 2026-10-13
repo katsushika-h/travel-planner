@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wayfarer, minimal trip map</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&amp;family=Geist+Mono:wght@300;400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#111111;text-underline-offset:3px}a:hover{color:#D9381E}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="min-height: 940px; display: flex; flex-direction: column; background: #FFFFFF; color: #111111; font-family: Geist, system-ui, sans-serif; font-size: 15px">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 40px; padding: 28px 48px 0">
+    <button type="button" aria-label="Switch trip, current trip Kyoto and Osaka" style="display: flex; align-items: baseline; gap: 12px; min-height: 44px; padding: 0; border: 0; background: transparent; cursor: pointer">
+      <span style="font-weight: 500; font-size: 20px; letter-spacing: -0.01em">Kyoto &amp; Osaka</span>
+      <span style="font-size: 14px; color: #6B6B6B">Apr 3 – 10</span>
+    </button>
+    <nav aria-label="Views" style="flex: 1; display: flex; flex-wrap: wrap; gap: 28px">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="6">
+        <a href="#" aria-current="{{t.current}}" style="padding: 12px 0; font-size: 14px; text-decoration: none; {{t.style}}">{{t.label}}</a>
+      </sc-for>
+    </nav>
+    <button type="button" aria-label="Search" style="width: 40px; height: 40px; border: 0; background: transparent; display: grid; place-items: center; cursor: pointer">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+    </button>
+    <button type="button" aria-label="Add a stop" style="width: 40px; height: 40px; border: 1px solid #111111; border-radius: 50%; background: transparent; display: grid; place-items: center; cursor: pointer">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="1.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+    </button>
+  </header>
+
+  <div style="flex: 1; display: flex; flex-wrap: wrap; gap: 48px; padding: 36px 48px 48px">
+    <!-- Day filter -->
+    <nav aria-label="Filter map by day" style="flex: 1 1 260px; max-width: 320px; display: flex; flex-direction: column">
+      <h1 style="margin: 0 0 16px; font-weight: 500; font-size: 22px; letter-spacing: -0.01em">Whole trip</h1>
+      <div style="border-top: 1px solid #111111; display: flex; flex-direction: column">
+        <sc-for list="{{days}}" as="d" hint-placeholder-count="9">
+          <button type="button" onClick="{{d.pick}}" aria-pressed="{{d.pressed}}" style="display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: baseline; gap: 12px; padding: 13px 0; border: 0; border-bottom: 1px solid #EBEBEA; background: transparent; text-align: left; cursor: pointer">
+            <span style="font-family: 'Geist Mono', monospace; font-size: 18px; font-weight: 300; color: {{d.numColor}}">{{d.num}}</span>
+            <span style="display: flex; flex-direction: column; gap: 2px">
+              <span style="font-size: 15px; font-weight: {{d.weight}}">{{d.title}}</span>
+              <span style="font-size: 12px; color: #6B6B6B">{{d.sub}}</span>
+            </span>
+            <span style="font-family: 'Geist Mono', monospace; font-size: 12px; color: #6B6B6B">{{d.count}}</span>
+          </button>
+        </sc-for>
+      </div>
+      <p style="margin: 16px 0 0; font-size: 13px; line-height: 1.5; color: #6B6B6B">Picking a day fits the map to its stops. 3 items have no location and aren't shown.</p>
+    </nav>
+
+    <section aria-label="Trip map" style="flex: 999 1 520px; max-width: 900px; min-width: 0; align-self: flex-start; aspect-ratio: 816 / 780; position: relative; overflow: hidden; background: #F6F6F4">
+      <img src="/_blob/cd90b1ac02d733df62b31dacad4a206e" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; filter: grayscale(1) contrast(0.85) brightness(1.08)">
+      <sc-for list="{{pins}}" as="p" hint-placeholder-count="12">
+        <button type="button" aria-label="{{p.label}}" style="position: absolute; transform: translate(-50%, -50%); display: grid; place-items: center; border-radius: 50%; font-family: 'Geist Mono', monospace; cursor: pointer; {{p.style}}">{{p.text}}</button>
+      </sc-for>
+      <span style="position: absolute; left: 16px; bottom: 14px; padding: 4px 8px; background: rgba(255,255,255,0.92); font-size: 12px; color: #6B6B6B">Day 8 · KIX is off the map to the south</span>
+      <span style="position: absolute; right: 16px; bottom: 14px; padding: 4px 8px; background: rgba(255,255,255,0.92); font-size: 12px; color: #6B6B6B">© OpenStreetMap contributors</span>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#D9381E","options":["#D9381E","#1D4ED8","#111111"]},"$preview":{"width":1440,"height":940}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { day: 0 }; }
+  renderVals() {
+    const accent = this.props.accent ?? '#D9381E';
+    const days = [
+      { n: 1, title: 'Arrive in Kyoto', sub: 'Sat 03 · Kyoto', pins: [['kanra', 71.4, 14.9, 'Hotel Kanra Kyoto'], ['nishiki', 72.3, 12.5, 'Dinner near Nishiki']] },
+      { n: 2, title: 'Fushimi & Tofuku-ji', sub: 'Sun 04 · Kyoto', pins: [['inari', 73.7, 21.2, 'Fushimi Inari'], ['tofuku', 73.9, 19.0, 'Tofuku-ji']] },
+      { n: 3, title: 'Higashiyama', sub: 'Mon 05 · Kyoto · 5 stops', pins: [['higashiyama', 75.0, 13.9, '5 stops in Higashiyama', 5]] },
+      { n: 4, title: 'Arashiyama', sub: 'Tue 06 · Kyoto', pins: [['arashiyama', 55.6, 9.8, 'Bamboo grove'], ['tenryu', 56.0, 10.1, 'Tenryu-ji garden']] },
+      { n: 5, title: 'Move to Osaka', sub: 'Wed 07 · Osaka', pins: [['umeda', 24.3, 81.3, 'Umeda'], ['cross', 25.3, 88.1, 'Cross Hotel Osaka']] },
+      { n: 6, title: 'Open day', sub: 'Thu 08 · Osaka · flexible', pins: [['sky', 23.3, 80.7, 'Umeda Sky Building'], ['kuromon', 26.2, 89.7, 'Kuromon Market']] },
+      { n: 7, title: 'Dotonbori', sub: 'Fri 09 · Osaka', pins: [['dotonbori', 25.2, 89.0, 'Dotonbori street food']] },
+      { n: 8, title: 'Fly home', sub: 'Sat 10 · KIX', pins: [] }
+    ];
+    const sel = this.state.day;
+    const tabs = ['Plan', 'Calendar', 'Board', 'Table', 'Map', 'Spend'];
+    const pins = [];
+    days.forEach((d) => d.pins.forEach(([id, x, y, label, cluster], i) => {
+      const on = sel === 0 || sel === d.n;
+      const style = 'left: ' + x + '%; top: ' + y + '%; ' + (sel === d.n
+        ? 'width: 30px; height: 30px; font-size: 12px; background: ' + accent + '; color: #FFFFFF; border: 2px solid #FFFFFF; z-index: 2'
+        : on ? 'width: 24px; height: 24px; font-size: 11px; background: #FFFFFF; color: #111111; border: 1px solid #111111'
+        : 'width: 10px; height: 10px; font-size: 0; background: #9A9A98; border: 2px solid #FFFFFF');
+      pins.push({ label: 'Day ' + d.n + ', ' + label, style, text: sel === d.n ? (cluster ? cluster : i + 1) : on ? d.n : '' });
+    }));
+    return {
+      tabs: tabs.map((label, i) => ({ label, current: i === 4 ? 'page' : 'false', style: i === 4 ? 'color: #111111; font-weight: 500; box-shadow: inset 0 -1px 0 #111111' : 'color: #6B6B6B' })),
+      days: [{ n: 0, title: 'All days', sub: 'Kyoto and Osaka', count: '16' }].concat(days.map((d) => ({ ...d, count: String(d.pins.reduce((s, p) => s + (p[4] || 1), 0)) })))
+        .map((d) => ({ num: d.n ? String(d.n).padStart(2, '0') : '—', title: d.title, sub: d.sub, count: d.count, pressed: sel === d.n ? 'true' : 'false',
+          numColor: sel === d.n ? accent : '#9A9A98', weight: sel === d.n ? '600' : '400', pick: () => this.setState({ day: d.n }) })),
+      pins
+    };
+  }
+}
+</script>
+</body>
+</html>

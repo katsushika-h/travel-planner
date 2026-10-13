@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Flexible items in week view</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,650&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+button{font:inherit;color:inherit}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; padding: 40px 48px; display: flex; flex-direction: column; gap: 28px; background: #F4F4F0; color: #17191C; font-family: Geist, system-ui, sans-serif; font-size: 14px">
+  <h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 650; font-size: 30px; letter-spacing: -0.02em">Flexible items in Week view</h1>
+
+  <div style="flex: 1; display: grid; grid-template-columns: 300px 400px minmax(0, 1fr); gap: 40px; min-height: 0">
+
+    <!-- Current -->
+    <section style="display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 12px; font-weight: 600; color: #B42318">Today</span>
+        <h2 style="margin: 0; font-size: 17px; font-weight: 600">A collapsed chip at one point in time</h2>
+      </div>
+      <div style="position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); background: #FFFFFF; border-radius: 14px; box-shadow: 0 0 0 1px #E3E3DD; padding: 8px 8px 8px 0">
+        <div style="position: relative; height: 624px">
+          <sc-for list="{{hours}}" as="h" hint-placeholder-count="13"><span style="position: absolute; right: 8px; top: {{h.top}}; font-family: 'Geist Mono', monospace; font-size: 10px; color: #5E6166">{{h.label}}</span></sc-for>
+        </div>
+        <div style="position: relative; height: 624px; border-left: 1px solid #EEEEE9; background-image: repeating-linear-gradient(to bottom, transparent 0 47px, #F1F1EC 47px 48px)">
+          <sc-for list="{{fixed}}" as="f" hint-placeholder-count="5">
+            <div style="position: absolute; left: 4px; right: 4px; box-sizing: border-box; padding: 4px 8px; border-radius: 6px; background: #FFFFFF; border: 1px solid #E3E3DD; box-shadow: inset 3px 0 0 {{f.color}}; overflow: hidden; top: {{f.top}}; height: {{f.h}}">
+              <div style="font-size: 11px; font-weight: 600">{{f.title}}</div>
+              <div style="font-size: 10px; color: #5E6166">{{f.time}}</div>
+            </div>
+          </sc-for>
+          <div style="position: absolute; left: 4px; right: 4px; top: 144px; height: 48px; box-sizing: border-box; padding: 6px 8px; border-radius: 6px; border: 1px dashed #10B981; background: #052E25; color: #ECFDF5">
+            <div style="font-size: 10px; font-weight: 600">3 Flexible ideas</div>
+            <div style="font-size: 9px; color: #A7F3D0">11:00 · ordered · select to expand</div>
+          </div>
+          <div style="position: absolute; left: 150px; top: 136px; width: 170px; padding: 8px; border-radius: 8px; background: #171717; color: #F5F5F4; box-shadow: 0 16px 32px -8px rgba(0,0,0,0.35); font-size: 10px; display: flex; flex-direction: column; gap: 4px">
+            <div style="font-weight: 600">Flexible ideas · ordered</div>
+            <div style="padding: 5px 6px; border-radius: 5px; background: #262626">Yudofu lunch</div>
+            <div style="padding: 5px 6px; border-radius: 5px; background: #262626">Sannenzaka shops</div>
+            <div style="padding: 5px 6px; border-radius: 5px; background: #262626">Matcha on Ninenzaka</div>
+          </div>
+        </div>
+      </div>
+      <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: #3D4045; font-size: 13px; line-height: 1.45">
+        <li>Titles are hidden until hover, so the week can't be scanned at a glance.</li>
+        <li>The darkest block on the grid is the least certain plan.</li>
+        <li>Pinned to 11:00, so it reads as a booked time.</li>
+        <li>The hover popover covers the next day's column.</li>
+      </ul>
+    </section>
+
+    <!-- Proposed -->
+    <section style="display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 12px; font-weight: 600; color: #0B6B57">Proposed</span>
+        <h2 style="margin: 0; font-size: 17px; font-weight: 600">Flexible items fill the gap they belong to</h2>
+      </div>
+      <div style="display: grid; grid-template-columns: 44px minmax(0, 1fr); background: #FFFFFF; border-radius: 14px; box-shadow: 0 0 0 1px #E3E3DD; padding: 8px 8px 8px 0">
+        <div style="position: relative; height: 624px">
+          <sc-for list="{{hours}}" as="h" hint-placeholder-count="13"><span style="position: absolute; right: 8px; top: {{h.top}}; font-family: 'Geist Mono', monospace; font-size: 10px; color: #5E6166">{{h.label}}</span></sc-for>
+        </div>
+        <div style="position: relative; height: 624px; border-left: 1px solid #EEEEE9; background-image: repeating-linear-gradient(to bottom, transparent 0 47px, #F1F1EC 47px 48px)">
+          <sc-for list="{{fixed}}" as="f" hint-placeholder-count="5">
+            <div style="position: absolute; left: 4px; right: 4px; box-sizing: border-box; padding: 4px 8px; border-radius: 7px; background: {{f.tint}}; overflow: hidden; top: {{f.top}}; height: {{f.h}}">
+              <div style="font-size: 12px; font-weight: 600">{{f.title}}</div>
+              <div style="font-family: 'Geist Mono', monospace; font-size: 10px; color: #3D4045">{{f.time}}</div>
+            </div>
+          </sc-for>
+          <sc-for list="{{windows}}" as="w" hint-placeholder-count="2">
+            <div style="position: absolute; left: 4px; right: 4px; box-sizing: border-box; padding: 6px; border-radius: 8px; border: 1.5px dashed #B9BBB3; background: repeating-linear-gradient(135deg, #FAFAF7 0 6px, #F4F4EF 6px 12px); display: flex; flex-direction: column; gap: 4px; top: {{w.top}}; height: {{w.h}}">
+              <span style="padding: 0 2px; font-size: 10px; color: #5E6166">{{w.label}}</span>
+              <sc-for list="{{w.items}}" as="i" hint-placeholder-count="2">
+                <button type="button" style="display: flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 8px; border: 1px solid #E3E3DD; border-radius: 6px; background: #FFFFFF; font-size: 12px; font-weight: 500; text-align: left; cursor: grab">
+                  <span style="font-family: 'Geist Mono', monospace; font-size: 10px; color: #5E6166">{{i.n}}</span>
+                  <span style="width: 7px; height: 7px; border-radius: 2px; flex: 0 0 auto; background: {{i.color}}"></span>
+                  <span style="flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis">{{i.title}}</span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: #3D4045; font-size: 13px; line-height: 1.45">
+        <li>Each item is readable without hovering, in its <code style="font-family: 'Geist Mono', monospace; font-size: 12px">dayOrder</code>.</li>
+        <li>The window spans the free time between neighbours: "sometime here", not "at 11:00".</li>
+        <li>Light hatching and dashed pills sit visually below confirmed bookings.</li>
+      </ul>
+    </section>
+
+    <!-- Edge cases -->
+    <section style="display: flex; flex-direction: column; gap: 12px; min-width: 0">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 12px; font-weight: 600; color: #3D4045">Edge cases</span>
+        <h2 style="margin: 0; font-size: 17px; font-weight: 600">When the gap is too small, or there is no gap</h2>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 14px; background: #FFFFFF; box-shadow: 0 0 0 1px #E3E3DD">
+        <span style="font-size: 13px; font-weight: 600">Tight gap: 15 min between bookings, 2 flexible items</span>
+        <div style="display: flex; flex-direction: column; gap: 3px; width: 220px">
+          <div style="padding: 4px 8px; border-radius: 6px; background: #DAF2EE; font-size: 11px; font-weight: 600">Kodai-ji · 13:30 – 15:00</div>
+          <button type="button" style="display: flex; align-items: center; gap: 6px; min-height: 22px; padding: 0 8px; border: 1.5px dashed #B9BBB3; border-radius: 6px; background: #FAFAF7; font-size: 11px; color: #3D4045; cursor: pointer">
+            <span style="font-weight: 600; color: #17191C">+2 flexible</span> · Ice cream, Shrine stamps
+          </button>
+          <div style="padding: 4px 8px; border-radius: 6px; background: #DAF2EE; font-size: 11px; font-weight: 600">Yasaka Shrine · 15:15 – 16:00</div>
+        </div>
+        <span style="font-size: 12px; color: #5E6166; line-height: 1.45">One line with the count and titles. Clicking opens the same list in the side panel, not a hover popover.</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 14px; background: #FFFFFF; box-shadow: 0 0 0 1px #E3E3DD">
+        <span style="font-size: 13px; font-weight: 600">No fixed items that day</span>
+        <div style="display: flex; flex-direction: column; gap: 4px; width: 220px; padding: 6px; border-radius: 8px; border: 1.5px dashed #B9BBB3; background: #FAFAF7">
+          <span style="font-size: 10px; color: #5E6166">Anytime · in order</span>
+          <span style="display: flex; align-items: center; gap: 6px; min-height: 24px; padding: 0 8px; border: 1px solid #E3E3DD; border-radius: 6px; background: #FFFFFF; font-size: 12px"><span style="font-family: 'Geist Mono', monospace; font-size: 10px; color: #5E6166">1</span>Umeda Sky Building</span>
+          <span style="display: flex; align-items: center; gap: 6px; min-height: 24px; padding: 0 8px; border: 1px solid #E3E3DD; border-radius: 6px; background: #FFFFFF; font-size: 12px"><span style="font-family: 'Geist Mono', monospace; font-size: 10px; color: #5E6166">2</span>Kuromon Market</span>
+        </div>
+        <span style="font-size: 12px; color: #5E6166; line-height: 1.45">The window sits at the top of the visible hours, sized to its items rather than the whole day.</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 14px; background: #FFFFFF; box-shadow: 0 0 0 1px #E3E3DD">
+        <span style="font-size: 13px; font-weight: 600">Dragging</span>
+        <div style="display: flex; flex-direction: column; gap: 4px; width: 220px; padding: 6px; border-radius: 8px; border: 1.5px dashed #0B6B57; background: #EEF7F4">
+          <span style="font-size: 10px; color: #0B6B57; font-weight: 500">Drop to place between Kiyomizu-dera and Kodai-ji</span>
+          <span style="display: flex; align-items: center; min-height: 24px; padding: 0 8px; border: 1px solid #E3E3DD; border-radius: 6px; background: #FFFFFF; font-size: 12px">Yudofu lunch</span>
+          <span style="height: 2px; border-radius: 2px; background: #0B6B57"></span>
+          <span style="display: flex; align-items: center; min-height: 24px; padding: 0 8px; border: 1px solid #E3E3DD; border-radius: 6px; background: #FFFFFF; font-size: 12px">Sannenzaka shops</span>
+        </div>
+        <span style="font-size: 12px; color: #5E6166; line-height: 1.45">Dropping into a window sets <code style="font-family: 'Geist Mono', monospace">dayOrder</code> only; dropping on a time slot outside one makes it a fixed-time item, as today.</span>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const H = 48, START = 8;
+    const toH = (t) => { const [h, m] = t.split(':').map(Number); return h + m / 60; };
+    const y = (t) => ((toH(t) - START) * H) + 'px';
+    const hours = []; for (let h = START; h < START + 13; h++) hours.push({ label: String(h).padStart(2, '0') + ':00', top: ((h - START) * H + (h === START ? 2 : -6)) + 'px' });
+    const C = { food: ['#E07A1F', '#FCEBDA'], sightseeing: ['#0E9384', '#DAF2EE'], activity: ['#D6457A', '#FAE1EA'] };
+    const fixed = [['food', 'Coffee at % Arabica', '08:30', '09:00'], ['sightseeing', 'Kiyomizu-dera', '09:15', '11:00'], ['sightseeing', 'Kodai-ji', '13:30', '15:00'], ['sightseeing', 'Yasaka Shrine', '15:30', '16:00'], ['food', 'Kaiseki dinner', '18:30', '20:30']]
+      .map(([type, title, a, b]) => ({ title, time: a + ' – ' + b, color: C[type][0], tint: C[type][1], top: y(a), h: ((toH(b) - toH(a)) * H - 2) + 'px' }));
+    const win = (a, b, label, items) => ({ top: (((toH(a) - START) * H) + 2) + 'px', h: ((toH(b) - toH(a)) * H - 4) + 'px', label,
+      items: items.map(([type, title], n) => ({ n: n + 1, title, color: C[type][0] })) });
+    return {
+      hours, fixed,
+      windows: [
+        win('11:00', '13:30', 'Between Kiyomizu-dera and Kodai-ji · 2 h 30 m', [['food', 'Yudofu lunch · Okutan'], ['activity', 'Sannenzaka shops'], ['food', 'Matcha on Ninenzaka']]),
+        win('16:00', '18:30', 'Before dinner · 2 h 30 m', [['sightseeing', 'Gion evening stroll']])
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
