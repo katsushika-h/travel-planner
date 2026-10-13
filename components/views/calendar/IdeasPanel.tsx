@@ -74,8 +74,8 @@ export function IdeasPanel({
   return (
     <aside
       ref={setNodeRef}
-      style={besideTimeline ? { left: "max(280px, 28.5%)" } : undefined}
-      className={`absolute inset-y-0 z-40 flex w-[min(88vw,320px)] flex-col border-r border-divider bg-background shadow-[8px_0_24px_rgb(0_0_0/0.08)] dark:shadow-[8px_0_24px_rgb(0_0_0/0.5)] ${besideTimeline ? "" : "left-0"} ${isOver ? "ring-1 ring-inset ring-accent" : ""}`}
+      style={besideTimeline ? { left: "max(360px, 44%)" } : undefined}
+      className={`absolute inset-y-0 z-[60] flex w-[min(88vw,320px)] flex-col border-r border-divider bg-background shadow-[8px_0_24px_rgb(0_0_0/0.08)] dark:shadow-[8px_0_24px_rgb(0_0_0/0.5)] ${besideTimeline ? "" : "left-0"} ${isOver ? "ring-1 ring-inset ring-accent" : ""}`}
     >
       <div className="flex items-start justify-between gap-2 border-b border-foreground px-4 pb-3 pt-4">
         <div>

@@ -96,7 +96,7 @@ function WeekResizeHandle({
       aria-label={`Adjust ${edge} time for ${item.title}`}
       tabIndex={0}
       onPointerDown={onPointerDown}
-      className={`absolute left-1/2 z-30 h-6 w-14 -translate-x-1/2 cursor-ns-resize rounded-full bg-foreground opacity-100 transition-opacity sm:h-2 sm:w-12 sm:opacity-0 sm:group-hover:opacity-100 ${edge === "start" ? "-top-3 sm:-top-1" : "-bottom-3 sm:-bottom-1"}`}
+      className={`absolute left-1/2 z-30 h-6 w-14 -translate-x-1/2 cursor-ns-resize transition-opacity after:absolute after:left-1/2 after:top-1/2 after:h-1 after:w-8 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:bg-foreground after:content-[''] sm:h-2 sm:w-12 sm:rounded-full sm:bg-foreground sm:opacity-0 sm:after:hidden sm:group-hover:opacity-100 ${edge === "start" ? "-top-3 sm:-top-1" : "-bottom-3 sm:-bottom-1"}`}
     />
   );
 }

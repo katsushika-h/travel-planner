@@ -179,10 +179,10 @@ const JourneyCard = memo(function JourneyCard({
           onClick={(event) =>
             window.matchMedia("(max-width: 639px)").matches ? onInspect(item) : onSelect(item, event.shiftKey)
           }
-          className="flex min-w-0 flex-1 items-start gap-3 py-4 pr-2 text-left sm:gap-4"
+          className="flex min-w-0 flex-1 items-start gap-3 py-4 pr-2 text-left"
         >
           <span
-            className={`w-[84px] shrink-0 font-mono ${time.small ? "pt-1.5 text-xs" : "text-[22px] font-light leading-8"} ${primary ? "text-accent" : time.flexible ? "text-muted" : ""}`}
+            className={`w-[72px] shrink-0 font-mono ${time.small ? "pt-1.5 text-xs" : "text-[22px] font-light leading-8"} ${primary ? "text-accent" : time.flexible ? "text-muted" : ""}`}
           >
             {time.text}
           </span>
@@ -190,14 +190,14 @@ const JourneyCard = memo(function JourneyCard({
             {String(number).padStart(2, "0")}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="flex items-start justify-between gap-3">
-              <span className="flex min-w-0 items-center gap-2">
-                <span aria-hidden className="size-2 shrink-0" style={{ backgroundColor: color }} />
-                <span className="min-w-0 truncate text-[17px] font-medium leading-tight">{item.title}</span>
-              </span>
-              {cost && <span className="shrink-0 font-mono text-xs text-muted">{cost}</span>}
+            <span className="flex min-w-0 items-center gap-2">
+              <span aria-hidden className="size-2 shrink-0" style={{ backgroundColor: color }} />
+              <span className="min-w-0 truncate text-[17px] font-medium leading-tight">{item.title}</span>
             </span>
-            <span className="mt-1 block truncate text-[13px] text-muted">{detail.join(" · ")}</span>
+            <span className="mt-1 flex items-baseline justify-between gap-3 text-[13px] text-muted">
+              <span className="min-w-0 truncate">{detail.join(" · ")}</span>
+              {cost && <span className="shrink-0 font-mono text-xs">{cost}</span>}
+            </span>
             {!location && <span className="mt-0.5 block text-xs text-accent">No location</span>}
             {item.location?.openingHours?.[0] && (
               <span className="mt-1.5 line-clamp-1 block text-xs text-faint">{item.location.openingHours[0]}</span>
@@ -308,14 +308,14 @@ function DateSection({
           </button>
           <button
             type="button"
-            className="mr-1 min-h-11 px-2 text-sm underline underline-offset-2 sm:hidden"
+            className="mr-1 min-h-11 px-2 text-[13px] underline underline-offset-2 sm:hidden"
             onClick={() => onCreate(date, items.length)}
           >
             Add event
           </button>
           <button
             type="button"
-            className="mr-3 min-h-11 px-2 text-sm text-muted underline underline-offset-2 sm:hidden"
+            className="mr-3 min-h-11 px-2 text-[13px] text-muted underline underline-offset-2 sm:hidden"
             onClick={() => onAddNote(date, items.length)}
           >
             Add note
@@ -620,7 +620,7 @@ export function DayJourneyView({
           </button>
         ))}
       </div>
-      <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(280px,28.5%)_minmax(0,71.5%)]">
+      <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(360px,44%)_minmax(0,1fr)]">
         <div
           ref={scrollRef}
           className={`${mobileSurface === "map" ? "hidden" : "block"} min-h-0 overflow-y-auto [overflow-anchor:none] md:block`}
