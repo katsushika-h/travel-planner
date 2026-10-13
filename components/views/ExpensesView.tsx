@@ -416,7 +416,7 @@ export function ExpensesView({ trip, items }: { trip: Trip; items: TravelObject[
                           type="button"
                           aria-pressed={currency === activeCategoryCurrency}
                           onClick={() => setCategoryCurrency(currency)}
-                          className={`min-h-8 px-0.5 ${currency === activeCategoryCurrency ? "font-medium shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted hover:text-foreground"}`}
+                          className={`min-h-8 px-0.5 max-sm:min-h-11 max-sm:min-w-11 ${currency === activeCategoryCurrency ? "font-medium shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted hover:text-foreground"}`}
                         >
                           {currency}
                         </button>

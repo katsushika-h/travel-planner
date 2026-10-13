@@ -154,7 +154,7 @@ export function ItemNoteCard({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="min-h-11 opacity-0 transition-opacity group-hover/delete:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 sm:min-h-8"
+                className="min-h-11 min-w-11 opacity-0 transition-opacity group-hover/delete:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 sm:min-h-8"
                 onClick={onDelete}
                 aria-label={`Delete note ${item.title}`}
               >

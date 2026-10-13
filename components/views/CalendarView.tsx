@@ -354,7 +354,7 @@ export function CalendarView({
                 type="button"
                 aria-pressed={mode === view}
                 title={`${view === "month" ? "Month" : view === "week" ? "Week" : "Day"} (${modeShortcuts[view]})`}
-                className={`capitalize ${textOptionClass(mode === view)}`}
+                className={`capitalize max-sm:min-w-11 ${textOptionClass(mode === view)}`}
                 onClick={() => chooseMode(view)}
               >
                 {view}
@@ -401,14 +401,14 @@ export function CalendarView({
                   key={view}
                   type="button"
                   aria-pressed={mode === view}
-                  className={`capitalize ${textOptionClass(mode === view)}`}
+                  className={`capitalize max-sm:min-w-11 ${textOptionClass(mode === view)}`}
                   onClick={() => chooseMode(view)}
                 >
                   {view}
                 </button>
               ))}
             </div>
-            <button type="button" className="min-h-11 text-sm text-muted" onClick={goToToday}>
+            <button type="button" className="min-h-11 min-w-11 text-sm text-muted" onClick={goToToday}>
               Today
             </button>
           </div>

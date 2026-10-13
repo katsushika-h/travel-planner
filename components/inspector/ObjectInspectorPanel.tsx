@@ -37,7 +37,7 @@ function formatFileSize(bytes: number) {
     : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 const fieldClass =
-  "min-w-0 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] text-foreground outline-none placeholder:text-faint focus:border-foreground focus:ring-0";
+  "min-w-0 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-1.5 text-[15px] max-sm:min-h-11 text-foreground outline-none placeholder:text-faint focus:border-foreground focus:ring-0";
 const labelClass = "flex min-w-0 flex-col gap-1 text-xs text-muted";
 const sectionClass = "flex flex-col gap-3 border-b border-divider py-[18px]";
 const popupClass = "border border-divider bg-panel shadow-[0_12px_32px_rgb(0_0_0/0.14)]";
@@ -665,7 +665,7 @@ export function ObjectInspectorPanel({
                   })
                 }
                 placeholder="Amount"
-                className="min-w-0 flex-1 border-0 bg-transparent py-1.5 font-mono text-lg font-light text-foreground outline-none placeholder:font-sans placeholder:text-[15px] placeholder:text-faint focus:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                className="min-w-0 flex-1 border-0 bg-transparent py-1.5 max-sm:min-h-11 font-mono text-lg font-light text-foreground outline-none placeholder:font-sans placeholder:text-[15px] placeholder:text-faint focus:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
               <input
                 value={currencySearch || cost?.currency || defaultCurrency}
@@ -679,7 +679,7 @@ export function ObjectInspectorPanel({
                 }}
                 maxLength={3}
                 aria-label="Currency"
-                className="w-12 border-0 bg-transparent py-1.5 text-right font-mono text-[13px] uppercase text-foreground outline-none focus:ring-0"
+                className="w-12 border-0 bg-transparent py-1.5 max-sm:min-h-11 text-right font-mono text-[13px] uppercase text-foreground outline-none focus:ring-0"
               />
               <button
                 type="button"
@@ -750,7 +750,7 @@ export function ObjectInspectorPanel({
                 onBlur={() => commitTag(tagDraft)}
                 placeholder="+ tag"
                 aria-label="Add tag"
-                className="min-h-8 w-20 border border-dashed border-input-rule bg-transparent px-2 py-0.5 text-xs text-foreground outline-none placeholder:text-muted focus:border-foreground focus:placeholder:text-faint"
+                className="min-h-8 w-20 max-sm:min-h-11 border border-dashed border-input-rule bg-transparent px-2 py-0.5 text-xs text-foreground outline-none placeholder:text-muted focus:border-foreground focus:placeholder:text-faint"
               />
             </div>
           </div>

@@ -223,7 +223,7 @@ const JourneyCard = memo(function JourneyCard({
               target="_blank"
               rel="noreferrer"
               aria-label={`Open ${item.title} in Maps`}
-              className="px-1 py-2 text-xs underline underline-offset-2 hover:text-accent"
+              className="px-1 py-2 text-xs underline underline-offset-2 hover:text-accent max-sm:flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center max-sm:justify-center"
             >
               Maps
             </a>
@@ -612,7 +612,7 @@ export function DayJourneyView({
             key={surface}
             type="button"
             aria-pressed={mobileSurface === surface}
-            className={`min-h-11 border-b px-0.5 text-sm capitalize ${mobileSurface === surface ? "border-foreground font-medium" : "border-transparent text-muted"}`}
+            className={`min-h-11 min-w-11 border-b px-0.5 text-sm capitalize ${mobileSurface === surface ? "border-foreground font-medium" : "border-transparent text-muted"}`}
             onClick={() => setMobileSurface(surface)}
           >
             {surface}

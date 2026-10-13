@@ -177,7 +177,7 @@ function Column({
             onClick={onRemove}
             aria-label={`Remove ${type} type`}
             title="Remove type"
-            className="p-1 text-muted hover:bg-surface hover:text-danger"
+            className="p-1 max-sm:grid max-sm:size-11 max-sm:place-items-center text-muted hover:bg-surface hover:text-danger"
           >
             <Trash2 size={14} />
           </button>
@@ -200,7 +200,7 @@ function Column({
           onPointerDown={(event) => event.stopPropagation()}
           onClick={onAdd}
           aria-label={`Add ${type} item`}
-          className="mt-2 self-start px-2 py-2 text-[13px] text-muted hover:text-foreground"
+          className="mt-2 self-start px-2 py-2 max-sm:min-h-11 text-[13px] text-muted hover:text-foreground"
         >
           + Add
         </button>
@@ -367,7 +367,7 @@ export function KanbanView({
                 type="button"
                 aria-pressed={filter === value}
                 onClick={() => setFilter(value)}
-                className={`py-2 ${filter === value ? "font-medium shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted hover:text-foreground"}`}
+                className={`py-2 max-sm:min-h-11 max-sm:min-w-11 max-sm:px-1 ${filter === value ? "font-medium shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted hover:text-foreground"}`}
               >
                 {label}
               </button>
@@ -380,9 +380,9 @@ export function KanbanView({
               maxLength={20}
               onChange={(event) => setNewType(event.target.value)}
               placeholder="New type"
-              className="w-28 min-w-0 border-0 border-b border-input-rule bg-transparent py-1.5 text-sm outline-none placeholder:text-faint focus:border-foreground"
+              className="w-28 min-w-0 border-0 border-b border-input-rule bg-transparent py-1.5 max-sm:min-h-11 text-sm outline-none placeholder:text-faint focus:border-foreground"
             />
-            <button type="submit" className="py-2 text-muted hover:text-foreground">
+            <button type="submit" className="py-2 max-sm:min-h-11 max-sm:px-1 text-muted hover:text-foreground">
               + Add type
             </button>
           </form>
