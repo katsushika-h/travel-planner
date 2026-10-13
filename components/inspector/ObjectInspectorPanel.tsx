@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { ChevronDown, Download, ExternalLink, FileText, LoaderCircle, Paperclip, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DateFields } from "@/components/inspector/DateFields";
+import { dateParts } from "@/lib/date-utils";
 import { MarkdownEditor } from "@/components/inspector/MarkdownEditor";
 import { api } from "@/lib/api-client";
 import { truncateUtf8 } from "@/lib/text-utils";
@@ -59,6 +61,7 @@ function PropertyRow({ label, children }: { label: string; children: ReactNode }
 
 export function ObjectInspectorPanel({
   item,
+  timeZone,
   defaultCurrency = "SGD",
   eventTypes,
   typeColors,
@@ -131,6 +134,7 @@ export function ObjectInspectorPanel({
   if (!currentItem) return null;
   const location = (item.location ?? null) as LocationData | null;
   const cost = item.cost as { amount?: number; currency?: string } | null;
+  const defaultYear = dateParts(new Date(), timeZone).date.slice(0, 4);
   const dateValue = item.date?.slice(0, 10) ?? "";
   const endDateValue = item.endDate?.slice(0, 10) ?? dateValue;
   const startTimeValue = item.startTime ?? "";
@@ -140,11 +144,15 @@ export function ObjectInspectorPanel({
     .slice(0, 15);
   function patchDate(value: string) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
-    onChange(currentItem!.id, { date: value, ...(endDateValue && endDateValue < value ? { endDate: value } : {}) });
+    onChange(
+      currentItem!.id,
+      { date: value, ...(endDateValue && endDateValue < value ? { endDate: value } : {}) },
+      true,
+    );
   }
   function patchEndDate(value: string) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || (dateValue && value < dateValue)) return;
-    onChange(currentItem!.id, { endDate: value || dateValue });
+    onChange(currentItem!.id, { endDate: value || dateValue }, true);
   }
   function patchTime(which: "startTime" | "endTime", value: string) {
     const patch: UpdateTravelObjectInput = { [which]: value || null, isAllDay: false };
@@ -466,27 +474,20 @@ export function ObjectInspectorPanel({
           </PropertyRow>
           <PropertyRow label="Dates">
             <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2">
-              <label className="min-w-0 text-[10px] text-muted-foreground">
-                Start
-                <input
-                  aria-label="Start date"
-                  type="date"
-                  value={dateValue}
-                  onChange={(e) => patchDate(e.target.value)}
-                  className={`${fieldClass} text-foreground`}
-                />
-              </label>
-              <label className="min-w-0 text-[10px] text-muted-foreground">
-                End
-                <input
-                  aria-label="End date"
-                  type="date"
-                  min={dateValue || undefined}
+              <div className="min-w-0 text-[10px] text-muted-foreground">
+                <span>Start</span>
+                <DateFields label="Start date" value={dateValue} defaultYear={defaultYear} onChange={patchDate} />
+              </div>
+              <div className="min-w-0 text-[10px] text-muted-foreground">
+                <span>End</span>
+                <DateFields
+                  label="End date"
                   value={endDateValue}
-                  onChange={(e) => patchEndDate(e.target.value)}
-                  className={`${fieldClass} text-foreground`}
+                  defaultYear={defaultYear}
+                  min={dateValue || undefined}
+                  onChange={patchEndDate}
                 />
-              </label>
+              </div>
               <Button
                 type="button"
                 variant="ghost"

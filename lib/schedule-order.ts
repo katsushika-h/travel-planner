@@ -162,6 +162,50 @@ export function canDropInDayOrder<T extends OrderableItem & { date: string | nul
   return before.endTime! <= after.startTime!;
 }
 
+/**
+ * Group one date's flexible items into the free windows between their fixed
+ * neighbours. `start` is the previous booking's end and `end` the next one's
+ * start; either is null when the window is open on that side.
+ */
+export function weekFlexibleWindows<T extends OrderableItem & { date: string | null; endDate: string | null }>(
+  orderedItems: readonly T[],
+) {
+  const windows: Array<{
+    key: string;
+    previous: T | null;
+    next: T | null;
+    start: string | null;
+    end: string | null;
+    items: T[];
+  }> = [];
+  let previous: T | null = null;
+  let pending: T[] = [];
+  const close = (next: T | null) => {
+    if (!pending.length) return;
+    const overnight = Boolean(
+      previous?.endDate && previous.date && previous.endDate.slice(0, 10) > previous.date.slice(0, 10),
+    );
+    windows.push({
+      key: `${previous?.id ?? "before"}-${next?.id ?? "after"}`,
+      previous,
+      next,
+      start: previous && !overnight ? previous.endTime : previous ? "24:00" : null,
+      end: next?.startTime ?? null,
+      items: pending,
+    });
+    pending = [];
+  };
+  for (const item of orderedItems) {
+    if (item.isAllDay) continue;
+    if (isTimedItem(item)) {
+      close(item);
+      previous = item;
+    } else pending.push(item);
+  }
+  close(null);
+  return windows;
+}
+
 /** Week cards with later starts sit in front; a shorter card wins a shared start. */
 export function weekFixedLayers<T extends OrderableItem>(items: readonly T[]) {
   const ordered = items

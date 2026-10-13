@@ -1,5 +1,4 @@
 "use client";
-
 import { eventItems, isNote } from "@/lib/note-domain";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
