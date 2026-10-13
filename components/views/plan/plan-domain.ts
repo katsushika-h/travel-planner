@@ -18,11 +18,39 @@ export function tripDays(startDate: string, endDate: string) {
 /** Large time column: fixed start, `~HH:MM` for a flexible placement, or a plain label. */
 export function stopTimeLabel(
   item: Pick<TravelObject, "startTime" | "endTime" | "isAllDay" | "date" | "placementTime">,
+  flexibleTime?: string,
 ) {
   const kind = scheduleKind(item);
   if (kind === "all-day") return "All day";
   if (kind === "fixed") return item.startTime!;
-  return item.placementTime ? `~${item.placementTime}` : "Flexible";
+  const placement = flexibleTime ?? item.placementTime;
+  return placement ? `~${placement}` : "Flexible";
+}
+
+/**
+ * Flexible stops keep their saved list order but their own `placementTime` can contradict it. Display-only:
+ * each flexible time is kept between the previous fixed stop's end and the next fixed stop's start, and never
+ * runs backwards through the list. Nothing is persisted; Week keeps using `placementTime`.
+ */
+export function flexibleDisplayTimes(
+  items: readonly Pick<TravelObject, "id" | "startTime" | "endTime" | "isAllDay" | "date" | "placementTime">[],
+) {
+  const times = new Map<string, string>();
+  let floor = "00:00";
+  items.forEach((item, index) => {
+    const kind = scheduleKind(item);
+    if (kind === "fixed") {
+      floor = item.endTime && item.endTime > item.startTime! ? item.endTime : item.startTime!;
+      return;
+    }
+    if (kind !== "flexible" || !item.placementTime) return;
+    const nextFixed = items.slice(index + 1).find((candidate) => scheduleKind(candidate) === "fixed");
+    let time = item.placementTime > floor ? item.placementTime : floor;
+    if (nextFixed && time > nextFixed.startTime!) time = nextFixed.startTime! > floor ? nextFixed.startTime! : floor;
+    floor = time;
+    times.set(item.id, time);
+  });
+  return times;
 }
 
 /** Whether the time column states a confirmed booking time. */

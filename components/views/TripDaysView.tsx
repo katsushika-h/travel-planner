@@ -20,7 +20,14 @@ import { compareScheduleOrder, isTimedItem, itineraryDropPosition } from "@/lib/
 import type { TravelObject, Trip } from "@/types/travel";
 import { DayStrip } from "./plan/DayStrip";
 import { PlanMap } from "./plan/PlanMap";
-import { plannedTotals, stopMeta, stopNumbers, stopTimeLabel, tripDays } from "./plan/plan-domain";
+import {
+  flexibleDisplayTimes,
+  plannedTotals,
+  stopMeta,
+  stopNumbers,
+  stopTimeLabel,
+  tripDays,
+} from "./plan/plan-domain";
 import { AddGap, EndSlot, NoteBlock, StopRow } from "./plan/StopRow";
 
 /** Remembers the day each trip was last viewed so switching views and back keeps the place. */
@@ -116,6 +123,7 @@ export function TripDaysView({
   );
   const events = useMemo(() => eventItems(dayItems), [dayItems]);
   const numbers = useMemo(() => stopNumbers(events), [events]);
+  const flexTimes = useMemo(() => flexibleDisplayTimes(events), [events]);
   const mapped = useMemo(() => events.filter((item) => hasMapCoordinates(item.location)), [events]);
   const unmapped = events.filter((item) => !hasMapCoordinates(item.location));
   // A multi-day item's planned cost belongs to its first day only, so day totals never double count it.
@@ -255,6 +263,7 @@ export function TripDaysView({
                       date={date}
                       order={order}
                       number={numbers.get(item.id) ?? null}
+                      flexTime={flexTimes.get(item.id)}
                       selected={selectedIds.has(item.id)}
                       primary={primarySelectedId === item.id}
                       expanded={expandedId === item.id}

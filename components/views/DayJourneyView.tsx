@@ -22,7 +22,7 @@ import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { itemDateSpan } from "@/lib/schedule-domain";
 import { sortDayDisplayItems } from "@/lib/schedule-order";
 import { typeColor } from "@/lib/type-color";
-import { formatPlannedCost, stopNumbers } from "@/components/views/plan/plan-domain";
+import { flexibleDisplayTimes, formatPlannedCost, stopNumbers } from "@/components/views/plan/plan-domain";
 import type { LocationData, TravelObject, Trip } from "@/types/travel";
 
 const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.LeafletMap), {
@@ -103,10 +103,11 @@ function DayItemDrop({ date, order, children }: { date: string; order: number; c
 }
 
 /** Large mono start time in the Plan list: confirmed start, `~` placement for flexible items, or a label. */
-function timeLabel(item: TravelObject) {
+function timeLabel(item: TravelObject, flexibleTime?: string) {
   if (item.isAllDay) return { text: "All day", flexible: false, small: true };
   if (item.startTime && item.endTime) return { text: item.startTime, flexible: false, small: false };
-  if (item.placementTime) return { text: `~${item.placementTime}`, flexible: true, small: false };
+  const placement = flexibleTime ?? item.placementTime;
+  if (placement) return { text: `~${placement}`, flexible: true, small: false };
   return { text: "Flexible", flexible: true, small: true };
 }
 
@@ -114,6 +115,7 @@ const JourneyCard = memo(function JourneyCard({
   item,
   date,
   number,
+  flexTime,
   color,
   selected,
   primary,
@@ -125,6 +127,7 @@ const JourneyCard = memo(function JourneyCard({
   item: TravelObject;
   date: string;
   number: number | null;
+  flexTime?: string;
   color: string;
   selected: boolean;
   primary: boolean;
@@ -138,7 +141,7 @@ const JourneyCard = memo(function JourneyCard({
     data: { item, draggedDate: date },
   });
   const location = item.location?.name ?? item.location?.address;
-  const time = timeLabel(item);
+  const time = timeLabel(item, flexTime);
   const cost = item.cost?.amount != null ? formatPlannedCost(item.cost.amount, item.cost.currency) : null;
   const detail = [
     item.type.charAt(0).toUpperCase() + item.type.slice(1),
@@ -277,6 +280,7 @@ function DateSection({
   const { setNodeRef: setSectionDropRef, isOver } = useDroppable({ id: `day-section:${date}:${items.length}` });
   const events = eventItems(items);
   const numbers = stopNumbers(events);
+  const flexTimes = flexibleDisplayTimes(events);
   const fixedCount = items.filter((item) => item.startTime && item.endTime && !item.isAllDay).length;
   return (
     <section
@@ -341,6 +345,7 @@ function DateSection({
                     item={item}
                     date={date}
                     number={numbers.get(item.id) ?? null}
+                    flexTime={flexTimes.get(item.id)}
                     color={typeColor(item.type, typeColors)}
                     selected={selectedIds.has(item.id)}
                     primary={primarySelectedId === item.id}

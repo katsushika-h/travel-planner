@@ -91,6 +91,7 @@ export function StopRow({
   date,
   order,
   number,
+  flexTime,
   selected,
   primary,
   expanded,
@@ -103,6 +104,8 @@ export function StopRow({
   date: string;
   order: number;
   number: number | null;
+  /** Display time for a flexible stop, derived from list order (see `flexibleDisplayTimes`). */
+  flexTime?: string;
   selected: boolean;
   primary: boolean;
   expanded: boolean;
@@ -125,7 +128,7 @@ export function StopRow({
     item.cost && typeof item.cost.amount === "number" ? formatPlannedCost(item.cost.amount, item.cost.currency) : "";
   const mapsHref = safeMapsHref(item.location);
   const accentWhenOpen = primary ? "text-accent" : null;
-  const timeLabel = stopTimeLabel(item);
+  const timeLabel = stopTimeLabel(item, flexTime);
   const bodyId = `plan-stop-${item.id}`;
   return (
     <li
