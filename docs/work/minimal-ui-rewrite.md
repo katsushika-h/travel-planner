@@ -1,6 +1,6 @@
 # Minimal UI rewrite
 
-**Status:** In progress (2026-10-13). WS0 and WS4 merged. WS3 and WS5 finished on their branches and waiting for coordinator review. See **Handoff for the next session** below.
+**Status:** Complete (2026-10-13). All six views, the editor and dialogs are merged on this branch; the PR to `main` is open. Walking routes (WS7) remain a separate later task.
 
 **Goal:** Rebuild the workspace UI in the Minimal design, in light and dark themes, without changing behaviour, the API, the schema or persisted client state.
 
@@ -77,38 +77,11 @@ Running at most three workstreams at once keeps machine load and merge work mana
 
 ---
 
-## Handoff for the next session
+## Remaining after this PR
 
-Written 2026-10-13 when the coordinating session was closed to save tokens (its long history made every step expensive). Start a fresh coordinator from this section, the workstream notes files and `AGENTS.md`.
-
-**State**
-
-| Item | Where | State |
-| --- | --- | --- |
-| Integration branch | `claude/minimal-ui-rewrite`, worktree `../travel-planner-ui` | WS0 + WS4 merged, pushed (`73af0eb`). `npm run check` passes. |
-| WS3 Board + Table | `claude/minimal-ui-ws3-board-table`, `../travel-planner-ws3` | Committed `b8a5abd`. Coordinator re-ran checks: lint 0 errors, 94/94 tests, webpack build OK, colour grep clean, only owned files changed. **Not yet done:** browser comparison and code review. |
-| WS5 Editor + dialogs | `claude/minimal-ui-ws5-editor`, `../travel-planner-ws5` | Committed `26985cb`. **Not yet reviewed at all.** Also changed `tests/delete-hotkey.test.mjs` (mock only) — confirm that is acceptable. Agent could not check at exactly 1440px. |
-| Batch B (WS1 Plan, WS2 Calendar) | — | Not started; needs batch A merged and the user's go-ahead. |
-
-All dev servers are stopped. Subagents run on Sonnet (user preference).
-
-**Next steps, in order**
-
-1. Review WS3 (browser at 1440 light/dark and 390, then a code review of the diff), merge `--no-ff`, re-run `npm run check`, push.
-2. Review WS5 the same way, merge, push.
-3. Coordinator follow-up commit on the integration branch for the agents' requests:
-   - `LeafletMap.tsx`: fit bounds should skip `dimmedItemIds` (and list it in the effect deps) so Map zooms to the selected day (WS4).
-   - `lib/expense-domain.ts` `formatExpenseAmount`: use `currencyDisplay: "narrowSymbol"` so amounts read `¥43,750` / `S$1,398`; update `tests/expense-domain.test.mjs` if it asserts the format (WS4).
-   - `AppShell.tsx`: pass `onDeleteSelected={(ids) => setPendingDeleteIds(ids)}` to `TableView` so the Table bulk bar shows Delete (WS3).
-   - `AppShell.tsx`: add a shadow to the editor wrapper where it floats over the Calendar (WS5).
-   - Optional (WS5): pass a save status (saving/saved/error) from the save queue so the editor footer can say "Saved"; add a `--scrim` token and use it for `ConfirmDialog` and the trip dialogs (currently `bg-black/40` vs `bg-background/80`); replace the hard-coded hex in `.travel-markdown-editor.dark-theme` in `globals.css` with tokens.
-   - No change: dark map tiles look more colourful than `map-dark.jpg` because the user chose the colour-preserving filter (green parks, blue water).
-4. Ask the user to check the app (batch A views, both themes) before starting batch B.
-5. Batch B: WS1 Plan and WS2 Calendar in parallel, same process. To save coordinator tokens, have each agent attach its own screenshots and keep coordinator browser checks targeted.
-
-**Separate bug (not part of the rewrite, also on `main`)**
-
-WS3 found that bulk Unschedule / Move to day sends one PATCH per item at the same time (`changeSelectedItems` in `components/layout/useItemActions.ts` calls `changeItem(..., immediate=true)` in a loop). With two items, the server's `dayOrder` compaction hit the `TravelObject_schedule_shape` check, one item stayed scheduled and a database error showed. The coordinator confirmed the concurrent sends in code but has not reproduced the error. Suggested fix: send the updates one after another (or add a bulk endpoint); fix in its own branch and PR, with a test.
+- WS7 walking routes (needs a routing-provider decision).
+- Pre-existing, separate fixes: concurrent bulk PATCHes in `changeSelectedItems` (`components/layout/useItemActions.ts`); Day-mode drop index below a multi-day hotel (`DayJourneyView` vs `canDropInDayOrder`); the CSV import banner persists across views; editing a date year commits per field.
+- Optional: save-status text in the editor footer; map `weekFixedLayers` 12px step; touch targets under 44px in the dense Table and date segments.
 
 ## WS0 — Foundation (merged)
 
@@ -122,13 +95,13 @@ Review findings fixed before merge: mobile More sheet lacked Plan/Board/Table (v
 
 **Owner:** coordinator on `claude/minimal-ui-rewrite` · **Port:** 3100
 
-- [ ] Resolve outstanding Requests; remove now-unused code and colour classes (the done-check grep over `components/` should only show deliberate leftovers).
-- [ ] Run the parity matrix in `docs/REFACTORING_TRACKER.md` ("Required parity matrix") in both themes.
-- [ ] Mobile pass at 320 and 390px against [mobile-ui-implementation.md](mobile-ui-implementation.md).
-- [ ] Accessibility pass: focus order and visible focus in header, trip menu, tabs, editor; text contrast 4.5:1 for body and type-coloured headings in both themes.
-- [ ] `npm run check` and `npx next build --webpack`.
-- [ ] Update `docs/architecture.md` (shell layout, theme tokens) and the `AGENTS.md` code map; mark this plan complete.
-- [ ] Open the PR from `claude/minimal-ui-rewrite` to `main` with before/after screenshots in both themes.
+- [x] Resolve outstanding Requests; remove now-unused code and colour classes (the done-check grep over `components/` should only show deliberate leftovers).
+- [x] Run the parity matrix in `docs/REFACTORING_TRACKER.md` ("Required parity matrix") in both themes.
+- [x] Mobile pass at 320 and 390px against [mobile-ui-implementation.md](mobile-ui-implementation.md).
+- [x] Accessibility pass: focus order and visible focus in header, trip menu, tabs, editor; text contrast 4.5:1 for body and type-coloured headings in both themes.
+- [x] `npm run check` and `npx next build --webpack`.
+- [x] Update `docs/architecture.md` (shell layout, theme tokens) and the `AGENTS.md` code map; mark this plan complete.
+- [x] Open the PR from `claude/minimal-ui-rewrite` to `main` with before/after screenshots in both themes.
 
 ## WS7 — Walking routes and travel times (later, separate PR)
 

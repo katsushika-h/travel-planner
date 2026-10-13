@@ -58,7 +58,7 @@ Taken from the canonical boards. Put these in `app/globals.css` as CSS variables
 | surface | `#F2F2F0` | `#1C1C1C` | Week fixed-item blocks, selected table row (`#F6F6F4` / `#1C1C1C`) |
 | ink | `#111111` | `#EDEDEC` | Primary text, strong rules under headings, outlined buttons |
 | muted | `#6B6B6B` | `#9A9A98` | Secondary text, inactive tabs |
-| faint | `#9A9A98` | `#7A7A78` | Past items, hour labels, list numbers |
+| faint | `#767674` | `#8A8A88` | Past items, hour labels, list numbers (darkened from `#9A9A98` / `#7A7A78` for 4.5:1 text contrast) |
 | divider | `#EBEBEA` | `#242424` | Row dividers |
 | input rule | `#CFCFCC` | `#3A3A3A` | Underlined form fields, dashed outlines |
 | accent | `#D9381E` | `#FF6A4D` | Selected stop, "Idea" labels, tight-gap warning (one accent only) |
