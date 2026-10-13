@@ -2,6 +2,7 @@
 
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { menuItemClassName } from "@/components/ui/menu-item";
 import { createTripIcs } from "@/lib/ics-export";
 import type { TravelObject, Trip } from "@/types/travel";
 
@@ -9,10 +10,12 @@ export function ExportIcsButton({
   trip,
   items,
   compact = false,
+  menuItem = false,
 }: {
   trip: Trip;
   items: TravelObject[];
   compact?: boolean;
+  menuItem?: boolean;
 }) {
   function download() {
     const calendar = createTripIcs(trip, items);
@@ -31,6 +34,12 @@ export function ExportIcsButton({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  if (menuItem)
+    return (
+      <button type="button" className={menuItemClassName} onClick={download}>
+        <Download /> Export calendar (.ics)
+      </button>
+    );
   return (
     <Button
       type="button"

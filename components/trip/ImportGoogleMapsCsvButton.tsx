@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { FileUp, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { menuItemClassName } from "@/components/ui/menu-item";
 import { importGoogleMapsCsv } from "@/lib/google-maps-import";
 import type { TravelObject, Trip } from "@/types/travel";
 
@@ -13,6 +14,7 @@ export function ImportGoogleMapsCsvButton({
   onImported,
   onError,
   compact = false,
+  menuItem = false,
 }: {
   trip: Trip;
   eventTypes: string[];
@@ -20,6 +22,7 @@ export function ImportGoogleMapsCsvButton({
   onImported: (items: TravelObject[]) => void;
   onError: (message: string) => void;
   compact?: boolean;
+  menuItem?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -68,19 +71,31 @@ export function ImportGoogleMapsCsvButton({
         className="sr-only"
         onChange={(event) => void importFile(event.target.files?.[0])}
       />
-      <Button
-        type="button"
-        variant="ghost"
-        size={compact ? "icon" : "sm"}
-        className={compact ? "mx-auto size-11 sm:size-8" : "min-h-11 w-full justify-start sm:min-h-0"}
-        aria-label={label}
-        title={compact ? label : undefined}
-        disabled={importing}
-        onClick={() => inputRef.current?.click()}
-      >
-        {importing ? <LoaderCircle className="animate-spin" /> : <FileUp />}
-        {!compact && label}
-      </Button>
+      {menuItem ? (
+        <button
+          type="button"
+          className={menuItemClassName}
+          disabled={importing}
+          onClick={() => inputRef.current?.click()}
+        >
+          {importing ? <LoaderCircle className="animate-spin" /> : <FileUp />}
+          {label}
+        </button>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          size={compact ? "icon" : "sm"}
+          className={compact ? "mx-auto size-11 sm:size-8" : "min-h-11 w-full justify-start sm:min-h-0"}
+          aria-label={label}
+          title={compact ? label : undefined}
+          disabled={importing}
+          onClick={() => inputRef.current?.click()}
+        >
+          {importing ? <LoaderCircle className="animate-spin" /> : <FileUp />}
+          {!compact && label}
+        </Button>
+      )}
     </>
   );
 }
