@@ -519,7 +519,7 @@ export function ExpensesView({ trip, items }: { trip: Trip; items: TravelObject[
                         return (
                           <li
                             key={expense.id}
-                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-t border-divider py-2.5 text-sm hover:bg-surface max-sm:first:border-t-0 sm:${columns}`}
+                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-t border-divider py-2.5 text-sm hover:bg-surface max-sm:first:border-t-0 ${columns}`}
                           >
                             <span
                               title={expense.date}
