@@ -205,7 +205,6 @@ export function AppShell() {
       ...events.map((item) => item.type),
     ]),
   ];
-  const itineraryItems = events.filter((item) => item.date !== null);
   const selectTrip = (id: string) => {
     if (id !== activeTripId) {
       clearSelection();
@@ -520,16 +519,18 @@ export function AppShell() {
               ) : activeTab === "days" ? (
                 <TripDaysView
                   trip={activeTrip}
-                  items={itineraryItems}
+                  items={items.filter((item) => item.date !== null)}
                   typeColors={eventTypeColors}
                   selectedIds={selectedIds}
                   primarySelectedId={primarySelectedId}
-                  inspectedItemId={inspectedItemId}
-                  onSelect={selectItem}
+                  onSelect={(item, additive) => selectItem(item, additive, false)}
+                  onInspect={inspectItem}
                   onSelectForDrag={(item) => selectItem(item, false, false)}
                   onMove={moveSelectedItemsToDay}
                   onReorder={reorderItem}
-                  onCreateItem={(date) => void openCreateItem(date)}
+                  onCreateItem={(date, order) =>
+                    void openCreateItem(date, undefined, "unclassified", "(untitled event)", order)
+                  }
                 />
               ) : activeTab === "table" ? (
                 <TableView
