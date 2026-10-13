@@ -1,3 +1,4 @@
+import { formatExpenseAmount } from "../../../lib/expense-domain.ts";
 import { shiftDate } from "../../../lib/date-utils.ts";
 import { hasMapCoordinates } from "../../../lib/map-coordinates.ts";
 import { scheduleKind } from "../../../lib/schedule-domain.ts";
@@ -37,17 +38,7 @@ export function stopNumbers(events: readonly Pick<TravelObject, "id" | "location
 }
 
 export function formatPlannedCost(amount: number, currency: string) {
-  if (amount === 0) return "Free";
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      currencyDisplay: "narrowSymbol",
-      maximumFractionDigits: 2,
-    }).format(amount);
-  } catch {
-    return `${amount} ${currency}`;
-  }
+  return amount === 0 ? "Free" : formatExpenseAmount(amount, currency);
 }
 
 /** Planned item costs only (never actual expenses), totalled per currency without conversion. */

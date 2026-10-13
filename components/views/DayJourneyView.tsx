@@ -22,6 +22,7 @@ import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { itemDateSpan } from "@/lib/schedule-domain";
 import { sortDayDisplayItems } from "@/lib/schedule-order";
 import { typeColor } from "@/lib/type-color";
+import { formatPlannedCost, stopNumbers } from "@/components/views/plan/plan-domain";
 import type { LocationData, TravelObject, Trip } from "@/types/travel";
 
 const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.LeafletMap), {
@@ -123,7 +124,7 @@ const JourneyCard = memo(function JourneyCard({
 }: {
   item: TravelObject;
   date: string;
-  number: number;
+  number: number | null;
   color: string;
   selected: boolean;
   primary: boolean;
@@ -138,7 +139,7 @@ const JourneyCard = memo(function JourneyCard({
   });
   const location = item.location?.name ?? item.location?.address;
   const time = timeLabel(item);
-  const cost = item.cost?.amount != null ? `${item.cost.currency} ${item.cost.amount.toLocaleString()}` : null;
+  const cost = item.cost?.amount != null ? formatPlannedCost(item.cost.amount, item.cost.currency) : null;
   const detail = [
     item.type.charAt(0).toUpperCase() + item.type.slice(1),
     item.startTime && item.endTime && !item.isAllDay ? `until ${item.endTime}` : null,
@@ -186,7 +187,7 @@ const JourneyCard = memo(function JourneyCard({
             {time.text}
           </span>
           <span className={`w-5 shrink-0 pt-1.5 font-mono text-[11px] ${active ? "text-accent" : "text-faint"}`}>
-            {String(number).padStart(2, "0")}
+            {number != null ? String(number).padStart(2, "0") : "—"}
           </span>
           <span className="min-w-0 flex-1">
             <span className="flex min-w-0 items-center gap-2">
@@ -275,7 +276,7 @@ function DateSection({
 }) {
   const { setNodeRef: setSectionDropRef, isOver } = useDroppable({ id: `day-section:${date}:${items.length}` });
   const events = eventItems(items);
-  const numbers = new Map(events.map((item, index) => [item.id, index + 1]));
+  const numbers = stopNumbers(events);
   const fixedCount = items.filter((item) => item.startTime && item.endTime && !item.isAllDay).length;
   return (
     <section
@@ -339,7 +340,7 @@ function DateSection({
                   <JourneyCard
                     item={item}
                     date={date}
-                    number={numbers.get(item.id) ?? 0}
+                    number={numbers.get(item.id) ?? null}
                     color={typeColor(item.type, typeColors)}
                     selected={selectedIds.has(item.id)}
                     primary={primarySelectedId === item.id}
@@ -564,7 +565,7 @@ export function DayJourneyView({
 
   const activeItems = useMemo(() => eventItems(grouped.get(activeDate) ?? []), [activeDate, grouped]);
   const mappedItems = activeItems.filter((item) => hasMapCoordinates(item.location));
-  const markerNumbers = useMemo(() => new Map(activeItems.map((item, index) => [item.id, index + 1])), [activeItems]);
+  const markerNumbers = useMemo(() => stopNumbers(activeItems), [activeItems]);
 
   function selectFromMap(item: TravelObject) {
     onSelect(item);
