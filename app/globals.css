@@ -8,6 +8,7 @@
 @theme inline {
   /* Minimal UI tokens (docs/design/minimal-ui/README.md). */
   --color-background: var(--background);
+  --color-scrim: var(--scrim);
   --color-foreground: var(--foreground);
   --color-ink: var(--ink);
   --color-panel: var(--panel);
@@ -65,6 +66,7 @@
 :root {
   /* Design tokens: light. */
   --background: #ffffff;
+  --scrim: rgb(17 17 17 / 0.4);
   --panel: #ffffff;
   --surface: #f2f2f0;
   --surface-selected: #f6f6f4;
@@ -87,6 +89,7 @@
 .dark {
   /* Design tokens: dark. */
   --background: #0e0e0e;
+  --scrim: rgb(0 0 0 / 0.6);
   --panel: #141414;
   --surface: #1c1c1c;
   --surface-selected: #1c1c1c;

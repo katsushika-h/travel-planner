@@ -307,7 +307,7 @@ export function AppShell() {
       {mobileSheetOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-black/35 sm:hidden"
+          className="fixed inset-0 z-40 bg-scrim sm:hidden"
           aria-label="Close navigation"
           onClick={() => closeMobileMenu()}
         />

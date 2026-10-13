@@ -81,7 +81,7 @@ export function EditTripDialog({
         createPortal(
           <div
             ref={dialogRef}
-            className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-background/80 backdrop-blur-[2px] p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
+            className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-scrim p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
             role="dialog"
             aria-modal="true"
             aria-labelledby="edit-trip-title"
