@@ -53,9 +53,12 @@ export function plannedCostTotals(items: { cost?: { amount: number; currency: st
 
 export function formatExpenseAmount(amount: string | number, currency: string) {
   try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 3 }).format(
-      Number(amount),
-    );
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      currencyDisplay: "narrowSymbol",
+      maximumFractionDigits: 3,
+    }).format(Number(amount));
   } catch {
     return `${amount} ${currency}`;
   }

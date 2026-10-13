@@ -188,9 +188,11 @@ export function LeafletMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    const points = items
-      .filter((item) => hasMapCoordinates(item.location))
-      .map((item) => [item.location!.lat!, item.location!.lng!] as [number, number]);
+    const located = items.filter((item) => hasMapCoordinates(item.location));
+    const focused = located.filter((item) => !dimmedItemIds?.has(item.id));
+    const points = (focused.length ? focused : located).map(
+      (item) => [item.location!.lat!, item.location!.lng!] as [number, number],
+    );
     const nextFit = `${fitKey ?? "items"}:${recenterToken}`;
     if (!map || lastFitRef.current === nextFit) return;
     lastFitRef.current = nextFit;
@@ -202,7 +204,7 @@ export function LeafletMap({
       else map.fitBounds(points, { padding: [48, 48], maxZoom: 15, animate: true });
     }, 140);
     return () => window.clearTimeout(timer);
-  }, [fitKey, items, recenterToken]);
+  }, [dimmedItemIds, fitKey, items, recenterToken]);
 
   return <div ref={containerRef} className={`travel-leaflet-map relative z-0 isolate text-sm ${className}`} />;
 }

@@ -542,6 +542,7 @@ export function AppShell() {
                   onInspect={inspectItem}
                   onSelectionChange={replaceSelection}
                   onChangeItems={changeSelectedItems}
+                  onDeleteSelected={(ids) => setPendingDeleteIds(ids)}
                 />
               ) : activeTab === "expenses" ? (
                 <ExpensesView key={activeTrip.id} trip={activeTrip} items={events} />
@@ -560,7 +561,7 @@ export function AppShell() {
                 role={narrowScreen ? "dialog" : undefined}
                 aria-modal={narrowScreen ? true : undefined}
                 aria-label={narrowScreen ? `Edit ${selectedItem.title}` : undefined}
-                className={`z-[100] min-h-0 max-sm:fixed max-sm:inset-0 ${activeTab === "calendar" ? "sm:absolute sm:inset-y-3 sm:right-3 sm:w-[min(92vw,600px)]" : "sm:w-[min(38vw,760px)] sm:min-w-[400px] sm:shrink-0 max-lg:sm:absolute max-lg:sm:inset-y-3 max-lg:sm:right-3 max-lg:sm:w-[min(92vw,600px)] max-lg:sm:min-w-0"}`}
+                className={`z-[100] min-h-0 max-sm:fixed max-sm:inset-0 ${activeTab === "calendar" ? "sm:absolute sm:inset-y-3 sm:right-3 sm:w-[min(92vw,600px)] sm:shadow-xl" : "sm:w-[min(38vw,760px)] sm:min-w-[400px] sm:shrink-0 max-lg:sm:absolute max-lg:sm:inset-y-3 max-lg:sm:right-3 max-lg:sm:w-[min(92vw,600px)] max-lg:sm:min-w-0"}`}
               >
                 <ObjectInspectorPanel
                   key={selectedItem.id}
