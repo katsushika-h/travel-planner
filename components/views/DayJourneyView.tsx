@@ -22,7 +22,6 @@ import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { itemDateSpan } from "@/lib/schedule-domain";
 import { sortDayDisplayItems } from "@/lib/schedule-order";
 import { typeColor } from "@/lib/type-color";
-import { selectionRing } from "./calendar/calendar-shared";
 import type { LocationData, TravelObject, Trip } from "@/types/travel";
 
 const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.LeafletMap), {

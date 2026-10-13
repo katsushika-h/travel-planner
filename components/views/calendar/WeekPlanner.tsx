@@ -485,7 +485,6 @@ function WeekFlexibleWindow({
 function WeekDayColumn({
   date,
   items,
-  trip,
   typeColors,
   selectedIds,
   primarySelectedId,
@@ -498,7 +497,6 @@ function WeekDayColumn({
 }: {
   date: string;
   items: TravelObject[];
-  trip: Trip;
   typeColors: Record<string, string>;
   selectedIds: ReadonlySet<string>;
   primarySelectedId: string | null;
@@ -723,7 +721,6 @@ export function WeekPlanner({
               key={date}
               date={date}
               items={datedItems[index]}
-              trip={trip}
               typeColors={typeColors}
               selectedIds={selectedIds}
               primarySelectedId={primarySelectedId}

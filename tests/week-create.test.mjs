@@ -4,6 +4,8 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import { shiftDate } from "../lib/date-utils.ts";
+import { occursOnItineraryDate } from "../lib/schedule-domain.ts";
 import { eventItems, weekDropPositions } from "../lib/note-domain.ts";
 import { compareScheduleOrder, isTimedItem, weekFixedLayers, weekFlexibleWindows } from "../lib/schedule-order.ts";
 
@@ -26,8 +28,8 @@ vm.runInNewContext(compiled, {
     if (name === "@/lib/note-domain") return { eventItems, weekDropPositions };
     if (name === "@/lib/schedule-order")
       return { compareScheduleOrder, isTimedItem, weekFixedLayers, weekFlexibleWindows };
-    if (name === "@/lib/date-utils") return { formatTripDate: () => "Date" };
-    if (name === "@/lib/schedule-domain") return { occursOnItineraryDate: (item, date) => item.date === date };
+    if (name === "@/lib/date-utils") return { formatTripDate: () => "Date", shiftDate };
+    if (name === "@/lib/schedule-domain") return { occursOnItineraryDate };
     if (name === "@/lib/type-color") return { typeColor: () => "#000000" };
     if (name === "./calendar-shared") return { selectionRing: () => "", isBookedItem: () => false };
     return {};
@@ -145,4 +147,57 @@ test("Week shows flexible items in the window between fixed neighbours", () => {
   );
   const pill = tight.find((node) => node.type === "button" && node.props["aria-expanded"] === false);
   assert.equal(pill.props["aria-label"], "2 flexible items, between Temple and Garden");
+});
+
+test("Week draws a multi-day stay as one bar over its nights and anchors card titles to the top", () => {
+  const createdAt = "2026-10-01T00:00:00.000Z";
+  const stay = {
+    id: "stay",
+    title: "Hotel Kanra",
+    kind: "event",
+    type: "hotel",
+    date: "2026-10-10",
+    endDate: "2026-10-13",
+    startTime: null,
+    endTime: null,
+    isAllDay: true,
+    dayOrder: 0,
+    createdAt,
+    placementTime: null,
+  };
+  const fixed = {
+    ...stay,
+    id: "fixed",
+    title: "Temple",
+    type: "sightseeing",
+    endDate: "2026-10-10",
+    startTime: "09:00",
+    endTime: "10:00",
+    isAllDay: false,
+  };
+  const dates = Array.from({ length: 7 }, (_, index) => `2026-10-${String(10 + index)}`);
+  const nodes = flatten(
+    compiledModule.exports.WeekPlanner({
+      dates,
+      items: [stay, fixed],
+      trip: { timezone: "Asia/Singapore" },
+      typeColors: {},
+      selectedIds: new Set(),
+      primarySelectedId: null,
+      expandedDate: null,
+      draggedItemId: null,
+      onExpandedChange() {},
+      onSelect() {},
+      onResize() {},
+      onSelectDay() {},
+      onCreateItem() {},
+    }),
+  );
+  const bars = nodes.filter((node) => node.type === "button" && node.props.title === "Hotel Kanra");
+  assert.equal(bars.length, 1);
+  assert.equal(bars[0].props.style.left, "calc(0% + 6px)");
+  assert.equal(bars[0].props.style.width, `calc(${(3 / 7) * 100}% - 12px)`);
+  const card = nodes.find((node) => node.type === "button" && /Temple/.test(JSON.stringify(node.props.children)));
+  assert.match(card.props.className, /flex-col/);
+  assert.match(card.props.className, /justify-start/);
 });
