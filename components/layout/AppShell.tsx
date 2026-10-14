@@ -302,6 +302,11 @@ export function AppShell() {
     onImported: (tripId: string, imported: TravelObject[]) => {
       if (activeTripKeyRef.current === tripId) setItems((current) => sortTravelObjects([...current, ...imported]));
     },
+    onItemsUpdated: (tripId: string, updated: TravelObject[]) => {
+      if (activeTripKeyRef.current !== tripId || !updated.length) return;
+      const byId = new Map(updated.map((item) => [item.id, item]));
+      setItems((current) => current.map((item) => byId.get(item.id) ?? item));
+    },
     onError: (tripId: string, message: string) => {
       if (activeTripKeyRef.current === tripId) setError(message);
     },
