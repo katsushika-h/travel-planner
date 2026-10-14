@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { Check, ChevronDown, ExternalLink, FileText, LoaderCircle, X } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, FileText, LoaderCircle, RefreshCw, X } from "lucide-react";
 import { DateFields } from "@/components/inspector/DateFields";
 import { dateParts } from "@/lib/date-utils";
 import { oneHourEnd, scheduleKind } from "@/lib/schedule-domain";
@@ -625,17 +625,30 @@ export function ObjectInspectorPanel({
                 ? `Pinned · ${coordinates.lat!.toFixed(4)}, ${coordinates.lng!.toFixed(4)}`
                 : "No location — paste a Maps link with coordinates"}
             </span>
-            {Boolean(mapsUrl || location?.name) && (
-              <a
-                href={safeMapsHref(mapsUrl, location?.name ?? item.title)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex min-h-11 items-center gap-1 text-foreground underline underline-offset-3 hover:text-accent sm:min-h-0"
-              >
-                Open in Google Maps
-                <ExternalLink size={12} aria-hidden />
-              </a>
-            )}
+            <span className="flex flex-wrap items-center gap-x-4">
+              {Boolean(mapsUrl.trim()) && (
+                <button
+                  type="button"
+                  onClick={() => void resolveMap()}
+                  disabled={resolvingMap}
+                  className="inline-flex min-h-11 items-center gap-1 text-foreground underline underline-offset-3 hover:text-accent disabled:cursor-wait disabled:opacity-60 sm:min-h-0"
+                >
+                  Recalculate
+                  <RefreshCw size={12} aria-hidden className={resolvingMap ? "animate-spin" : undefined} />
+                </button>
+              )}
+              {Boolean(mapsUrl || location?.name) && (
+                <a
+                  href={safeMapsHref(mapsUrl, location?.name ?? item.title)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-11 items-center gap-1 text-foreground underline underline-offset-3 hover:text-accent sm:min-h-0"
+                >
+                  Open in Google Maps
+                  <ExternalLink size={12} aria-hidden />
+                </a>
+              )}
+            </span>
           </div>
           {(resolvingMap || mapMessage) && (
             <p role="status" className="text-xs text-muted">
