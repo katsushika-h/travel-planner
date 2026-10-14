@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   closestCorners,
   DndContext,
@@ -18,6 +18,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Trash2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { compareScheduleOrder } from "@/lib/schedule-order";
+import { tripFlexibleDisplayTimes } from "@/lib/schedule-domain";
 import { typeColor, typeTextColor } from "@/lib/type-color";
 import { useTravelStore } from "@/store/use-travel-store";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -33,8 +34,8 @@ export function shortDayLabel(date: string) {
   return `${weekday} ${day.slice(8, 10)}`;
 }
 
-/** Compact "when" label: "Idea" for unscheduled items, otherwise day plus time. */
-export function itemWhenLabel(item: TravelObject) {
+/** Compact "when" label: "Idea" for unscheduled items, otherwise day plus time. `flexibleTime` is the order-derived time. */
+export function itemWhenLabel(item: TravelObject, flexibleTime?: string) {
   if (!item.date) return "Idea";
   const first = item.date.slice(0, 10);
   const day = shortDayLabel(first);
@@ -43,7 +44,7 @@ export function itemWhenLabel(item: TravelObject) {
   if (item.startTime && item.endTime) return `${day} · ${item.startTime}`;
   if (item.startTime) return `${day} · after ${item.startTime}`;
   if (item.endTime) return `${day} · before ${item.endTime}`;
-  return `${day} · ${item.placementTime ? `~${item.placementTime}` : "anytime"}`;
+  return `${day} · ${flexibleTime ? `~${flexibleTime}` : "anytime"}`;
 }
 
 type BoardFilter = "all" | "scheduled" | "ideas";
@@ -53,11 +54,13 @@ const boardFilters: { value: BoardFilter; label: string }[] = [
   { value: "ideas", label: "Ideas only" },
 ];
 
-function CardText({ item }: { item: TravelObject }) {
+function CardText({ item, flexTime }: { item: TravelObject; flexTime?: string }) {
   const location = item.location as { name?: string } | null;
   return (
     <>
-      <span className={`font-mono text-xs ${item.date ? "text-muted" : "text-accent"}`}>{itemWhenLabel(item)}</span>
+      <span className={`font-mono text-xs ${item.date ? "text-muted" : "text-accent"}`}>
+        {itemWhenLabel(item, flexTime)}
+      </span>
       <span className="text-[15px] font-medium leading-snug">{item.title}</span>
       {location?.name && <span className="truncate text-xs text-muted">{location.name}</span>}
     </>
@@ -68,11 +71,13 @@ function Card({
   item,
   selected,
   primary,
+  flexTime,
   onSelect,
 }: {
   item: TravelObject;
   selected: boolean;
   primary: boolean;
+  flexTime?: string;
   onSelect: (item: TravelObject, additive: boolean) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -94,16 +99,16 @@ function Card({
         {...listeners}
         className={`flex w-full scroll-mx-4 touch-pan-y cursor-grab flex-col gap-1 border-b border-divider px-2 py-3 in-data-[density=compact]:py-1.5 text-left transition-colors hover:bg-surface sm:touch-none ${selected ? "bg-surface-selected" : ""} ${primary ? "shadow-[inset_2px_0_0_var(--accent)]" : ""} ${isDragging ? "opacity-40" : ""}`}
       >
-        <CardText item={item} />
+        <CardText item={item} flexTime={flexTime} />
       </button>
     </div>
   );
 }
 
-function DragPreview({ item }: { item: TravelObject }) {
+function DragPreview({ item, flexTime }: { item: TravelObject; flexTime?: string }) {
   return (
     <div className="flex w-[220px] flex-col gap-1 border border-foreground bg-background px-2 py-3 text-left shadow-md">
-      <CardText item={item} />
+      <CardText item={item} flexTime={flexTime} />
     </div>
   );
 }
@@ -115,6 +120,7 @@ function Column({
   headingColor,
   selectedIds,
   primarySelectedId,
+  flexTimes,
   removable,
   onColorChange,
   onRemove,
@@ -127,6 +133,7 @@ function Column({
   headingColor: string;
   selectedIds: ReadonlySet<string>;
   primarySelectedId: string | null;
+  flexTimes: ReadonlyMap<string, string>;
   removable: boolean;
   onColorChange: (color: string) => void;
   onRemove: () => void;
@@ -190,6 +197,7 @@ function Column({
             item={item}
             selected={selectedIds.has(item.id)}
             primary={primarySelectedId === item.id}
+            flexTime={flexTimes.get(item.id)}
             onSelect={onSelect}
           />
         ))}
@@ -352,6 +360,7 @@ export function KanbanView({
     removeEventType(trip.id, type);
     window.location.reload();
   }
+  const flexTimes = useMemo(() => tripFlexibleDisplayTimes(items), [items]);
   const shownItems = items.filter((item) =>
     filter === "all" ? true : filter === "scheduled" ? item.date !== null : item.date === null,
   );
@@ -409,6 +418,7 @@ export function KanbanView({
                   headingColor={typeTextColor(color, theme)}
                   selectedIds={selectedIds}
                   primarySelectedId={primarySelectedId}
+                  flexTimes={flexTimes}
                   removable={!defaultTypes.includes(type)}
                   onColorChange={(nextColor) => onSetTypeColor(type, nextColor)}
                   onRemove={() => setPendingTypeRemoval(type)}
@@ -422,7 +432,7 @@ export function KanbanView({
         </SortableContext>
         <DragOverlay dropAnimation={null}>
           {activeItem ? (
-            <DragPreview item={activeItem} />
+            <DragPreview item={activeItem} flexTime={flexTimes.get(activeItem.id)} />
           ) : activeType ? (
             <div className="w-[220px] border border-foreground bg-background px-4 py-3 text-sm font-semibold capitalize shadow-md">
               {activeType}
