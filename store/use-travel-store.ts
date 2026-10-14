@@ -1,10 +1,13 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type PlannerTab = "calendar" | "kanban" | "days" | "table" | "map" | "expenses";
 export type CalendarMode = "month" | "week" | "day";
+/** What the user chose; "system" follows the OS colour scheme. */
+export type ThemePreference = "system" | "light" | "dark";
 
 /** Visible names for the persisted tab keys. Keys never change; only these labels do. */
 export const plannerTabLabels: Record<PlannerTab, string> = {
@@ -33,7 +36,7 @@ type TravelStore = {
   calendarMode: CalendarMode;
   /** Persisted from the old sidebar layout; no longer read by the header layout. Kept so stored state stays valid. */
   sidebarCollapsed: boolean;
-  theme: "light" | "dark";
+  theme: ThemePreference;
   /** Denser rows in Plan, Day, Board and Table. */
   compact: boolean;
   eventTypesByTrip: Record<string, string[]>;
@@ -47,7 +50,7 @@ type TravelStore = {
   setActiveTab: (tab: PlannerTab) => void;
   setCalendarMode: (mode: CalendarMode) => void;
   toggleSidebar: () => void;
-  toggleTheme: () => void;
+  cycleTheme: () => void;
   toggleCompact: () => void;
 };
 
@@ -58,7 +61,7 @@ export const useTravelStore = create<TravelStore>()(
       activeTab: "calendar",
       calendarMode: "month",
       sidebarCollapsed: false,
-      theme: "light",
+      theme: "system",
       compact: false,
       eventTypesByTrip: {},
       eventTypeColorsByTrip: {},
@@ -90,9 +93,41 @@ export const useTravelStore = create<TravelStore>()(
       setActiveTab: (activeTab) => set({ activeTab }),
       setCalendarMode: (calendarMode) => set({ calendarMode }),
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
-      toggleTheme: () => set((state) => ({ theme: state.theme === "light" ? "dark" : "light" })),
+      cycleTheme: () =>
+        set((state) => ({
+          theme: state.theme === "system" ? "light" : state.theme === "light" ? "dark" : "system",
+        })),
       toggleCompact: () => set((state) => ({ compact: !state.compact })),
     }),
-    { name: "travel-planner-ui" },
+    {
+      name: "travel-planner-ui",
+      version: 1,
+      // v0 persisted "light" as the default, so it rarely reflects a choice; move it to "system". Keep "dark".
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<TravelStore>;
+        if (version < 1 && state.theme === "light") state.theme = "system";
+        return state as TravelStore;
+      },
+    },
   ),
 );
+
+const darkQuery = "(prefers-color-scheme: dark)";
+
+function subscribeToSystemDark(notify: () => void) {
+  const query = window.matchMedia(darkQuery);
+  query.addEventListener("change", notify);
+  return () => query.removeEventListener("change", notify);
+}
+
+/** The light or dark scheme in effect: the stored preference, or the OS scheme when it is "system". */
+export function useResolvedTheme(): "light" | "dark" {
+  const theme = useTravelStore((state) => state.theme);
+  const systemDark = useSyncExternalStore(
+    subscribeToSystemDark,
+    () => window.matchMedia(darkQuery).matches,
+    () => false,
+  );
+  if (theme === "system") return systemDark ? "dark" : "light";
+  return theme;
+}

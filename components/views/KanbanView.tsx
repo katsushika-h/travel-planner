@@ -19,7 +19,7 @@ import { Trash2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { compareScheduleOrder } from "@/lib/schedule-order";
 import { typeColor, typeTextColor } from "@/lib/type-color";
-import { useTravelStore } from "@/store/use-travel-store";
+import { useResolvedTheme, useTravelStore } from "@/store/use-travel-store";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { TravelObject, Trip } from "@/types/travel";
 
@@ -247,7 +247,7 @@ export function KanbanView({
     ...savedTypeOrder.filter((type) => availableTypes.includes(type)),
     ...availableTypes.filter((type) => !savedTypeOrder.includes(type)),
   ];
-  const theme = useTravelStore((state) => state.theme);
+  const theme = useResolvedTheme();
   const [filter, setFilter] = useState<BoardFilter>("all");
   const [newType, setNewType] = useState("");
   const [activeItem, setActiveItem] = useState<TravelObject | null>(null);

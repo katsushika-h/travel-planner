@@ -245,7 +245,7 @@ export function MonthView({
     });
     return { days, segments: placed, laneCount: laneEnds.length };
   });
-  const mobileMonthDates = grid.filter((date) => date.startsWith(currentMonth) && date >= start && date <= tripEnd);
+  const mobileMonthDates = grid.filter((date) => date >= start && date <= tripEnd);
   return (
     <>
       <div className="min-h-0 flex-1 overflow-y-auto sm:hidden">
