@@ -7,6 +7,7 @@ import {
   elapsedDurationMinutes,
   endForAllDayCalendarDays,
   endForElapsedDuration,
+  flexibleDisplayTimes,
   groupedMoveTarget,
   itemDateSpan,
   itemScheduleLabel,
@@ -19,6 +20,7 @@ import {
   scheduleAtTableStart,
   scheduleKind,
   schedulePatchForMove,
+  tripFlexibleDisplayTimes,
 } from "../lib/schedule-domain.ts";
 import { endDateTimeFor, shiftDate, startDateTimeFor, zonedDateTimeToUtc } from "../lib/date-utils.ts";
 import { serializeTravelObject } from "../lib/travel-object-serialization.ts";
@@ -488,4 +490,71 @@ test("CSV import instants project to canonical schedule fields", () => {
       isAllDay: true,
     },
   );
+});
+
+test("flexible display times follow list order between fixed stops", () => {
+  const flexible = (id, placementTime) => ({
+    id,
+    date: "2026-12-01",
+    startTime: null,
+    endTime: null,
+    isAllDay: false,
+    placementTime,
+  });
+  const fixed = (id, startTime, endTime) => ({
+    id,
+    date: "2026-12-01",
+    startTime,
+    endTime,
+    isAllDay: false,
+    placementTime: null,
+  });
+  const times = flexibleDisplayTimes([
+    flexible("a", "03:00"),
+    flexible("b", "11:00"),
+    flexible("c", "10:00"),
+    flexible("d", "06:00"),
+    fixed("f1", "10:00", "11:45"),
+    fixed("f2", "16:00", "19:00"),
+    flexible("e", "15:00"),
+    flexible("none", null),
+  ]);
+  assert.equal(times.get("a"), "03:00");
+  assert.equal(times.get("b"), "10:00");
+  assert.equal(times.get("c"), "10:00");
+  assert.equal(times.get("d"), "10:00");
+  assert.equal(times.get("e"), "19:00");
+  assert.equal(times.has("none"), false);
+});
+
+test("derived flexible time ignores a stale placementTime that contradicts the day order", () => {
+  const day = "2026-12-01";
+  const item = (id, startTime, endTime, placementTime, dayOrder) => ({
+    id,
+    date: day,
+    endDate: day,
+    startTime,
+    endTime,
+    isAllDay: false,
+    placementTime,
+    dayOrder,
+    createdAt: "2026-01-01T00:00:00Z",
+  });
+  const items = [
+    item("nishiki", null, null, "12:15", 2),
+    item("a", "09:15", "11:30", null, 0),
+    item("b", "15:00", "17:00", null, 1),
+  ];
+  // Saved order puts the flexible item after both fixed stops, so it cannot sit at its stale 12:15.
+  const times = tripFlexibleDisplayTimes(items);
+  assert.equal(times.get("nishiki"), "17:00");
+  assert.equal(times.size, 1);
+  // Other days are derived independently; a multi-day fixed item is part of each day it spans.
+  const other = { ...item("other", null, null, "08:00", 4), date: "2026-12-02", endDate: "2026-12-02" };
+  const spanning = { ...item("span", "10:00", "11:00", null, 3), date: "2026-12-01", endDate: "2026-12-02" };
+  const multi = tripFlexibleDisplayTimes([...items, other, spanning]);
+  assert.equal(multi.get("other"), "11:00");
+  assert.equal(multi.get("nishiki"), "17:00");
+  // Notes are not stops and never act as anchors or receive times.
+  assert.equal(tripFlexibleDisplayTimes([{ ...item("n", null, null, "10:00", 0), kind: "note" }]).size, 0);
 });

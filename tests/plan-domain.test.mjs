@@ -30,7 +30,8 @@ test("tripDays lists every date inclusive", () => {
 
 test("stop time label distinguishes confirmed, flexible, and all-day items", () => {
   assert.equal(stopTimeLabel({ ...base, startTime: "09:15", endTime: "11:00" }), "09:15");
-  assert.equal(stopTimeLabel({ ...base, placementTime: "12:00" }), "~12:00");
+  assert.equal(stopTimeLabel(base, "12:00"), "~12:00");
+  assert.equal(stopTimeLabel({ ...base, placementTime: "12:15" }), "Flexible");
   assert.equal(stopTimeLabel(base), "Flexible");
   assert.equal(stopTimeLabel({ ...base, isAllDay: true }), "All day");
 });
@@ -78,40 +79,4 @@ test("Maps link prefers the saved URL and omits itself without a place", () => {
   assert.match(safeMapsHref({ name: "Gion" }) ?? "", /query=Gion/);
   assert.equal(safeMapsHref(null), null);
   assert.equal(safeMapsHref({ googleMapsUrl: "javascript:alert(1)" }), null);
-});
-
-test("flexible display times follow list order between fixed stops", async () => {
-  const { flexibleDisplayTimes } = await import("../components/views/plan/plan-domain.ts");
-  const flexible = (id, placementTime) => ({
-    id,
-    date: "2026-12-01",
-    startTime: null,
-    endTime: null,
-    isAllDay: false,
-    placementTime,
-  });
-  const fixed = (id, startTime, endTime) => ({
-    id,
-    date: "2026-12-01",
-    startTime,
-    endTime,
-    isAllDay: false,
-    placementTime: null,
-  });
-  const times = flexibleDisplayTimes([
-    flexible("a", "03:00"),
-    flexible("b", "11:00"),
-    flexible("c", "10:00"),
-    flexible("d", "06:00"),
-    fixed("f1", "10:00", "11:45"),
-    fixed("f2", "16:00", "19:00"),
-    flexible("e", "15:00"),
-    flexible("none", null),
-  ]);
-  assert.equal(times.get("a"), "03:00");
-  assert.equal(times.get("b"), "10:00");
-  assert.equal(times.get("c"), "10:00");
-  assert.equal(times.get("d"), "10:00");
-  assert.equal(times.get("e"), "19:00");
-  assert.equal(times.has("none"), false);
 });

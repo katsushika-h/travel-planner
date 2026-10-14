@@ -1,4 +1,7 @@
 import { dateParts, endDateTimeFor, startDateTimeFor, zonedDateTimeToUtc } from "./date-utils.ts";
+import { eventItems } from "./note-domain.ts";
+import { compareScheduleOrder } from "./schedule-order.ts";
+import type { TravelObject } from "../types/travel.ts";
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 86_400_000;
@@ -291,4 +294,44 @@ export function groupedMoveTarget(
   const itemWall = Date.parse(`${itemStart.date}T${itemStart.time}:00Z`);
   const shifted = new Date(itemWall + destinationWall - anchorWall).toISOString();
   return { date: shifted.slice(0, 10), time: shifted.slice(11, 16) };
+}
+
+/**
+ * Flexible items keep their saved list order but their own `placementTime` can contradict it. Display-only:
+ * each flexible time is kept between the previous fixed stop's end and the next fixed stop's start, and never
+ * runs backwards through the list. Nothing is persisted; `placementTime` only positions items on the Week/Day grid and is never printed as text.
+ */
+export function flexibleDisplayTimes(
+  items: readonly Pick<TravelObject, "id" | "startTime" | "endTime" | "isAllDay" | "date" | "placementTime">[],
+) {
+  const times = new Map<string, string>();
+  let floor = "00:00";
+  items.forEach((item, index) => {
+    const kind = scheduleKind(item);
+    if (kind === "fixed") {
+      floor = item.endTime && item.endTime > item.startTime! ? item.endTime : item.startTime!;
+      return;
+    }
+    if (kind !== "flexible" || !item.placementTime) return;
+    const nextFixed = items.slice(index + 1).find((candidate) => scheduleKind(candidate) === "fixed");
+    let time = item.placementTime > floor ? item.placementTime : floor;
+    if (nextFixed && time > nextFixed.startTime!) time = nextFixed.startTime! > floor ? nextFixed.startTime! : floor;
+    floor = time;
+    times.set(item.id, time);
+  });
+  return times;
+}
+
+/**
+ * Derived flexible times for every day of a trip, keyed by item id. Each day uses the same input as Plan: the
+ * non-note items occurring on that date in saved order. Only a flexible item's own start date supplies its time.
+ */
+export function tripFlexibleDisplayTimes(items: readonly TravelObject[]) {
+  const times = new Map<string, string>();
+  const days = new Set(items.filter((item) => scheduleKind(item) === "flexible").map((item) => item.date!));
+  for (const day of days) {
+    const dayItems = eventItems(items.filter((item) => occursOnItineraryDate(item, day))).sort(compareScheduleOrder);
+    for (const [id, time] of flexibleDisplayTimes(dayItems)) times.set(id, time);
+  }
+  return times;
 }

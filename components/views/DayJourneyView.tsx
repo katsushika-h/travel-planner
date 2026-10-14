@@ -19,10 +19,10 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { eventItems, isNote } from "@/lib/note-domain";
 import { formatTripDate, shiftDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
-import { itemDateSpan } from "@/lib/schedule-domain";
+import { flexibleDisplayTimes, itemDateSpan } from "@/lib/schedule-domain";
 import { sameDayGapOrder, sortDayDisplayItems } from "@/lib/schedule-order";
 import { typeColor } from "@/lib/type-color";
-import { flexibleDisplayTimes, formatPlannedCost, stopNumbers } from "@/components/views/plan/plan-domain";
+import { formatPlannedCost, stopNumbers } from "@/components/views/plan/plan-domain";
 import type { LocationData, TravelObject, Trip } from "@/types/travel";
 
 const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.LeafletMap), {
@@ -102,12 +102,11 @@ function DayItemDrop({ date, order, children }: { date: string; order: number; c
   );
 }
 
-/** Large mono start time in the Plan list: confirmed start, `~` placement for flexible items, or a label. */
+/** Large mono start time in the Plan list: confirmed start, `~` derived time for flexible items, or a label. */
 function timeLabel(item: TravelObject, flexibleTime?: string) {
   if (item.isAllDay) return { text: "All day", flexible: false, small: true };
   if (item.startTime && item.endTime) return { text: item.startTime, flexible: false, small: false };
-  const placement = flexibleTime ?? item.placementTime;
-  if (placement) return { text: `~${placement}`, flexible: true, small: false };
+  if (flexibleTime) return { text: `~${flexibleTime}`, flexible: true, small: false };
   return { text: "Flexible", flexible: true, small: true };
 }
 

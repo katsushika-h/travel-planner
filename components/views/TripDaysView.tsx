@@ -15,19 +15,12 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { dateParts, formatTripDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { eventItems, isNote } from "@/lib/note-domain";
-import { allDayDropStartDate, occursOnItineraryDate } from "@/lib/schedule-domain";
+import { allDayDropStartDate, flexibleDisplayTimes, occursOnItineraryDate } from "@/lib/schedule-domain";
 import { compareScheduleOrder, isTimedItem, itineraryDropPosition } from "@/lib/schedule-order";
 import type { TravelObject, Trip } from "@/types/travel";
 import { DayStrip } from "./plan/DayStrip";
 import { PlanMap } from "./plan/PlanMap";
-import {
-  flexibleDisplayTimes,
-  plannedTotals,
-  stopMeta,
-  stopNumbers,
-  stopTimeLabel,
-  tripDays,
-} from "./plan/plan-domain";
+import { plannedTotals, stopMeta, stopNumbers, stopTimeLabel, tripDays } from "./plan/plan-domain";
 import { AddGap, EndSlot, NoteBlock, StopRow } from "./plan/StopRow";
 
 /** Remembers the day each trip was last viewed so switching views and back keeps the place. */
@@ -315,7 +308,7 @@ export function TripDaysView({
             <div className="border border-foreground bg-background px-4 py-3 shadow-lg">
               <p className="truncate text-base font-medium">{activeItem.title}</p>
               <p className="mt-1 truncate font-mono text-xs text-muted">
-                {stopTimeLabel(activeItem)} · {stopMeta(activeItem)}
+                {stopTimeLabel(activeItem, flexTimes.get(activeItem.id))} · {stopMeta(activeItem)}
               </p>
             </div>
           )}
