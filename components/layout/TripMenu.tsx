@@ -7,6 +7,7 @@ import { DeleteTripButton } from "@/components/trip/DeleteTripButton";
 import { EditTripDialog } from "@/components/trip/EditTripDialog";
 import { ExportIcsButton } from "@/components/trip/ExportIcsButton";
 import { ImportGoogleMapsCsvButton } from "@/components/trip/ImportGoogleMapsCsvButton";
+import { RecalculateMapPinsButton } from "@/components/trip/RecalculateMapPinsButton";
 import { menuItemClassName } from "@/components/ui/menu-item";
 import { formatTripDateRange } from "@/lib/trip-dates";
 import type { ThemePreference } from "@/store/use-travel-store";
@@ -27,6 +28,7 @@ export type TripMenuProps = {
   onTripDeleted: (id: string) => void;
   onAddType: (tripId: string, type: string) => void;
   onImported: (tripId: string, items: TravelObject[]) => void;
+  onItemsUpdated: (tripId: string, items: TravelObject[]) => void;
   onError: (tripId: string, message: string) => void;
   onToggleTheme: () => void;
   /** Closes the surrounding menu after an action that finishes the user's intent. */
@@ -117,6 +119,7 @@ export function TripMenuContents({
   onTripDeleted,
   onAddType,
   onImported,
+  onItemsUpdated,
   onError,
   onToggleTheme,
   onDone,
@@ -181,6 +184,12 @@ export function TripMenuContents({
               eventTypes={eventTypes}
               onAddType={(type) => onAddType(activeTrip.id, type)}
               onImported={(imported) => onImported(activeTrip.id, imported)}
+              onError={(message) => onError(activeTrip.id, message)}
+            />
+            <RecalculateMapPinsButton
+              key={`recalculate-${activeTrip.id}`}
+              trip={activeTrip}
+              onUpdated={(updated) => onItemsUpdated(activeTrip.id, updated)}
               onError={(message) => onError(activeTrip.id, message)}
             />
             {exportItems && <ExportIcsButton menuItem trip={activeTrip} items={exportItems} />}

@@ -3,7 +3,7 @@ import { parseGoogleMapsCsv } from "./google-maps-csv.ts";
 import { truncateUtf8 } from "./text-utils.ts";
 import type { Trip } from "../types/travel.ts";
 
-async function mapWithConcurrency<T, R>(values: T[], concurrency: number, worker: (value: T) => Promise<R>) {
+export async function mapWithConcurrency<T, R>(values: T[], concurrency: number, worker: (value: T) => Promise<R>) {
   const results = new Array<R>(values.length);
   let nextIndex = 0;
   async function run() {
