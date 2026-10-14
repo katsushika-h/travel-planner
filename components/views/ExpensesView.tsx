@@ -268,6 +268,12 @@ export function ExpensesView({ trip, items }: { trip: Trip; items: TravelObject[
                       {plannedAmount != null && (
                         <span className="text-[13px] text-muted">
                           of {formatExpenseAmount(plannedAmount, currency)} planned in the itinerary
+                          {Number(amount) > plannedAmount && (
+                            <span className="text-accent">
+                              {" "}
+                              · {formatExpenseAmount(Number(amount) - plannedAmount, currency)} over
+                            </span>
+                          )}
                         </span>
                       )}
                     </div>

@@ -42,7 +42,13 @@ import { eventItems, isNote } from "@/lib/note-domain";
 import { formatTripDateRange } from "@/lib/trip-dates";
 
 import { sortTravelObjects } from "@/lib/schedule-order";
-import { plannerTabLabels, plannerTabOrder, plannerTabShortcuts, useTravelStore } from "@/store/use-travel-store";
+import {
+  plannerTabLabels,
+  plannerTabOrder,
+  plannerTabShortcuts,
+  useResolvedTheme,
+  useTravelStore,
+} from "@/store/use-travel-store";
 import type { TravelObject, Trip } from "@/types/travel";
 
 const EMPTY_EVENT_TYPES: string[] = [];
@@ -108,15 +114,16 @@ export function AppShell() {
           ? "spend"
           : "more";
   const theme = useTravelStore((state) => state.theme);
+  const resolvedTheme = useResolvedTheme();
   const compact = useTravelStore((state) => state.compact);
   const toggleCompact = useTravelStore((state) => state.toggleCompact);
   useLayoutEffect(() => {
     const root = document.documentElement;
-    root.classList.toggle("dark", theme === "dark");
-    root.style.colorScheme = theme;
-  }, [theme]);
+    root.classList.toggle("dark", resolvedTheme === "dark");
+    root.style.colorScheme = resolvedTheme;
+  }, [resolvedTheme]);
   const setActiveTab = useTravelStore((state) => state.setActiveTab);
-  const toggleTheme = useTravelStore((state) => state.toggleTheme);
+  const cycleTheme = useTravelStore((state) => state.cycleTheme);
   const savedEventTypes = useTravelStore((state) =>
     activeTrip ? (state.eventTypesByTrip[activeTrip.id] ?? EMPTY_EVENT_TYPES) : EMPTY_EVENT_TYPES,
   );
@@ -298,15 +305,15 @@ export function AppShell() {
     onError: (tripId: string, message: string) => {
       if (activeTripKeyRef.current === tripId) setError(message);
     },
-    onToggleTheme: toggleTheme,
+    onToggleTheme: cycleTheme,
   };
   const mobileSheetOpen = mobileSidebarOpen && narrowScreen;
 
   return (
     <main
-      style={{ colorScheme: theme }}
+      style={{ colorScheme: resolvedTheme }}
       data-density={compact ? "compact" : "comfortable"}
-      className={`flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground sm:min-h-[620px] ${theme === "dark" ? "dark" : ""}`}
+      className={`flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground sm:min-h-[620px] ${resolvedTheme === "dark" ? "dark" : ""}`}
     >
       {mobileSheetOpen && (
         <button
@@ -614,7 +621,7 @@ export function AppShell() {
                   tripStartDate={activeTrip.startDate}
                   eventTypes={eventTypes}
                   typeColors={eventTypeColors}
-                  darkMode={theme === "dark"}
+                  darkMode={resolvedTheme === "dark"}
                 />
               </div>
             )}

@@ -29,6 +29,23 @@ import { WeekPlanner } from "./calendar/WeekPlanner";
 
 type Mode = "month" | "week" | "day";
 
+/** First day of the calendar month holding the most trip days; ties go to the earlier month. */
+function busiestMonthStart(start: string, end: string) {
+  const counts = new Map<string, number>();
+  for (let date = start; date <= end; date = shiftDate(date, 1)) {
+    counts.set(date.slice(0, 7), (counts.get(date.slice(0, 7)) ?? 0) + 1);
+  }
+  let best = start.slice(0, 7);
+  let bestCount = 0;
+  for (const [month, count] of counts) {
+    if (count > bestCount) {
+      best = month;
+      bestCount = count;
+    }
+  }
+  return `${best}-01`;
+}
+
 /** Month drops follow the pointer; the wide drag preview would otherwise bias drops to the right. */
 const monthCollisionDetection: CollisionDetection = (args) => {
   const collisions = pointerWithin(args);
@@ -97,7 +114,10 @@ export function CalendarView({
   const selectedDateAtMount = selectedAtMount ? itemDateSpan(selectedAtMount).first : null;
   const initialDate =
     selectedDateAtMount && selectedDateAtMount >= start && selectedDateAtMount <= tripEnd ? selectedDateAtMount : start;
-  const [focusDate, setFocusDate] = useState(initialDate);
+  // Month opens on the month holding most trip days, so a trip straddling two months is not a sliver in one grid.
+  const [focusDate, setFocusDate] = useState(
+    !selectedDateAtMount && mode === "month" ? busiestMonthStart(start, tripEnd) : initialDate,
+  );
   const [expandedWeekDate, setExpandedWeekDate] = useState<string | null>(null);
   const [dayScrollRequest, setDayScrollRequest] = useState({ date: initialDate, nonce: 0 });
   const [activeItem, setActiveItem] = useState<TravelObject | null>(null);

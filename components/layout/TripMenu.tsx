@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
-import { Check, ChevronDown, Moon, Sun } from "lucide-react";
+import { Check, ChevronDown, Monitor, Moon, Sun } from "lucide-react";
 import { CreateTripDialog } from "@/components/trip/CreateTripDialog";
 import { DeleteTripButton } from "@/components/trip/DeleteTripButton";
 import { EditTripDialog } from "@/components/trip/EditTripDialog";
@@ -9,7 +9,10 @@ import { ExportIcsButton } from "@/components/trip/ExportIcsButton";
 import { ImportGoogleMapsCsvButton } from "@/components/trip/ImportGoogleMapsCsvButton";
 import { menuItemClassName } from "@/components/ui/menu-item";
 import { formatTripDateRange } from "@/lib/trip-dates";
+import type { ThemePreference } from "@/store/use-travel-store";
 import type { TravelObject, Trip } from "@/types/travel";
+
+const themeLabels: Record<ThemePreference, string> = { system: "System", light: "Light", dark: "Dark" };
 
 export type TripMenuProps = {
   trips: Trip[];
@@ -17,7 +20,7 @@ export type TripMenuProps = {
   /** Calendar export is offered only once the active trip's items have loaded. */
   exportItems: TravelObject[] | null;
   eventTypes: string[];
-  theme: "light" | "dark";
+  theme: ThemePreference;
   onSelectTrip: (id: string) => void;
   onTripCreated: (trip: Trip) => void;
   onTripSaved: (trip: Trip) => void;
@@ -186,8 +189,8 @@ export function TripMenuContents({
       </MenuSection>
       <MenuSection>
         <button type="button" className={menuItemClassName} onClick={onToggleTheme}>
-          {theme === "dark" ? <Sun /> : <Moon />}
-          {theme === "dark" ? "Light theme" : "Dark theme"}
+          {theme === "system" ? <Monitor /> : theme === "dark" ? <Moon /> : <Sun />}
+          Theme: {themeLabels[theme]}
         </button>
       </MenuSection>
       {activeTrip && (

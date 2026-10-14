@@ -62,6 +62,8 @@ function InlineInput({
   step,
   onFocus,
   onCommit,
+  onDone,
+  autoFocus = false,
   className = "",
 }: {
   value: string;
@@ -71,6 +73,8 @@ function InlineInput({
   step?: string;
   onFocus: () => void;
   onCommit: (value: string) => void;
+  onDone?: () => void;
+  autoFocus?: boolean;
   className?: string;
 }) {
   return (
@@ -81,9 +85,11 @@ function InlineInput({
       min={min}
       step={step}
       defaultValue={value}
+      autoFocus={autoFocus}
       onFocus={onFocus}
       onBlur={(event) => {
         if (event.currentTarget.value !== value) onCommit(event.currentTarget.value);
+        onDone?.();
       }}
       onKeyDown={(event) => {
         if (event.key === "Enter") event.currentTarget.blur();
@@ -94,6 +100,55 @@ function InlineInput({
       }}
       className={`w-full border border-transparent bg-transparent px-1.5 py-1 outline-none hover:border-input-rule focus:border-foreground ${className}`}
     />
+  );
+}
+
+/** Shows the planned cost formatted; focusing it swaps in the number input, which keeps the raw value. */
+function PlannedCostCell({
+  label,
+  amount,
+  currency,
+  onFocus,
+  onCommit,
+}: {
+  label: string;
+  amount: number | null;
+  currency: string;
+  onFocus: () => void;
+  onCommit: (value: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  if (editing) {
+    return (
+      <div className="flex items-center justify-end gap-1">
+        {amount != null && <span className="font-mono text-xs text-faint">{currency}</span>}
+        <InlineInput
+          autoFocus
+          label={label}
+          type="number"
+          min="0"
+          step="0.01"
+          value={amount?.toString() ?? ""}
+          onFocus={onFocus}
+          onCommit={onCommit}
+          onDone={() => setEditing(false)}
+          className="w-24 text-right font-mono text-[13px]"
+        />
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onFocus={() => {
+        onFocus();
+        setEditing(true);
+      }}
+      className="w-full px-1.5 py-1 text-right font-mono text-[13px] hover:text-accent"
+    >
+      {amount == null ? "—" : formatExpenseAmount(amount, currency)}
+    </button>
   );
 }
 
@@ -607,43 +662,35 @@ export function TableView({
                           onCommit={(value) => commitDuration(item, value)}
                           className="font-mono text-[13px]"
                         />
-                        {item.isAllDay && (
+                        {(item.isAllDay || elapsedDurationMinutes(item, trip.timezone) != null) && (
                           <span className="pr-1 text-xs text-muted">
-                            {allDayCalendarDays(item) === 1 ? "day" : "days"}
+                            {item.isAllDay ? (allDayCalendarDays(item) === 1 ? "day" : "days") : "min"}
                           </span>
                         )}
                       </div>
                     </td>
                     <td className="min-w-32 whitespace-nowrap px-1 py-1.5 in-data-[density=compact]:py-0.5">
-                      <div className="flex items-center justify-end gap-1">
-                        {currency && costAmount(item) != null && (
-                          <span className="font-mono text-xs text-faint">{currency}</span>
-                        )}
-                        <InlineInput
-                          label={`Cost for ${item.title}`}
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={costAmount(item)?.toString() ?? ""}
-                          onFocus={() => beginEdit(item)}
-                          onCommit={(value) =>
-                            onChangeItems(editIds(item), (candidate) => ({
-                              cost:
-                                value === ""
-                                  ? null
-                                  : {
-                                      ...((candidate.cost as object | null) ?? {}),
-                                      amount: Math.max(0, Number(value) || 0),
-                                      currency:
-                                        (candidate.cost as { currency?: string } | null)?.currency ||
-                                        trip.defaultCurrency ||
-                                        "USD",
-                                    },
-                            }))
-                          }
-                          className="w-24 text-right font-mono text-[13px]"
-                        />
-                      </div>
+                      <PlannedCostCell
+                        label={`Cost for ${item.title}`}
+                        amount={costAmount(item)}
+                        currency={currency || trip.defaultCurrency || "USD"}
+                        onFocus={() => beginEdit(item)}
+                        onCommit={(value) =>
+                          onChangeItems(editIds(item), (candidate) => ({
+                            cost:
+                              value === ""
+                                ? null
+                                : {
+                                    ...((candidate.cost as object | null) ?? {}),
+                                    amount: Math.max(0, Number(value) || 0),
+                                    currency:
+                                      (candidate.cost as { currency?: string } | null)?.currency ||
+                                      trip.defaultCurrency ||
+                                      "USD",
+                                  },
+                          }))
+                        }
+                      />
                     </td>
                     <td className="min-w-56 px-1 py-1.5 in-data-[density=compact]:py-0.5">
                       <InlineInput
