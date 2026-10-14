@@ -35,57 +35,32 @@ function coordinates(latValue: string, lngValue: string): Coordinates | null {
   return { lat, lng };
 }
 
+/** Accept a parameter only when its whole value is a coordinate pair, never numbers inside an address. */
 function coordinatesFromValue(value: string) {
-  const match = value.match(/(?:^|[^\d.])(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)(?=$|[^\d.])/);
+  const match = value.match(/^\s*(?:loc:\s*)?(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/i);
   return match ? coordinates(match[1], match[2]) : null;
 }
 
-function coordinatesFromMapsUrl(url: URL): Coordinates | null {
-  let decodedUrl = url.toString();
+function decodedMapsUrl(url: URL) {
   try {
-    decodedUrl = decodeURIComponent(decodedUrl);
+    return decodeURIComponent(url.toString());
   } catch {
-    /* inspect the URL as-is */
+    return url.toString();
   }
+}
 
-  // Place coordinates describe the pin; @ and center describe the map camera.
-  const dataCoordinates = decodedUrl.match(/!3d(-?\d{1,3}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)(?:[!/?&#]|$)/);
-  if (dataCoordinates) {
-    const result = coordinates(dataCoordinates[1], dataCoordinates[2]);
-    if (result) return result;
-  }
-
-  const placeParams = ["query", "q", "destination", "daddr"];
-  for (const key of placeParams) {
+function coordinatesFromParams(url: URL, keys: string[]) {
+  for (const key of keys) {
     for (const [param, value] of url.searchParams) {
       if (param.toLowerCase() !== key) continue;
       const result = coordinatesFromValue(value);
       if (result) return result;
     }
   }
-
-  const atCoordinates = decodedUrl.match(/@(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)(?:[,/?&#]|$)/);
-  if (atCoordinates) {
-    const result = coordinates(atCoordinates[1], atCoordinates[2]);
-    if (result) return result;
-  }
-
-  const coordinateParams = ["center", "ll", "sll", "origin"];
-  for (const [key, value] of url.searchParams) {
-    if (!coordinateParams.includes(key.toLowerCase())) continue;
-    const result = coordinatesFromValue(value);
-    if (result) return result;
-  }
   return null;
 }
 
-function coordinatesFromLegacyFeatureId(url: URL): Coordinates | null {
-  let decodedUrl = url.toString();
-  try {
-    decodedUrl = decodeURIComponent(decodedUrl);
-  } catch {
-    /* inspect the URL as-is */
-  }
+function coordinatesFromLegacyFeatureId(decodedUrl: string): Coordinates | null {
   const featureId = decodedUrl.match(/(?:^|!)1s0x([0-9a-f]{1,16}):0x[0-9a-f]+(?:[!/?&#]|$)/i)?.[1];
   if (!featureId || /^0+$/.test(featureId)) return null;
   try {
@@ -96,6 +71,43 @@ function coordinatesFromLegacyFeatureId(url: URL): Coordinates | null {
   }
 }
 
+type RankedCoordinates = Coordinates & { rank: number; source: "url" | "featureId" };
+
+/**
+ * Best coordinates in one URL. Lower rank is more precise: the place pin, an explicit
+ * location query, the place's feature id, then the map camera (@ or center), which
+ * only describes the viewport and can sit far from the place.
+ */
+function coordinatesFromMapsUrl(url: URL): RankedCoordinates | null {
+  const decodedUrl = decodedMapsUrl(url);
+  let decodedPath = url.pathname;
+  try {
+    decodedPath = decodeURIComponent(decodedPath);
+  } catch {
+    /* inspect the path as-is */
+  }
+  const dataMatch = decodedUrl.match(/!3d(-?\d{1,3}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)(?:[!/?&#]|$)/);
+  const atMatch = decodedPath.match(/@(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)(?:[,/]|$)/);
+  const candidates: [number, "url" | "featureId", () => Coordinates | null][] = [
+    [0, "url", () => (dataMatch ? coordinates(dataMatch[1], dataMatch[2]) : null)],
+    [1, "url", () => coordinatesFromParams(url, ["query", "q", "destination", "daddr"])],
+    [2, "featureId", () => coordinatesFromLegacyFeatureId(decodedUrl)],
+    [3, "url", () => (atMatch ? coordinates(atMatch[1], atMatch[2]) : null)],
+    [4, "url", () => coordinatesFromParams(url, ["center", "ll", "sll", "origin"])],
+  ];
+  for (const [rank, source, read] of candidates) {
+    const result = read();
+    if (result) return { ...result, rank, source };
+  }
+  return null;
+}
+
+/** Keep the most precise coordinates seen across redirect hops; later hops win ties. */
+function better(current: RankedCoordinates | null, next: RankedCoordinates | null) {
+  if (!next) return current;
+  return !current || next.rank <= current.rank ? next : current;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await readJsonBody(request);
@@ -103,12 +115,7 @@ export async function POST(request: Request) {
     let current = new URL(rawUrl);
     if (current.protocol !== "https:" || !allowedHost(current.hostname))
       throw new Error("Paste a Google Maps link that begins with https://.");
-    let foundCoordinates = coordinatesFromMapsUrl(current);
-    let coordinateSource: "url" | "featureId" | null = foundCoordinates ? "url" : null;
-    if (!foundCoordinates) {
-      foundCoordinates = coordinatesFromLegacyFeatureId(current);
-      if (foundCoordinates) coordinateSource = "featureId";
-    }
+    let found = coordinatesFromMapsUrl(current);
 
     for (let hop = 0; hop < 6; hop += 1) {
       const response = await fetch(current, {
@@ -122,31 +129,16 @@ export async function POST(request: Request) {
         if (next.protocol !== "https:" || !allowedHost(next.hostname))
           throw new Error("The link redirected outside Google Maps.");
         current = next;
-        const explicitCoordinates = coordinatesFromMapsUrl(current);
-        if (explicitCoordinates) {
-          foundCoordinates = explicitCoordinates;
-          coordinateSource = "url";
-        } else if (!foundCoordinates) {
-          foundCoordinates = coordinatesFromLegacyFeatureId(current);
-          if (foundCoordinates) coordinateSource = "featureId";
-        }
+        found = better(found, coordinatesFromMapsUrl(current));
         continue;
       }
       if (!response.ok) throw new Error("Google Maps could not resolve that link.");
-      const explicitCoordinates = coordinatesFromMapsUrl(current);
-      if (explicitCoordinates) {
-        foundCoordinates = explicitCoordinates;
-        coordinateSource = "url";
-      } else if (!foundCoordinates) {
-        foundCoordinates = coordinatesFromLegacyFeatureId(current);
-        if (foundCoordinates) coordinateSource = "featureId";
-      }
       return Response.json({
         expandedUrl: current.toString(),
         name: nameFromMapsUrl(current),
-        lat: foundCoordinates?.lat ?? null,
-        lng: foundCoordinates?.lng ?? null,
-        coordinateSource,
+        lat: found?.lat ?? null,
+        lng: found?.lng ?? null,
+        coordinateSource: found?.source ?? null,
       });
     }
     throw new Error("This Maps link redirected too many times.");

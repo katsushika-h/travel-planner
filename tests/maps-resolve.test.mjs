@@ -89,3 +89,39 @@ test("links without coordinates remain usable without inventing a pin", async ()
   assert.equal(result.lng, null);
   assert.equal(result.coordinateSource, null);
 });
+
+test("numbers inside a text query are not mistaken for coordinates", async () => {
+  for (const query of ["Tower+2,+15+Bay+St", "1-2-3,+4+Chome+Shinjuku", "Cafe+12,+34+Main+St"]) {
+    const result = await resolve(`https://www.google.com/maps/search/?api=1&query=${query}`);
+    assert.equal(result.lat, null);
+    assert.equal(result.lng, null);
+  }
+  const withCamera = await resolve("https://www.google.com/maps/@35.68,139.76,15z?q=Tower+2,+15+Bay+St");
+  assertPoint(withCamera, 35.68, 139.76);
+});
+
+test("whole-value coordinate queries still resolve", async () => {
+  assertPoint(await resolve("https://www.google.com/maps?q=35.6812,+139.7671"), 35.6812, 139.7671);
+  assertPoint(await resolve("https://www.google.com/maps?q=loc:-33.8568,151.2153"), -33.8568, 151.2153);
+});
+
+test("a later redirect with only camera coordinates keeps the earlier place pin", async () => {
+  const result = await resolve("https://www.google.com/maps/place/Station/data=!3d35.6812!4d139.7671", [
+    new Response(null, { status: 302, headers: { location: "https://www.google.com/maps/@36.5,140.5,10z" } }),
+    new Response("ok"),
+  ]);
+  assertPoint(result, 35.6812, 139.7671);
+});
+
+test("the place feature id wins over the map camera", async () => {
+  const result = await resolve(
+    "https://www.google.com/maps/place/Tokyo+Station/@35.0,139.0,10z/data=!4m2!3m1!1s0x60188bfbd89f700b:0x277c49ba34ed38",
+  );
+  assert.equal(result.coordinateSource, "featureId");
+  assert.ok(Math.abs(result.lat - 35.6814) < 0.001 && Math.abs(result.lng - 139.7661) < 0.001);
+});
+
+test("an @ inside a text query is not read as the camera", async () => {
+  const result = await resolve("https://www.google.com/maps/search/?api=1&query=Bar+%40+12,34+Main");
+  assert.equal(result.lat, null);
+});
