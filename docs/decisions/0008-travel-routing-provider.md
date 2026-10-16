@@ -1,6 +1,6 @@
 # ADR 0008: Travel routing provider
 
-**Status:** Proposed (2026-10-16).
+**Status:** Accepted (2026-10-16).
 
 **Context:** Phase 1 of travel distance shows straight-line walking estimates between consecutive stops (`lib/travel-legs.ts`, haversine distance with a detour factor). These are poor for real street routes and useless for driving. The app has no Google billing (`AGENTS.md`), is single-user with no authentication, and cannot use the public OSRM demo server, which is not permitted for application use. The map already uses OpenStreetMap, so an OSM-based router fits the existing data and attribution.
 

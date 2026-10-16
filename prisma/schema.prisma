@@ -81,3 +81,18 @@ model TravelAttachment {
 
   @@index([travelObjectId, createdAt])
 }
+
+model RouteLeg {
+  id        String   @id @default(uuid())
+  profile   String
+  fromLat   Float
+  fromLng   Float
+  toLat     Float
+  toLng     Float
+  meters    Float
+  seconds   Float
+  geometry  String
+  createdAt DateTime @default(now())
+
+  @@unique([profile, fromLat, fromLng, toLat, toLng])
+}
