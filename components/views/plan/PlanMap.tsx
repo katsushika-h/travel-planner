@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { LeafletMapProps } from "../LeafletMap";
 import type { TravelObject, Trip } from "@/types/travel";
 
 const LeafletMap = dynamic(() => import("../LeafletMap").then((module) => module.LeafletMap), {
@@ -25,6 +26,7 @@ export function PlanMap({
   onUserMove,
   onRecenter,
   onAddLink,
+  legs,
 }: {
   trip: Trip;
   date: string;
@@ -41,6 +43,8 @@ export function PlanMap({
   onUserMove: () => void;
   onRecenter: () => void;
   onAddLink?: () => void;
+  /** Routed leg lines to draw. */
+  legs?: LeafletMapProps["legs"];
 }) {
   const note = "bg-background/90 px-2 py-1 text-xs text-muted";
   return (
@@ -57,6 +61,7 @@ export function PlanMap({
         hoveredItemId={hoveredItemId}
         onHover={onHover}
         onSelect={onSelect}
+        legs={legs}
         fitKey={date}
         recenterToken={recenterToken}
         onUserMove={onUserMove}

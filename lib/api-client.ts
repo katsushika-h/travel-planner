@@ -1,3 +1,4 @@
+import type { RouteRequestLeg, RouteSlot } from "@/lib/routed-legs";
 import type {
   CreateExpenseInput,
   CreateTravelObjectInput,
@@ -89,6 +90,8 @@ export const api = {
       { method: "DELETE" },
     ),
   deleteTrip: (id: string) => request<void>(`/api/trips/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  routeLegs: (legs: RouteRequestLeg[], signal?: AbortSignal) =>
+    request<{ legs: RouteSlot[] }>("/api/route-legs", { method: "POST", body: JSON.stringify({ legs }), signal }),
   resolveMapsUrl: (url: string) =>
     request<{
       expandedUrl: string;

@@ -12,12 +12,23 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { api } from "@/lib/api-client";
 import { dateParts, formatTripDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { eventItems, isNote } from "@/lib/note-domain";
 import { allDayDropStartDate, flexibleDisplayTimes, occursOnItineraryDate } from "@/lib/schedule-domain";
 import { compareScheduleOrder, isTimedItem, itineraryDropPosition } from "@/lib/schedule-order";
-import { dayLegs, dayTotals, formatDuration } from "@/lib/travel-legs";
+import { decodePolyline } from "@/lib/polyline";
+import {
+  buildRouteRequest,
+  coordinatesById,
+  displayTotals,
+  legCacheKey,
+  mergeRoutedLegs,
+  type RouteSlot,
+} from "@/lib/routed-legs";
+import { dayLegs, formatDuration } from "@/lib/travel-legs";
+import { useTravelStore } from "@/store/use-travel-store";
 import type { TravelObject, Trip } from "@/types/travel";
 import { DayStrip } from "./plan/DayStrip";
 import { PlanMap } from "./plan/PlanMap";
@@ -115,16 +126,81 @@ export function TripDaysView({
     () => items.filter((item) => occursOnItineraryDate(item, date)).sort(compareScheduleOrder),
     [items, date],
   );
-  const legs = useMemo(() => dayLegs(dayItems), [dayItems]);
+  const mode = useTravelStore((state) => state.travelModeByTrip[trip.id] ?? "walk");
+  const setTravelMode = useTravelStore((state) => state.setTravelMode);
+  const baseLegs = useMemo(() => dayLegs(dayItems), [dayItems]);
+  const request = useMemo(
+    () => buildRouteRequest(baseLegs, mode, coordinatesById(dayItems)),
+    [baseLegs, dayItems, mode],
+  );
+  const requestKeys = useMemo(() => request.legs.map(legCacheKey), [request]);
+  const requestSignature = requestKeys.join("|");
+  // Routed results by mode plus rounded coordinates, so switching days back and forth does not refetch.
+  const routeCacheRef = useRef(new Map<string, RouteSlot>());
+  const [routed, setRouted] = useState<Record<string, RouteSlot>>({});
+  const [failedSignature, setFailedSignature] = useState<string | null>(null);
+
+  useEffect(() => {
+    const cache = routeCacheRef.current;
+    const missing = requestKeys
+      .map((key, index) => ({ key, leg: request.legs[index] }))
+      .filter(({ key }) => !cache.has(key));
+    if (!missing.length) return;
+    const controller = new AbortController();
+    api
+      .routeLegs(
+        missing.map(({ leg }) => leg),
+        controller.signal,
+      )
+      .then(({ legs: slots }) => {
+        if (controller.signal.aborted) return;
+        let failed = false;
+        missing.forEach(({ key }, index) => {
+          const slot = slots[index];
+          if (slot && !("error" in slot)) cache.set(key, slot);
+          else failed = true;
+        });
+        if (failed) setFailedSignature(requestSignature);
+        setRouted(Object.fromEntries(cache));
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setFailedSignature(requestSignature);
+      });
+    // Aborting on cleanup drops stale responses after a day or mode switch.
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the request signature, so a failure is not retried in a loop
+  }, [requestSignature]);
+
+  const legs = useMemo(
+    () =>
+      mergeRoutedLegs(
+        baseLegs,
+        mode,
+        request.selected,
+        requestKeys.map((key) => routed[key]),
+      ),
+    [baseLegs, mode, request, requestKeys, routed],
+  );
+  const estimatedNote = failedSignature !== null && failedSignature === requestSignature;
+  const mapLegs = useMemo(
+    () =>
+      legs.flatMap((leg) =>
+        leg.kind === "routed" && leg.geometry
+          ? [{ id: `${leg.fromId}>${leg.toId}`, positions: decodePolyline(leg.geometry), mode: leg.mode }]
+          : [],
+      ),
+    [legs],
+  );
   const legByFromId = useMemo(() => new Map(legs.map((leg) => [leg.fromId, leg])), [legs]);
   const nextTitles = useMemo(() => {
     const titles = new Map(dayItems.map((item) => [item.id, item.title]));
     return new Map(legs.map((leg) => [leg.fromId, titles.get(leg.toId) ?? ""]));
   }, [legs, dayItems]);
-  const walking = useMemo(() => {
-    if (!legs.some((leg) => leg.status === "ok" && leg.walkable)) return "";
-    return `~${formatDuration(dayTotals(legs).seconds)} walking`;
-  }, [legs]);
+  const travelTotal = useMemo(() => {
+    const total = displayTotals(legs);
+    if (!total.counted) return "";
+    return `${total.approximate ? "~" : ""}${formatDuration(total.seconds)} ${mode === "drive" ? "driving" : "walking"}`;
+  }, [legs, mode]);
   const events = useMemo(() => eventItems(dayItems), [dayItems]);
   const numbers = useMemo(() => stopNumbers(events), [events]);
   const flexTimes = useMemo(() => flexibleDisplayTimes(events), [events]);
@@ -133,7 +209,12 @@ export function TripDaysView({
   // A multi-day item's planned cost belongs to its first day only, so day totals never double count it.
   const totals = plannedTotals(events.filter((item) => item.date?.slice(0, 10) === date));
   const weekday = formatTripDate(`${date}T12:00:00Z`, "UTC", { weekday: "long" });
-  const summary = [weekday, `${events.length} ${events.length === 1 ? "stop" : "stops"}`, totals.join(", "), walking]
+  const summary = [
+    weekday,
+    `${events.length} ${events.length === 1 ? "stop" : "stops"}`,
+    totals.join(", "),
+    travelTotal,
+  ]
     .filter(Boolean)
     .join(" · ");
 
@@ -238,7 +319,23 @@ export function TripDaysView({
       >
         <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 bg-background px-4 pt-3 sm:-mx-12 sm:px-12 sm:pt-4">
           <DayStrip days={days} activeDate={date} today={today} onPick={pickDay} />
-          <p className="text-sm text-muted">{summary}</p>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+            <p>{summary}</p>
+            {estimatedNote && <p className="text-xs">Estimated distances</p>}
+            <div role="group" aria-label="Travel mode" className="flex border border-divider">
+              {(["walk", "drive"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={mode === option}
+                  onClick={() => setTravelMode(trip.id, option)}
+                  className={`min-h-8 px-2.5 text-xs ${mode === option ? "bg-foreground text-background" : "text-muted hover:text-foreground"}`}
+                >
+                  {option === "walk" ? "Walk" : "Drive"}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex basis-full border-b border-divider md:hidden" role="group" aria-label="Plan surface">
             {(["list", "map"] as const).map((surface) => (
               <button
@@ -312,6 +409,7 @@ export function TripDaysView({
                   setRecenterToken((token) => token + 1);
                 }}
                 onAddLink={unmapped[0] ? () => editStop(unmapped[0]) : undefined}
+                legs={mapLegs}
               />
             </div>
           )}

@@ -5,6 +5,7 @@ import L, { type Map as LeafletMapInstance, type Marker } from "leaflet";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { itemScheduleLabel } from "@/lib/schedule-domain";
 import { defaultTypeColor, typeColor } from "@/lib/type-color";
+import { useResolvedTheme } from "@/store/use-travel-store";
 import type { TravelObject, Trip } from "@/types/travel";
 
 function markerColor(type: string, colors: Record<string, string>) {
@@ -48,6 +49,10 @@ function popupContent(item: TravelObject, number?: number) {
   return content;
 }
 
+export type MapLeg = { id: string; positions: [number, number][]; mode: "walk" | "drive" };
+
+const ROUTE_ATTRIBUTION = 'Routes &copy; <a href="https://openrouteservice.org/">openrouteservice</a> by HeiGIT';
+
 export interface LeafletMapProps {
   trip: Trip;
   items: TravelObject[];
@@ -62,6 +67,8 @@ export interface LeafletMapProps {
   onUserMove?: () => void;
   /** Items drawn as small muted dots (for example, stops outside a selected day). */
   dimmedItemIds?: ReadonlySet<string>;
+  /** Routed leg lines, drawn in the accent colour (dashed for walking). */
+  legs?: MapLeg[];
   className?: string;
 }
 
@@ -78,11 +85,14 @@ export function LeafletMap({
   recenterToken = 0,
   onUserMove,
   dimmedItemIds,
+  legs,
   className = "min-h-[360px] flex-1",
 }: LeafletMapProps) {
+  const theme = useResolvedTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMapInstance | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
+  const legLayerRef = useRef<L.LayerGroup | null>(null);
   const markersRef = useRef(new Map<string, Marker>());
   const callbacksRef = useRef({ onSelect, onHover, onUserMove });
   const lastFitRef = useRef("");
@@ -102,6 +112,7 @@ export function LeafletMap({
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
     const layer = L.layerGroup().addTo(map);
+    legLayerRef.current = L.layerGroup().addTo(map);
     const markers = markersRef.current;
     mapRef.current = map;
     layerRef.current = layer;
@@ -121,6 +132,7 @@ export function LeafletMap({
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
+      legLayerRef.current = null;
       markers.clear();
       lastFitRef.current = "";
       lastSelectedItemRef.current = undefined;
@@ -151,6 +163,30 @@ export function LeafletMap({
       markersRef.current.set(item.id, marker);
     }
   }, [items, markerNumbers, trip, typeColors]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = legLayerRef.current;
+    if (!map || !layer) return;
+    layer.clearLayers();
+    if (!legs?.length) return;
+    const color = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "currentColor";
+    for (const leg of legs) {
+      if (leg.positions.length < 2) continue;
+      L.polyline(leg.positions, {
+        color,
+        weight: 4,
+        opacity: 0.85,
+        dashArray: leg.mode === "walk" ? "2 8" : undefined,
+        lineCap: "round",
+        interactive: false,
+      }).addTo(layer);
+    }
+    map.attributionControl.addAttribution(ROUTE_ATTRIBUTION);
+    return () => {
+      map.attributionControl.removeAttribution(ROUTE_ATTRIBUTION);
+    };
+  }, [legs, theme]);
 
   useEffect(() => {
     for (const item of items.filter((item) => hasMapCoordinates(item.location))) {

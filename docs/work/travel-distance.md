@@ -1,6 +1,6 @@
 # Travel distance between stops
 
-Status: Phase 1 done (TD1, TD2) — PR open to `main`; phase 2 gated (see Gates)
+Status: Phases 1–2 done (TD1–TD4) — phase 1 merged (PR #26), phase 2 PR open to `main`; phase 3 next
 
 Goal: Show travel distance and time between consecutive stops in a day, choose between walking and driving sensibly, and suggest the closest parking for driving legs.
 
@@ -162,9 +162,9 @@ Owns: `components/views/plan/*`, `components/views/TripDaysView.tsx`, `component
 
 - [x] TD1 Leg domain (`6096b20`)
 - [x] TD2 Plan leg line (`86bd594`), walking cap (`b42cdfe`) — phase 1 PR
-- [ ] Gate: ORS key created and in `.env`; ADR 0008 approved
-- [ ] TD3 ADR, ORS route and cache
-- [ ] TD4 Routed legs in the UI — phase 2 PR (rebuild migrator at deployment)
+- [x] Gate: ORS key created and in `.env` (verified live 2026-10-16); ADR 0008 approved
+- [x] TD3 ADR, ORS route and cache (`088df98`, `9dd0676`)
+- [x] TD4 Routed legs in the UI (`3e48f53`) — phase 2 PR (rebuild migrator at deployment)
 - [ ] TD5 Walk/drive clusters
 - [ ] TD6 Parking route and validation
 - [ ] TD7 Clusters and parking in the UI — phase 3 PR
@@ -177,8 +177,17 @@ Owns: `components/views/plan/*`, `components/views/TripDaysView.tsx`, `component
 
 ## Current state
 
-Phase 1 is merged into `feat/travel-distance` and open as a PR to `main`. `lib/travel-legs.ts` exports `haversineMeters`, `estimateWalk`, `isWalkable`, `MAX_WALK_METERS`, `dayLegs`, `formatDistance`, `formatDuration` and `dayTotals` (`{ meters, seconds, skipped, tooFar }`). `LegLine` renders in the `StopRow` slot. Deviation from the TD2 brief: the walking total is added to the day summary built in `TripDaysView.tsx`, because `DayStrip` only renders the day buttons; `DayStrip.tsx` is unchanged. Later workstreams should treat `DayStrip` the same way.
+Phase 1 is merged into `main` (PR #26). Phase 2 is merged into `feat/travel-distance` and open as a PR to `main`.
 
-Verification (coordinator, 2026-10-16): `npm run check` passes (0 lint errors, 2 existing `no-img-element` warnings, 128/128 tests) and `git diff --check` is clean on `b42cdfe`; TD2 reports `npx next build --webpack` succeeded. Browser on port 3202, MacOS Test Trip: Nov 29 legs over 3 km show distance only and the summary has no walking total; Nov 30 shows `~22 min · 1.7 km` with a walking icon and `~22 min walking` in the summary; unmapped and transfer gaps render as specified; 1440px dark and 375px light with no horizontal scroll.
+- Phase 1: `lib/travel-legs.ts` (straight-line legs, 3 km walking cap) and `LegLine` in the `StopRow` slot. The day total lives in the summary built in `TripDaysView.tsx`, not `DayStrip` (which only renders day buttons); later workstreams should do the same.
+- Phase 2 server: `POST /api/route-legs` (`lib/ors-client.ts`, `lib/route-leg-validation.ts`) with the `RouteLeg` cache (migration `20261016010217_add_route_leg`; rebuild the migrator image at deployment). `lib/ors-client.ts` has no `server-only` import (the package is not installed); it is only imported by the route handler.
+- Phase 2 UI: `lib/routed-legs.ts` (select, request, merge, totals), `lib/polyline.ts`, `api.routeLegs`, `travelModeByTrip` in the store, a Walk/Drive toggle in the day summary, routed `LegLine`s without `~`, and dashed (walk) or solid (drive) accent polylines plus ORS attribution on `LeafletMap` via the optional `legs` prop.
+- Known behaviour: in Drive mode a leg that fails to route (or beyond the 25-leg request cap) falls back to the straight-line walking estimate with a walking icon, or distance only over 3 km; there is no driving estimate. Revisit in TD7.
 
-Next step: Merge the phase 1 PR. Phase 2 (TD3) starts once the user has an ORS key in `.env` and approves ADR 0008.
+Verification (coordinator, 2026-10-16):
+
+- Phase 1: `npm run check` (128/128 tests) and browser checks on port 3202 (see PR #26).
+- TD3: `npm run check` passes (0 lint errors, 2 existing warnings, 139/139 tests). Live ORS through `/api/route-legs`: walk and drive legs routed and stored, a repeat call served from the cache, a new leg fetched, out-of-range input returns 400, and the key never appears in the response.
+- TD4: `npm run check` passes (152/152 tests). Browser on port 3204, MacOS Test Trip, Nov 30: Walk shows `20 min · 1.6 km` (routed, no `~`), the 42.1 km leg distance only, `20 min walking`, one dashed polyline and the ORS attribution; Drive shows `4 min · 1.7 km` and `53 min · 50.6 km`, `56 min driving`, and road-following solid polylines; polyline colour follows the theme accent (dark `#ff6a4d`, light `#d9381e`); 375px has no horizontal scroll. The routing-failure fallback was covered by unit tests only, not live.
+
+Next step: Merge the phase 2 PR. Then start phase 3: TD5 (clusters) and TD6 (parking) in parallel, then TD7.
