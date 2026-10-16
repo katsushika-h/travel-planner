@@ -17,6 +17,9 @@ const MAX_RESULTS = 5;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const CACHE_MAX_ENTRIES = 500;
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+const OVERPASS_BUDGET_MS = 60_000;
+const OVERPASS_RETRY_STATUSES = new Set([429, 502, 503, 504]);
+const OVERPASS_RETRY_DELAYS_MS = [2_000, 4_000, 8_000, 16_000];
 const ORS_POIS_URL = "https://api.openrouteservice.org/pois";
 const ORS_PARKING_CATEGORY = 601;
 const USER_AGENT = "travel-planner/0.1 (personal itinerary app)";
@@ -78,16 +81,24 @@ function rank(spots: (ParkingSpot | null)[]) {
 async function fromOverpass(lat: number, lng: number): Promise<ParkingSpot[]> {
   // Overpass returns elements in ID order, not by distance, so fetch the whole radius (capped) and rank locally.
   const query = `[out:json][timeout:55];nwr(around:${RADIUS_METERS},${lat},${lng})[amenity=parking];out center tags 200;`;
-  const response = await fetch(OVERPASS_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": USER_AGENT,
-      Accept: "application/json",
-    },
-    body: new URLSearchParams({ data: query }).toString(),
-    signal: AbortSignal.timeout(60_000),
-  });
+  const signal = AbortSignal.timeout(OVERPASS_BUDGET_MS);
+  let response: Response;
+  // A busy Overpass answers 429 or 502–504 at once and asks for exponential backoff; retry within the same budget.
+  for (let attempt = 0; ; attempt++) {
+    response = await fetch(OVERPASS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": USER_AGENT,
+        Accept: "application/json",
+      },
+      body: new URLSearchParams({ data: query }).toString(),
+      signal,
+    });
+    if (response.ok || !OVERPASS_RETRY_STATUSES.has(response.status) || attempt >= OVERPASS_RETRY_DELAYS_MS.length)
+      break;
+    await new Promise((resolve) => setTimeout(resolve, OVERPASS_RETRY_DELAYS_MS[attempt]));
+  }
   if (!response.ok) throw new Error("overpass status");
   const body = asRecord(await response.json());
   if (!body || !Array.isArray(body.elements)) throw new Error("overpass body");

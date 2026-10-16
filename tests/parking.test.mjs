@@ -36,6 +36,8 @@ function load({ fetchImpl, key = KEY }) {
       exports: mod.exports,
       process: { env },
       fetch: mockFetch,
+      // Backoff waits run immediately so retry tests stay fast.
+      setTimeout: (fn) => (fn(), 0),
       require: (name) => requireMap[name] ?? require(name),
     });
     return mod.exports;
@@ -60,7 +62,8 @@ const orsFeature = (dLat, tags) => ({
 const orsOk = (features) => new Response(JSON.stringify({ features }), { status: 200 });
 const orsEmpty = () =>
   new Response('{"type":"FeatureCollection","bbox":[NaN,NaN,NaN,NaN],"features":[]}', { status: 200 });
-const down = () => new Response("busy", { status: 504 });
+const down = () => new Response("error", { status: 500 });
+const busy = () => new Response("at capacity", { status: 502 });
 const isOverpass = (url) => url.startsWith("https://overpass-api.de/");
 
 async function get(ctx, query = `lat=${Q.lat}&lng=${Q.lng}`) {
@@ -188,6 +191,23 @@ test("both providers failing returns 502", async () => {
   assert.equal(status, 502);
   assert.deepEqual(body, { error: "Parking lookup failed." });
   assert.equal(ctx.calls.length, 2);
+});
+
+test("a busy Overpass is retried with backoff before succeeding", async () => {
+  const ctx = load({ fetchImpl: (_url, _init, n) => (n < 3 ? busy() : overpassOk([node(0.001)])) });
+  const { status, body } = await get(ctx);
+  assert.equal(status, 200);
+  assert.equal(body.parking.length, 1);
+  assert.equal(ctx.calls.length, 3);
+  assert.ok(ctx.calls.every((call) => isOverpass(call.url)));
+});
+
+test("a busy Overpass gives up after four retries, then falls back", async () => {
+  const ctx = load({ fetchImpl: (url) => (isOverpass(url) ? busy() : orsOk([])) });
+  const { status } = await get(ctx);
+  assert.equal(status, 502);
+  assert.equal(ctx.calls.filter((call) => isOverpass(call.url)).length, 5);
+  assert.equal(ctx.calls.length, 6);
 });
 
 test("missing key with Overpass down returns 502 and makes no ORS call", async () => {
