@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { TravelMode } from "../lib/routed-legs.ts";
 
 export type PlannerTab = "calendar" | "kanban" | "days" | "table" | "map" | "expenses";
 export type CalendarMode = "month" | "week" | "day";
@@ -39,6 +40,9 @@ type TravelStore = {
   theme: ThemePreference;
   /** Denser rows in Plan, Day, Board and Table. */
   compact: boolean;
+  /** Walk or drive for the Plan view legs; a missing entry means walk. */
+  travelModeByTrip: Record<string, TravelMode>;
+  setTravelMode: (tripId: string, mode: TravelMode) => void;
   eventTypesByTrip: Record<string, string[]>;
   eventTypeColorsByTrip: Record<string, Record<string, string>>;
   eventTypeOrderByTrip: Record<string, string[]>;
@@ -63,6 +67,9 @@ export const useTravelStore = create<TravelStore>()(
       sidebarCollapsed: false,
       theme: "system",
       compact: false,
+      travelModeByTrip: {},
+      setTravelMode: (tripId, mode) =>
+        set((state) => ({ travelModeByTrip: { ...state.travelModeByTrip, [tripId]: mode } })),
       eventTypesByTrip: {},
       eventTypeColorsByTrip: {},
       eventTypeOrderByTrip: {},

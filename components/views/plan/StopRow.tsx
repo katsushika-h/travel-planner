@@ -1,7 +1,7 @@
 "use client";
 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import type { TravelLeg } from "@/lib/travel-legs";
+import type { DisplayLeg } from "@/lib/routed-legs";
 import type { TravelObject } from "@/types/travel";
 import { LegLine } from "./LegLine";
 import { formatPlannedCost, isConfirmedTime, safeMapsHref, stopMeta, stopTimeLabel } from "./plan-domain";
@@ -111,7 +111,7 @@ export function StopRow({
   /** Display time for a flexible stop, derived from list order (see `flexibleDisplayTimes`). */
   flexTime?: string;
   /** Walking estimate to the next stop, when there is one. */
-  leg?: TravelLeg;
+  leg?: DisplayLeg;
   nextTitle?: string;
   selected: boolean;
   primary: boolean;
