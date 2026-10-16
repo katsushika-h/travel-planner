@@ -198,7 +198,13 @@ export function mergePlannedLegs(
       const base = { role: segment.role, mode: segment.mode };
       const slot = routed[legCacheKey({ from, to, mode: segment.mode })];
       if (slot && !("error" in slot)) {
-        segments.push({ ...base, state: "routed", meters: slot.meters, seconds: slot.seconds, geometry: slot.geometry });
+        segments.push({
+          ...base,
+          state: "routed",
+          meters: slot.meters,
+          seconds: slot.seconds,
+          geometry: slot.geometry,
+        });
         continue;
       }
       const straight = haversineMeters(from, to);

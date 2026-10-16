@@ -49,6 +49,17 @@ function popupContent(item: TravelObject, number?: number) {
   return content;
 }
 
+export type MapParkingMarker = { id: string; lat: number; lng: number; name: string | null };
+
+function parkingIcon() {
+  return L.divIcon({
+    className: "travel-map-marker",
+    html: '<span aria-hidden="true" style="display:grid;width:20px;height:20px;place-items:center;border:1px solid var(--ink);background:var(--surface);color:var(--ink);font:600 11px/1 var(--font-mono, monospace)">P</span>',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
+}
+
 export type MapLeg = { id: string; positions: [number, number][]; mode: "walk" | "drive" };
 
 const ROUTE_ATTRIBUTION = 'Routes &copy; <a href="https://openrouteservice.org/">openrouteservice</a> by HeiGIT';
@@ -69,6 +80,8 @@ export interface LeafletMapProps {
   dimmedItemIds?: ReadonlySet<string>;
   /** Routed leg lines, drawn in the accent colour (dashed for walking). */
   legs?: MapLeg[];
+  /** Small "P" markers for saved car parks; they show a title tooltip and open nothing. */
+  parkingMarkers?: MapParkingMarker[];
   className?: string;
 }
 
@@ -86,6 +99,7 @@ export function LeafletMap({
   onUserMove,
   dimmedItemIds,
   legs,
+  parkingMarkers,
   className = "min-h-[360px] flex-1",
 }: LeafletMapProps) {
   const theme = useResolvedTheme();
@@ -93,6 +107,7 @@ export function LeafletMap({
   const mapRef = useRef<LeafletMapInstance | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
   const legLayerRef = useRef<L.LayerGroup | null>(null);
+  const parkingLayerRef = useRef<L.LayerGroup | null>(null);
   const markersRef = useRef(new Map<string, Marker>());
   const callbacksRef = useRef({ onSelect, onHover, onUserMove });
   const lastFitRef = useRef("");
@@ -113,6 +128,7 @@ export function LeafletMap({
     }).addTo(map);
     const layer = L.layerGroup().addTo(map);
     legLayerRef.current = L.layerGroup().addTo(map);
+    parkingLayerRef.current = L.layerGroup().addTo(map);
     const markers = markersRef.current;
     mapRef.current = map;
     layerRef.current = layer;
@@ -133,6 +149,7 @@ export function LeafletMap({
       mapRef.current = null;
       layerRef.current = null;
       legLayerRef.current = null;
+      parkingLayerRef.current = null;
       markers.clear();
       lastFitRef.current = "";
       lastSelectedItemRef.current = undefined;
@@ -187,6 +204,21 @@ export function LeafletMap({
       map.attributionControl.removeAttribution(ROUTE_ATTRIBUTION);
     };
   }, [legs, theme]);
+
+  useEffect(() => {
+    const layer = parkingLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    for (const spot of parkingMarkers ?? []) {
+      L.marker([spot.lat, spot.lng], {
+        title: spot.name ? `Parking: ${spot.name}` : "Parking",
+        alt: "",
+        icon: parkingIcon(),
+        keyboard: false,
+        zIndexOffset: -500,
+      }).addTo(layer);
+    }
+  }, [parkingMarkers, theme]);
 
   useEffect(() => {
     for (const item of items.filter((item) => hasMapCoordinates(item.location))) {

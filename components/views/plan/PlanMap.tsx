@@ -27,6 +27,7 @@ export function PlanMap({
   onRecenter,
   onAddLink,
   legs,
+  parkingMarkers,
 }: {
   trip: Trip;
   date: string;
@@ -45,6 +46,8 @@ export function PlanMap({
   onAddLink?: () => void;
   /** Routed leg lines to draw. */
   legs?: LeafletMapProps["legs"];
+  /** Saved car parks to mark with a "P". */
+  parkingMarkers?: LeafletMapProps["parkingMarkers"];
 }) {
   const note = "bg-background/90 px-2 py-1 text-xs text-muted";
   return (
@@ -62,6 +65,7 @@ export function PlanMap({
         onHover={onHover}
         onSelect={onSelect}
         legs={legs}
+        parkingMarkers={parkingMarkers}
         fitKey={date}
         recenterToken={recenterToken}
         onUserMove={onUserMove}
