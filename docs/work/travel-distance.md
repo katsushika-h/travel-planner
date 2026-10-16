@@ -1,6 +1,6 @@
 # Travel distance between stops
 
-Status: Phases 1–2 done (TD1–TD4) — phase 1 merged (PR #26), phase 2 PR open to `main`; phase 3 next
+Status: All phases built (TD1–TD7) — phases 1–2 merged (PRs #26, #27), phase 3 PR open to `main`; deployment pending
 
 Goal: Show travel distance and time between consecutive stops in a day, choose between walking and driving sensibly, and suggest the closest parking for driving legs.
 
@@ -158,6 +158,12 @@ Owns: `components/views/plan/*`, `components/views/TripDaysView.tsx`, `component
 - For each driving cluster, show "Park at <name> · 350 m walk" with a picker from `/api/parking`; saving updates the cluster's first stop `location.parking` through the existing item update action. A saved parking spot becomes the cluster anchor.
 - `LeafletMap` gains optional parking markers ("P", token colours).
 
+### Phase 3 as built (supersedes the TD5–TD7 briefs above where they differ)
+
+- TD5: `planDay(legs, mode, { overrides, parkingStopIds, walkMeters })` uses a car-position model instead of clusters with refused overrides. A drive leg that starts away from the car gets a "to-car" walk first; driving to a stop with saved parking ends at the car park with a "from-parking" walk; an unmapped or transfer leg resets the car to the next stop; a drive to where the car already is becomes a walk. `CLUSTER_WALK_METERS` is 2000 walking metres (about 1.5 km straight-line). `clusterDay` remains for grouping.
+- TD6: ORS POIs has no parking data for Japan (tested 2026-10-16: Tokyo and Yufuin returned 0, London 4), so Overpass is the primary source and ORS POIs (category 601) the fallback, as ADR 0008 allows. Overpass returns elements in ID order, so the query fetches up to 200 and ranks locally. The public server is often slow (27–38 s) or at capacity (immediate 502), so lookups have a 60 s budget (`[timeout:55]`) and retry 429/502–504 after 2, 4, 8 and 16 s. Only Overpass results are cached (24 h, in memory); an empty ORS fallback is a 502, not "no parking". Empty ORS results contain `NaN`, which is not valid JSON.
+- TD7: Drive mode routes every `planDay` segment; leg overrides live in `legOverridesByTrip` (per device). A drive segment that fails to route shows `~` straight-line distance with a car icon and no time, which closes the phase 2 gap. "Find parking" (on drive destinations and the day's first stop) saves `location.parking` via `changeItem`; "Remove" sets `parking: null`. `LeafletMap` gains optional `parkingMarkers`.
+
 ## Checklist
 
 - [x] TD1 Leg domain (`6096b20`)
@@ -165,9 +171,9 @@ Owns: `components/views/plan/*`, `components/views/TripDaysView.tsx`, `component
 - [x] Gate: ORS key created and in `.env` (verified live 2026-10-16); ADR 0008 approved
 - [x] TD3 ADR, ORS route and cache (`088df98`, `9dd0676`)
 - [x] TD4 Routed legs in the UI (`3e48f53`) — phase 2 PR (rebuild migrator at deployment)
-- [ ] TD5 Walk/drive clusters
-- [ ] TD6 Parking route and validation
-- [ ] TD7 Clusters and parking in the UI — phase 3 PR
+- [x] TD5 Walk/drive planner (`b1a53c5`, `7541f9e`)
+- [x] TD6 Parking route and validation (`ff8e2cc`, `b07c2a9`, `369cfa0`)
+- [x] TD7 Clusters and parking in the UI (`e3401cd`, `53142d3`), lookup budget and Overpass retries (`852d143`, `babb0eb`) — phase 3 PR
 
 ## Open decisions
 
@@ -177,12 +183,13 @@ Owns: `components/views/plan/*`, `components/views/TripDaysView.tsx`, `component
 
 ## Current state
 
-Phase 1 is merged into `main` (PR #26). Phase 2 is merged into `feat/travel-distance` and open as a PR to `main`.
+Phases 1 and 2 are merged into `main` (PRs #26 and #27). Phase 3 is merged into `feat/travel-distance` and open as a PR to `main`; see "Phase 3 as built".
 
 - Phase 1: `lib/travel-legs.ts` (straight-line legs, 3 km walking cap) and `LegLine` in the `StopRow` slot. The day total lives in the summary built in `TripDaysView.tsx`, not `DayStrip` (which only renders day buttons); later workstreams should do the same.
 - Phase 2 server: `POST /api/route-legs` (`lib/ors-client.ts`, `lib/route-leg-validation.ts`) with the `RouteLeg` cache (migration `20261016010217_add_route_leg`; rebuild the migrator image at deployment). `lib/ors-client.ts` has no `server-only` import (the package is not installed); it is only imported by the route handler.
 - Phase 2 UI: `lib/routed-legs.ts` (select, request, merge, totals), `lib/polyline.ts`, `api.routeLegs`, `travelModeByTrip` in the store, a Walk/Drive toggle in the day summary, routed `LegLine`s without `~`, and dashed (walk) or solid (drive) accent polylines plus ORS attribution on `LeafletMap` via the optional `legs` prop.
-- Known behaviour: in Drive mode a leg that fails to route (or beyond the 25-leg request cap) falls back to the straight-line walking estimate with a walking icon, or distance only over 3 km; there is no driving estimate. Revisit in TD7.
+- Phase 2's Drive-mode walking-estimate fallback is replaced in phase 3 (see "Phase 3 as built"); `mergeRoutedLegs` keeps it only for its existing test and is no longer used in Drive mode.
+- Known limitations: parking lookups depend on the public Overpass server and can take up to a minute or fail when it is at capacity; travel mode and leg overrides are per device; removing parking leaves `parking: null` on the location.
 
 Verification (coordinator, 2026-10-16):
 
@@ -190,4 +197,6 @@ Verification (coordinator, 2026-10-16):
 - TD3: `npm run check` passes (0 lint errors, 2 existing warnings, 139/139 tests). Live ORS through `/api/route-legs`: walk and drive legs routed and stored, a repeat call served from the cache, a new leg fetched, out-of-range input returns 400, and the key never appears in the response.
 - TD4: `npm run check` passes (152/152 tests). Browser on port 3204, MacOS Test Trip, Nov 30: Walk shows `20 min · 1.6 km` (routed, no `~`), the 42.1 km leg distance only, `20 min walking`, one dashed polyline and the ORS attribution; Drive shows `4 min · 1.7 km` and `53 min · 50.6 km`, `56 min driving`, and road-following solid polylines; polyline colour follows the theme accent (dark `#ff6a4d`, light `#d9381e`); 375px has no horizontal scroll. The routing-failure fallback was covered by unit tests only, not live.
 
-Next step: Merge the phase 2 PR. Then start phase 3: TD5 (clusters) and TD6 (parking) in parallel, then TD7.
+- Phase 3: `npm run check` passes (0 lint errors, 2 existing warnings, 185/185 tests); TD6 and TD7 agents report `npx next build --webpack` succeeded. Live `/api/parking` near Yufuin returned the 5 nearest car parks in 29 s and the repeat came from the cache in 0.01 s; Overpass 502 "at capacity" was reproduced and is now retried. Browser on port 3207, MacOS Test Trip: Nov 30 Drive shows a 20 min walk, a 53 min drive and `53 min driving · 20 min walking` with dashed and solid lines; on Nov 29 a walk override produced a "walk back to the car" segment and the next drive started from the car; Find parking at Kumamoto showed the loading and error states, then (after the retry change) 5 car parks in 36 s; saving 二の丸駐車場 stored `location.parking` with the other location fields intact, routed the drive to the car park plus `5 min walk from the car park`, and added a "P" marker; Remove cleared it; 375px light has no horizontal scroll.
+
+Next step: Merge the phase 3 PR, then deploy: rebuild and push both `linux/amd64` images (the migrator for the phase 2 `RouteLeg` migration), and set `ORS_API_KEY` in the NAS `.env`. Then mark this handoff complete.
