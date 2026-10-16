@@ -94,6 +94,21 @@ test("planDay drive: overrides", () => {
   ]);
 });
 
+test("planDay drive: driving back to where the car is becomes a walk", () => {
+  const back = planDay([ok("A", "B", 500), ok("B", "A", 500)], "drive", { overrides: { "B>A": "drive" } });
+  assert.equal(back[1].mode, "walk");
+  assert.deepEqual(back[1].segments, [seg("walk", stop("B"), stop("A"), "leg")]);
+  const parked = planDay([ok("A", "B", 500), ok("B", "A", 500)], "drive", {
+    overrides: { "B>A": "drive" },
+    parkingStopIds: new Set(["A"]),
+  });
+  assert.equal(parked[1].mode, "walk");
+  assert.deepEqual(parked[1].segments, [
+    seg("walk", stop("B"), park("A"), "to-car"),
+    seg("walk", park("A"), stop("A"), "from-parking"),
+  ]);
+});
+
 test("planDay drive: unmapped and transfer legs reset the car", () => {
   for (const status of ["unmapped", "transfer"]) {
     const plan = planDay([ok("A", "B", 500), gap("B", "C", status), ok("C", "D", 9000)], "drive");

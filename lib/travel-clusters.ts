@@ -78,8 +78,20 @@ export function planDay(
     }
     const segments: Segment[] = [];
     const start = car ?? placeOf(leg.fromId);
-    if (!same(start, from)) segments.push({ mode: "walk", from, to: start, role: "to-car" });
     const dest = placeOf(leg.toId);
+    // The car is already where this leg ends, so there is nothing to drive: walk there instead.
+    if (same(start, dest)) {
+      if (dest.kind === "stop") return { ...base, mode: "walk", segments: [{ mode: "walk", from, to, role: "leg" }] };
+      return {
+        ...base,
+        mode: "walk",
+        segments: [
+          { mode: "walk", from, to: dest, role: "to-car" },
+          { mode: "walk", from: dest, to, role: "from-parking" },
+        ],
+      };
+    }
+    if (!same(start, from)) segments.push({ mode: "walk", from, to: start, role: "to-car" });
     segments.push({ mode: "drive", from: start, to: dest, role: "leg" });
     if (dest.kind === "parking") segments.push({ mode: "walk", from: dest, to, role: "from-parking" });
     car = dest;
