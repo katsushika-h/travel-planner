@@ -102,6 +102,7 @@ test("Overpass success: nodes and way centers, nearest first, null names, privat
   const [{ url, init }] = ctx.calls;
   assert.equal(url, "https://overpass-api.de/api/interpreter");
   assert.match(init.headers["User-Agent"], /travel-planner/);
+  assert.match(new URLSearchParams(init.body).get("data"), /\[timeout:25\].*out center tags 200;$/);
   assert.match(new URLSearchParams(init.body).get("data"), /around:1000,33\.2658,131\.3606\)\[amenity=parking\]/);
 });
 
@@ -159,11 +160,26 @@ test("Overpass network error and malformed bodies fall back", async () => {
   }
 });
 
-test("ORS NaN bbox body is an empty successful result", async () => {
+test("Overpass failure with an ORS NaN-bbox empty body returns 502", async () => {
   const ctx = load({ fetchImpl: (url) => (isOverpass(url) ? down() : orsEmpty()) });
   const { status, body } = await get(ctx);
-  assert.equal(status, 200);
-  assert.deepEqual(body, { parking: [] });
+  assert.equal(status, 502);
+  assert.deepEqual(body, { error: "Parking lookup failed." });
+});
+
+test("ORS fallback results are returned but never cached", async () => {
+  const ctx = load({ fetchImpl: (url) => (isOverpass(url) ? down() : orsOk([orsFeature(0.001, { name: "X" })])) });
+  assert.equal((await get(ctx)).status, 200);
+  assert.equal(ctx.calls.length, 2);
+  assert.equal((await get(ctx)).status, 200);
+  assert.equal(ctx.calls.length, 4);
+});
+
+test("an empty Overpass list is a cached 200", async () => {
+  const ctx = load({ fetchImpl: () => overpassOk([]) });
+  assert.deepEqual((await get(ctx)).body, { parking: [] });
+  assert.deepEqual((await get(ctx)).body, { parking: [] });
+  assert.equal(ctx.calls.length, 1);
 });
 
 test("both providers failing returns 502", async () => {

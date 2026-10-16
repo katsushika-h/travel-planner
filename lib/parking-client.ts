@@ -77,7 +77,7 @@ function rank(spots: (ParkingSpot | null)[]) {
 
 async function fromOverpass(lat: number, lng: number): Promise<ParkingSpot[]> {
   // Overpass returns elements in ID order, not by distance, so fetch the whole radius (capped) and rank locally.
-  const query = `[out:json][timeout:15];nwr(around:${RADIUS_METERS},${lat},${lng})[amenity=parking];out center tags 200;`;
+  const query = `[out:json][timeout:25];nwr(around:${RADIUS_METERS},${lat},${lng})[amenity=parking];out center tags 200;`;
   const response = await fetch(OVERPASS_URL, {
     method: "POST",
     headers: {
@@ -86,7 +86,7 @@ async function fromOverpass(lat: number, lng: number): Promise<ParkingSpot[]> {
       Accept: "application/json",
     },
     body: new URLSearchParams({ data: query }).toString(),
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(30_000),
   });
   if (!response.ok) throw new Error("overpass status");
   const body = asRecord(await response.json());
@@ -151,13 +151,17 @@ export async function findParking(lat: number, lng: number): Promise<ParkingSpot
   try {
     spots = await fromOverpass(lat, lng);
   } catch {
+    // ORS has no parking data for Japan, so an empty fallback is treated as a failure, and fallback results are never cached.
     const key = process.env.ORS_API_KEY?.trim();
     if (!key) throw new ParkingError("unavailable");
+    let fallback: ParkingSpot[];
     try {
-      spots = await fromOrs(key, lat, lng);
+      fallback = await fromOrs(key, lat, lng);
     } catch {
       throw new ParkingError("ors");
     }
+    if (fallback.length === 0) throw new ParkingError("unavailable");
+    return fallback;
   }
 
   while (cache.size >= CACHE_MAX_ENTRIES) cache.delete(cache.keys().next().value as string);
