@@ -78,7 +78,7 @@
   --accent: #d9381e;
   --accent-foreground: #ffffff;
   --danger: #b42318;
-  --map-tile-filter: grayscale(1) contrast(0.85) brightness(1.08);
+  --map-tile-filter: none;
   --chart-1: #cfcfcc;
   --chart-2: #9a9a98;
   --chart-3: #6b6b6b;
