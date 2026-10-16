@@ -12,28 +12,20 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "@/lib/api-client";
 import { dateParts, formatTripDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { eventItems, isNote } from "@/lib/note-domain";
 import { allDayDropStartDate, flexibleDisplayTimes, occursOnItineraryDate } from "@/lib/schedule-domain";
 import { compareScheduleOrder, isTimedItem, itineraryDropPosition } from "@/lib/schedule-order";
-import { decodePolyline } from "@/lib/polyline";
-import {
-  buildRouteRequest,
-  coordinatesById,
-  displayTotals,
-  legCacheKey,
-  mergeRoutedLegs,
-  type RouteSlot,
-} from "@/lib/routed-legs";
-import { dayLegs, formatDuration } from "@/lib/travel-legs";
+import { displayTotals, drivePlanTotals, parkingSpots, type DisplayLeg, type TravelMode } from "@/lib/routed-legs";
+import { formatDuration } from "@/lib/travel-legs";
 import { useTravelStore } from "@/store/use-travel-store";
-import type { TravelObject, Trip } from "@/types/travel";
+import type { TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
 import { DayStrip } from "./plan/DayStrip";
 import { PlanMap } from "./plan/PlanMap";
 import { plannedTotals, stopMeta, stopNumbers, stopTimeLabel, tripDays } from "./plan/plan-domain";
 import { AddGap, EndSlot, NoteBlock, StopRow } from "./plan/StopRow";
+import { useDayRoutes } from "./plan/useDayRoutes";
 
 /** Remembers the day each trip was last viewed so switching views and back keeps the place. */
 const lastViewedDate = new Map<string, string>();
@@ -60,6 +52,7 @@ export function TripDaysView({
   onMove,
   onReorder,
   onCreateItem,
+  onChangeItem,
 }: {
   trip: Trip;
   /** Dated items for the trip. Notes are shown inline when present. */
@@ -75,6 +68,8 @@ export function TripDaysView({
   onMove: (item: TravelObject, date: string) => Promise<void>;
   onReorder: (item: TravelObject, date: string, order: number, clearTime: boolean) => Promise<void>;
   onCreateItem: (date: string, order?: number) => void;
+  /** Saves a patch to an item (used to store a stop's parking spot). */
+  onChangeItem: (id: string, patch: UpdateTravelObjectInput, immediate?: boolean) => void;
 }) {
   const days = useMemo(() => tripDays(trip.startDate, trip.endDate), [trip.startDate, trip.endDate]);
   const today = dateParts(new Date(), trip.timezone).date;
@@ -128,79 +123,49 @@ export function TripDaysView({
   );
   const mode = useTravelStore((state) => state.travelModeByTrip[trip.id] ?? "walk");
   const setTravelMode = useTravelStore((state) => state.setTravelMode);
-  const baseLegs = useMemo(() => dayLegs(dayItems), [dayItems]);
-  const request = useMemo(
-    () => buildRouteRequest(baseLegs, mode, coordinatesById(dayItems)),
-    [baseLegs, dayItems, mode],
-  );
-  const requestKeys = useMemo(() => request.legs.map(legCacheKey), [request]);
-  const requestSignature = requestKeys.join("|");
-  // Routed results by mode plus rounded coordinates, so switching days back and forth does not refetch.
-  const routeCacheRef = useRef(new Map<string, RouteSlot>());
-  const [routed, setRouted] = useState<Record<string, RouteSlot>>({});
-  const [failedSignature, setFailedSignature] = useState<string | null>(null);
-
-  useEffect(() => {
-    const cache = routeCacheRef.current;
-    const missing = requestKeys
-      .map((key, index) => ({ key, leg: request.legs[index] }))
-      .filter(({ key }) => !cache.has(key));
-    if (!missing.length) return;
-    const controller = new AbortController();
-    api
-      .routeLegs(
-        missing.map(({ leg }) => leg),
-        controller.signal,
-      )
-      .then(({ legs: slots }) => {
-        if (controller.signal.aborted) return;
-        let failed = false;
-        missing.forEach(({ key }, index) => {
-          const slot = slots[index];
-          if (slot && !("error" in slot)) cache.set(key, slot);
-          else failed = true;
-        });
-        if (failed) setFailedSignature(requestSignature);
-        setRouted(Object.fromEntries(cache));
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setFailedSignature(requestSignature);
-      });
-    // Aborting on cleanup drops stale responses after a day or mode switch.
-    return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the request signature, so a failure is not retried in a loop
-  }, [requestSignature]);
-
-  const legs = useMemo(
-    () =>
-      mergeRoutedLegs(
-        baseLegs,
-        mode,
-        request.selected,
-        requestKeys.map((key) => routed[key]),
-      ),
-    [baseLegs, mode, request, requestKeys, routed],
-  );
-  const estimatedNote = failedSignature !== null && failedSignature === requestSignature;
-  const mapLegs = useMemo(
-    () =>
-      legs.flatMap((leg) =>
-        leg.kind === "routed" && leg.geometry
-          ? [{ id: `${leg.fromId}>${leg.toId}`, positions: decodePolyline(leg.geometry), mode: leg.mode }]
-          : [],
-      ),
-    [legs],
-  );
+  const overrides = useTravelStore((state) => state.legOverridesByTrip[trip.id]);
+  const setLegOverride = useTravelStore((state) => state.setLegOverride);
+  const { legs, mapLegs, planned, estimatedNote } = useDayRoutes(dayItems, mode, overrides);
   const legByFromId = useMemo(() => new Map(legs.map((leg) => [leg.fromId, leg])), [legs]);
   const nextTitles = useMemo(() => {
     const titles = new Map(dayItems.map((item) => [item.id, item.title]));
     return new Map(legs.map((leg) => [leg.fromId, titles.get(leg.toId) ?? ""]));
   }, [legs, dayItems]);
   const travelTotal = useMemo(() => {
+    if (mode === "drive") {
+      const total = drivePlanTotals(legs);
+      return (["drive", "walk"] as const)
+        .filter((key) => total[key].counted > 0)
+        .map(
+          (key) =>
+            `${total[key].approximate ? "~" : ""}${formatDuration(total[key].seconds)} ${key === "drive" ? "driving" : "walking"}`,
+        )
+        .join(" · ");
+    }
     const total = displayTotals(legs);
     if (!total.counted) return "";
-    return `${total.approximate ? "~" : ""}${formatDuration(total.seconds)} ${mode === "drive" ? "driving" : "walking"}`;
+    return `${total.approximate ? "~" : ""}${formatDuration(total.seconds)} walking`;
   }, [legs, mode]);
+  // Stops a drive arrives at (and the day's first stop, where the car starts) can have a car park picked.
+  const parkingOfferIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (mode !== "drive") return ids;
+    for (const leg of planned) {
+      if (leg.segments.some((segment) => segment.mode === "drive" && segment.role === "leg")) ids.add(leg.toId);
+    }
+    const first = dayItems.find((item) => !isNote(item));
+    if (first) ids.add(first.id);
+    return ids;
+  }, [mode, planned, dayItems]);
+  const parkingMarkers = useMemo(
+    () =>
+      mode === "drive"
+        ? [...parkingSpots(dayItems)].map(([id, spot]) => ({ id, lat: spot.lat, lng: spot.lng, name: spot.name }))
+        : undefined,
+    [mode, dayItems],
+  );
+  const setLegMode = (leg: DisplayLeg, next: TravelMode) =>
+    setLegOverride(trip.id, `${leg.fromId}>${leg.toId}`, next === leg.defaultMode ? null : next);
   const events = useMemo(() => eventItems(dayItems), [dayItems]);
   const numbers = useMemo(() => stopNumbers(events), [events]);
   const flexTimes = useMemo(() => flexibleDisplayTimes(events), [events]);
@@ -371,6 +336,10 @@ export function TripDaysView({
                       primary={primarySelectedId === item.id}
                       expanded={expandedId === item.id}
                       hovered={hoveredId === item.id}
+                      driveMode={mode === "drive"}
+                      canFindParking={parkingOfferIds.has(item.id)}
+                      onChangeItem={onChangeItem}
+                      onSetLegMode={setLegMode}
                       onPick={pickStop}
                       onEdit={editStop}
                       onHover={setHoveredId}
@@ -410,6 +379,7 @@ export function TripDaysView({
                 }}
                 onAddLink={unmapped[0] ? () => editStop(unmapped[0]) : undefined}
                 legs={mapLegs}
+                parkingMarkers={parkingMarkers}
               />
             </div>
           )}

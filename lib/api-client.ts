@@ -92,6 +92,19 @@ export const api = {
   deleteTrip: (id: string) => request<void>(`/api/trips/${encodeURIComponent(id)}`, { method: "DELETE" }),
   routeLegs: (legs: RouteRequestLeg[], signal?: AbortSignal) =>
     request<{ legs: RouteSlot[] }>("/api/route-legs", { method: "POST", body: JSON.stringify({ legs }), signal }),
+  /** Car parks within 1 km, nearest first. The public Overpass server can take up to a minute. */
+  parking: (lat: number, lng: number, signal?: AbortSignal) =>
+    request<{
+      parking: {
+        name: string | null;
+        lat: number;
+        lng: number;
+        meters: number;
+        fee: string | null;
+        access: string | null;
+        source: string;
+      }[];
+    }>(`/api/parking?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`, { signal }),
   resolveMapsUrl: (url: string) =>
     request<{
       expandedUrl: string;

@@ -11,6 +11,7 @@ export interface LocationData {
   lng?: number;
   rating?: number;
   openingHours?: string[];
+  parking?: { name?: string; lat: number; lng: number } | null;
 }
 
 export interface CostData {

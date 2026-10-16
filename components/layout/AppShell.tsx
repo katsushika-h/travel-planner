@@ -582,6 +582,7 @@ export function AppShell() {
                   onCreateItem={(date, order) =>
                     void openCreateItem(date, undefined, "unclassified", "(untitled event)", order)
                   }
+                  onChangeItem={changeItem}
                 />
               ) : activeTab === "table" ? (
                 <TableView

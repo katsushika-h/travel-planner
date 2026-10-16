@@ -1,9 +1,10 @@
 "use client";
 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import type { DisplayLeg } from "@/lib/routed-legs";
-import type { TravelObject } from "@/types/travel";
+import type { DisplayLeg, TravelMode } from "@/lib/routed-legs";
+import type { TravelObject, UpdateTravelObjectInput } from "@/types/travel";
 import { LegLine } from "./LegLine";
+import { ParkingControl } from "./ParkingControl";
 import { formatPlannedCost, isConfirmedTime, safeMapsHref, stopMeta, stopTimeLabel } from "./plan-domain";
 
 /** Hover-revealed insertion point between stops. Always visible on touch screens. */
@@ -100,6 +101,10 @@ export function StopRow({
   primary,
   expanded,
   hovered,
+  driveMode = false,
+  canFindParking = false,
+  onChangeItem,
+  onSetLegMode,
   onPick,
   onEdit,
   onHover,
@@ -117,6 +122,12 @@ export function StopRow({
   primary: boolean;
   expanded: boolean;
   hovered: boolean;
+  /** Drive mode shows saved parking, the parking search and per-leg walk/drive choices. */
+  driveMode?: boolean;
+  /** Whether a drive arrives here (or the car starts here), so a parking search is offered. */
+  canFindParking?: boolean;
+  onChangeItem?: (id: string, patch: UpdateTravelObjectInput, immediate?: boolean) => void;
+  onSetLegMode?: (leg: DisplayLeg, mode: TravelMode) => void;
   onPick: (item: TravelObject, additive: boolean) => void;
   onEdit: (item: TravelObject) => void;
   onHover: (itemId: string | null) => void;
@@ -199,7 +210,14 @@ export function StopRow({
           </div>
         </div>
       )}
-      {leg && <LegLine leg={leg} nextTitle={nextTitle ?? "the next stop"} />}
+      {driveMode && onChangeItem && <ParkingControl item={item} canFind={canFindParking} onChangeItem={onChangeItem} />}
+      {leg && (
+        <LegLine
+          leg={leg}
+          nextTitle={nextTitle ?? "the next stop"}
+          onSetMode={driveMode && onSetLegMode ? (next) => onSetLegMode(leg, next) : undefined}
+        />
+      )}
     </li>
   );
 }

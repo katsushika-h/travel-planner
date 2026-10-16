@@ -43,6 +43,10 @@ type TravelStore = {
   /** Walk or drive for the Plan view legs; a missing entry means walk. */
   travelModeByTrip: Record<string, TravelMode>;
   setTravelMode: (tripId: string, mode: TravelMode) => void;
+  /** Per-leg walk/drive overrides for Drive mode, keyed "fromId>toId". A missing entry means the automatic choice. */
+  legOverridesByTrip: Record<string, Record<string, TravelMode>>;
+  /** Pass `null` to clear the override. */
+  setLegOverride: (tripId: string, legKey: string, mode: TravelMode | null) => void;
   eventTypesByTrip: Record<string, string[]>;
   eventTypeColorsByTrip: Record<string, Record<string, string>>;
   eventTypeOrderByTrip: Record<string, string[]>;
@@ -70,6 +74,14 @@ export const useTravelStore = create<TravelStore>()(
       travelModeByTrip: {},
       setTravelMode: (tripId, mode) =>
         set((state) => ({ travelModeByTrip: { ...state.travelModeByTrip, [tripId]: mode } })),
+      legOverridesByTrip: {},
+      setLegOverride: (tripId, legKey, mode) =>
+        set((state) => {
+          const next = { ...state.legOverridesByTrip[tripId] };
+          if (mode) next[legKey] = mode;
+          else delete next[legKey];
+          return { legOverridesByTrip: { ...state.legOverridesByTrip, [tripId]: next } };
+        }),
       eventTypesByTrip: {},
       eventTypeColorsByTrip: {},
       eventTypeOrderByTrip: {},

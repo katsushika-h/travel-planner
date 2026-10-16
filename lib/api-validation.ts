@@ -152,6 +152,17 @@ export function validateLocation(value: unknown) {
   if (!isRecord(value)) throw new Error("location must be a JSON object or null.");
   if (value.name !== undefined && (typeof value.name !== "string" || value.name.length > 300))
     throw new Error("location name must be 300 characters or fewer.");
+  validateParking(value.parking);
+}
+
+function validateParking(value: unknown) {
+  if (value === undefined || value === null) return;
+  if (!isRecord(value)) throw new Error("location parking must be a JSON object or null.");
+  const inRange = (n: unknown, limit: number) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= limit;
+  if (!inRange(value.lat, 90) || !inRange(value.lng, 180))
+    throw new Error("location parking must have a valid lat and lng.");
+  if (value.name !== undefined && (typeof value.name !== "string" || value.name.length > 300))
+    throw new Error("location parking name must be 300 characters or fewer.");
 }
 
 export function readPositiveInteger(value: unknown, field: string) {
