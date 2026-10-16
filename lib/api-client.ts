@@ -92,7 +92,7 @@ export const api = {
   deleteTrip: (id: string) => request<void>(`/api/trips/${encodeURIComponent(id)}`, { method: "DELETE" }),
   routeLegs: (legs: RouteRequestLeg[], signal?: AbortSignal) =>
     request<{ legs: RouteSlot[] }>("/api/route-legs", { method: "POST", body: JSON.stringify({ legs }), signal }),
-  /** Car parks within 1 km, nearest first. The public Overpass server can take about 30 s. */
+  /** Car parks within 1 km, nearest first. The public Overpass server can take up to a minute. */
   parking: (lat: number, lng: number, signal?: AbortSignal) =>
     request<{
       parking: {

@@ -102,7 +102,7 @@ test("Overpass success: nodes and way centers, nearest first, null names, privat
   const [{ url, init }] = ctx.calls;
   assert.equal(url, "https://overpass-api.de/api/interpreter");
   assert.match(init.headers["User-Agent"], /travel-planner/);
-  assert.match(new URLSearchParams(init.body).get("data"), /\[timeout:25\].*out center tags 200;$/);
+  assert.match(new URLSearchParams(init.body).get("data"), /\[timeout:55\].*out center tags 200;$/);
   assert.match(new URLSearchParams(init.body).get("data"), /around:1000,33\.2658,131\.3606\)\[amenity=parking\]/);
 });
 

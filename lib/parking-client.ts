@@ -77,7 +77,7 @@ function rank(spots: (ParkingSpot | null)[]) {
 
 async function fromOverpass(lat: number, lng: number): Promise<ParkingSpot[]> {
   // Overpass returns elements in ID order, not by distance, so fetch the whole radius (capped) and rank locally.
-  const query = `[out:json][timeout:25];nwr(around:${RADIUS_METERS},${lat},${lng})[amenity=parking];out center tags 200;`;
+  const query = `[out:json][timeout:55];nwr(around:${RADIUS_METERS},${lat},${lng})[amenity=parking];out center tags 200;`;
   const response = await fetch(OVERPASS_URL, {
     method: "POST",
     headers: {
@@ -86,7 +86,7 @@ async function fromOverpass(lat: number, lng: number): Promise<ParkingSpot[]> {
       Accept: "application/json",
     },
     body: new URLSearchParams({ data: query }).toString(),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(60_000),
   });
   if (!response.ok) throw new Error("overpass status");
   const body = asRecord(await response.json());

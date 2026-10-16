@@ -12,7 +12,7 @@ type Phase = { kind: "idle" } | { kind: "loading" } | { kind: "error" } | { kind
 const linkButton =
   "flex min-h-11 items-center underline underline-offset-4 hover:text-foreground focus-visible:outline-2 focus-visible:outline-foreground sm:min-h-0";
 
-/** Saved car park for a stop, or a "Find parking" lookup (up to about 30 s) whose result is saved on the stop's location. */
+/** Saved car park for a stop, or a "Find parking" lookup (up to a minute) whose result is saved on the stop's location. */
 export function ParkingControl({
   item,
   canFind,
@@ -78,7 +78,7 @@ export function ParkingControl({
         )
       )}
       <div aria-live="polite">
-        {phase.kind === "loading" && <p>Searching car parks…</p>}
+        {phase.kind === "loading" && <p>Searching car parks… this can take up to a minute.</p>}
         {phase.kind === "error" && (
           <p className="flex flex-wrap items-center gap-x-4">
             <span>Parking lookup unavailable — try again</span>
