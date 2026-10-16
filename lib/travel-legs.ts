@@ -4,13 +4,15 @@ import type { TravelObject } from "../types/travel.ts";
 
 export const WALK_DETOUR_FACTOR = 1.3;
 export const WALK_SPEED_KMH = 4.8;
+/** Legs whose walking distance exceeds this are shown as distance only and left out of walking totals. */
+export const MAX_WALK_METERS = 3000;
 
 const EARTH_RADIUS_METERS = 6371008.8;
 
 export type LatLng = { lat: number; lng: number };
 
 export type TravelLeg =
-  | { fromId: string; toId: string; status: "ok"; meters: number; seconds: number }
+  | { fromId: string; toId: string; status: "ok"; meters: number; seconds: number; walkable: boolean }
   | { fromId: string; toId: string; status: "unmapped" }
   | { fromId: string; toId: string; status: "transfer" };
 
@@ -27,6 +29,11 @@ export function haversineMeters(a: LatLng, b: LatLng) {
 export function estimateWalk(meters: number) {
   const walked = meters * WALK_DETOUR_FACTOR;
   return { meters: walked, seconds: walked / ((WALK_SPEED_KMH * 1000) / 3600) };
+}
+
+/** Whether a (detour-adjusted) walking distance is short enough to present as a walk. */
+export function isWalkable(meters: number) {
+  return meters <= MAX_WALK_METERS;
 }
 
 function coordinates(item: TravelObject): LatLng | null {
@@ -60,7 +67,8 @@ export function dayLegs(items: readonly TravelObject[]): TravelLeg[] {
       legs.push({ ...ids, status: "unmapped" });
       continue;
     }
-    legs.push({ ...ids, status: "ok", ...estimateWalk(haversineMeters(a, b)) });
+    const walk = estimateWalk(haversineMeters(a, b));
+    legs.push({ ...ids, status: "ok", ...walk, walkable: isWalkable(walk.meters) });
   }
   return legs;
 }
@@ -79,16 +87,19 @@ export function formatDuration(seconds: number) {
   return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} min`;
 }
 
-/** Summed walking totals of the mapped legs; `skipped` counts unmapped legs (transfers are intentional). */
+/** Summed totals of walkable legs; `tooFar` counts mapped legs over the cap, `skipped` unmapped ones (transfers are intentional). */
 export function dayTotals(legs: readonly TravelLeg[]) {
   let meters = 0;
   let seconds = 0;
   let skipped = 0;
+  let tooFar = 0;
   for (const leg of legs) {
     if (leg.status === "ok") {
-      meters += leg.meters;
-      seconds += leg.seconds;
+      if (leg.walkable) {
+        meters += leg.meters;
+        seconds += leg.seconds;
+      } else tooFar++;
     } else if (leg.status === "unmapped") skipped++;
   }
-  return { meters, seconds, skipped };
+  return { meters, seconds, skipped, tooFar };
 }

@@ -20,18 +20,26 @@ function spokenDistance(meters: number) {
 /** Straight-line walking estimate to the next stop; transfers render nothing. */
 export function LegLine({ leg, nextTitle }: { leg: TravelLeg; nextTitle: string }) {
   if (leg.status === "transfer") return null;
-  const unmapped = leg.status === "unmapped";
-  const label = unmapped
-    ? `Distance to ${nextTitle} unknown`
-    : `About ${spokenDuration(leg.seconds)} walking, ${spokenDistance(leg.meters)} to ${nextTitle}`;
+  let label: string;
+  let text: string;
+  let walking = false;
+  if (leg.status === "unmapped") {
+    label = `Distance to ${nextTitle} unknown`;
+    text = "No location — distance unknown";
+  } else if (!leg.walkable) {
+    label = `${spokenDistance(leg.meters)} to ${nextTitle}, too far to walk`;
+    text = formatDistance(leg.meters);
+  } else {
+    walking = true;
+    label = `About ${spokenDuration(leg.seconds)} walking, ${spokenDistance(leg.meters)} to ${nextTitle}`;
+    text = `~${formatDuration(leg.seconds)} · ${formatDistance(leg.meters)}`;
+  }
   return (
     <p className="flex min-w-0 items-center gap-1.5 pb-3 text-[13px] text-muted sm:pl-[156px] in-data-[density=compact]:pb-1.5">
       <span className="sr-only">{label}</span>
-      {!unmapped && <Footprints aria-hidden="true" className="size-3.5 shrink-0" />}
+      {walking && <Footprints aria-hidden="true" className="size-3.5 shrink-0" />}
       <span aria-hidden="true" className="truncate">
-        {unmapped
-          ? "No location — distance unknown"
-          : `~${formatDuration(leg.seconds)} · ${formatDistance(leg.meters)}`}
+        {text}
       </span>
     </p>
   );

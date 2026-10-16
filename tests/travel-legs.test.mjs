@@ -4,6 +4,8 @@ import {
   WALK_DETOUR_FACTOR,
   dayLegs,
   dayTotals,
+  isWalkable,
+  MAX_WALK_METERS,
   estimateWalk,
   formatDistance,
   formatDuration,
@@ -107,11 +109,33 @@ test("formatDuration boundaries", () => {
 
 test("dayTotals sums ok legs and counts only unmapped as skipped", () => {
   const totals = dayTotals([
-    { fromId: "a", toId: "b", status: "ok", meters: 100, seconds: 60 },
-    { fromId: "b", toId: "c", status: "ok", meters: 50, seconds: 30 },
+    { fromId: "a", toId: "b", status: "ok", meters: 100, seconds: 60, walkable: true },
+    { fromId: "b", toId: "c", status: "ok", meters: 50, seconds: 30, walkable: true },
     { fromId: "c", toId: "d", status: "unmapped" },
     { fromId: "d", toId: "e", status: "transfer" },
   ]);
-  assert.deepEqual(totals, { meters: 150, seconds: 90, skipped: 1 });
-  assert.deepEqual(dayTotals([]), { meters: 0, seconds: 0, skipped: 0 });
+  assert.deepEqual(totals, { meters: 150, seconds: 90, skipped: 1, tooFar: 0 });
+  assert.deepEqual(dayTotals([]), { meters: 0, seconds: 0, skipped: 0, tooFar: 0 });
+});
+
+test("walking cap: exactly 3000 m is walkable, just over is not", () => {
+  assert.equal(MAX_WALK_METERS, 3000);
+  assert.equal(isWalkable(3000), true);
+  assert.equal(isWalkable(3000.01), false);
+});
+
+test("dayLegs flags legs over the cap as not walkable and dayTotals leaves them out", () => {
+  // 0.02 degrees of latitude is about 2.2 km straight line, 2.9 km walked; 0.03 is about 4.3 km walked.
+  const near = dayLegs([item("a", 10, 10), item("b", 10.02, 10)]);
+  const far = dayLegs([item("a", 10, 10), item("b", 10.03, 10)]);
+  assert.equal(near[0].walkable, true);
+  assert.ok(near[0].meters <= MAX_WALK_METERS);
+  assert.equal(far[0].walkable, false);
+  assert.ok(far[0].meters > MAX_WALK_METERS);
+  assert.ok(far[0].seconds > 0);
+  assert.deepEqual(dayTotals(far), { meters: 0, seconds: 0, skipped: 0, tooFar: 1 });
+  const mixed = dayTotals([...near, ...far]);
+  assert.equal(mixed.meters, near[0].meters);
+  assert.equal(mixed.seconds, near[0].seconds);
+  assert.equal(mixed.tooFar, 1);
 });

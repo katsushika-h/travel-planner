@@ -122,7 +122,7 @@ export function TripDaysView({
     return new Map(legs.map((leg) => [leg.fromId, titles.get(leg.toId) ?? ""]));
   }, [legs, dayItems]);
   const walking = useMemo(() => {
-    if (!legs.some((leg) => leg.status === "ok")) return "";
+    if (!legs.some((leg) => leg.status === "ok" && leg.walkable)) return "";
     return `~${formatDuration(dayTotals(legs).seconds)} walking`;
   }, [legs]);
   const events = useMemo(() => eventItems(dayItems), [dayItems]);
