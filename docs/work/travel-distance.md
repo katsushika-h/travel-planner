@@ -1,6 +1,6 @@
 # Travel distance between stops
 
-Status: All phases built (TD1–TD7) — phases 1–2 merged (PRs #26, #27), phase 3 PR open to `main`; deployment pending
+Status: Complete (2026-10-16) — all phases merged to `main` (PRs #26, #27, #28) and images pushed
 
 Goal: Show travel distance and time between consecutive stops in a day, choose between walking and driving sensibly, and suggest the closest parking for driving legs.
 
@@ -199,4 +199,6 @@ Verification (coordinator, 2026-10-16):
 
 - Phase 3: `npm run check` passes (0 lint errors, 2 existing warnings, 185/185 tests); TD6 and TD7 agents report `npx next build --webpack` succeeded. Live `/api/parking` near Yufuin returned the 5 nearest car parks in 29 s and the repeat came from the cache in 0.01 s; Overpass 502 "at capacity" was reproduced and is now retried. Browser on port 3207, MacOS Test Trip: Nov 30 Drive shows a 20 min walk, a 53 min drive and `53 min driving · 20 min walking` with dashed and solid lines; on Nov 29 a walk override produced a "walk back to the car" segment and the next drive started from the car; Find parking at Kumamoto showed the loading and error states, then (after the retry change) 5 car parks in 36 s; saving 二の丸駐車場 stored `location.parking` with the other location fields intact, routed the drive to the car park plus `5 min walk from the car park`, and added a "P" marker; Remove cleared it; 375px light has no horizontal scroll.
 
-Next step: Merge the phase 3 PR, then deploy: rebuild and push both `linux/amd64` images (the migrator for the phase 2 `RouteLeg` migration), and set `ORS_API_KEY` in the NAS `.env`. Then mark this handoff complete.
+Deployment (2026-10-16): built from `main` (`da71b4b`) for `linux/amd64` and pushed `hokusaik/travel-planner-migrator:latest` (`sha256:a2fe0661…`, includes `20261016010217_add_route_leg`) and `hokusaik/travel-planner-app:latest` (`sha256:35af31a6…`). On the NAS, pull both images and run `docker compose -f docker-compose.nas.yml up -d` with `ORS_API_KEY` set in the NAS `.env`.
+
+Next step: None. Possible follow-ups are in "Open decisions" (transit, hotel start/end, syncing mode across devices).
