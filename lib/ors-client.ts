@@ -6,6 +6,11 @@ export type OrsRoute = { meters: number; seconds: number; geometry: string };
 type Point = { lat: number; lng: number };
 
 const ORS_BASE_URL = "https://api.openrouteservice.org/v2/directions";
+/**
+ * How far ORS may look for a road from each stop, in metres. Its default (350 m) rejects pins such as trailheads
+ * and viewpoints that sit away from roads; 1 km routes them while still refusing places with no road nearby.
+ */
+export const ORS_SNAP_RADIUS_METERS = 1000;
 const MESSAGES: Record<OrsErrorKind, string> = {
   "missing-key": "Routing is not configured.",
   quota: "Routing quota reached.",
@@ -39,6 +44,7 @@ export async function fetchOrsRoute(profile: OrsProfile, from: Point, to: Point)
           [from.lng, from.lat],
           [to.lng, to.lat],
         ],
+        radiuses: [ORS_SNAP_RADIUS_METERS, ORS_SNAP_RADIUS_METERS],
       }),
       signal: AbortSignal.timeout(10_000),
     });

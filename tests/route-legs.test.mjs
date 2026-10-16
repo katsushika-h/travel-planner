@@ -128,7 +128,7 @@ test("a cache hit skips fetch and rounds coordinates to 5 decimals", async () =>
   assert.deepEqual(result.body.legs, [{ meters: 500, seconds: 400, geometry: "cached", cached: true }]);
 });
 
-test("a miss fetches ORS with lng,lat order and the key, then stores the row", async () => {
+test("a miss fetches ORS with lng,lat order, a 1 km snap radius and the key, then stores the row", async () => {
   const ctx = load({ fetchImpl: () => orsOk(1234, 987) });
   const result = await post(ctx, { legs: [leg(A, B, "drive")] });
   assert.deepEqual(result.body.legs, [{ meters: 1234, seconds: 987, geometry: "abc123", cached: false }]);
@@ -140,6 +140,8 @@ test("a miss fetches ORS with lng,lat order and the key, then stores the row", a
       [A.lng, A.lat],
       [B.lng, B.lat],
     ],
+    // ORS's default 350 m snap rejects stops away from roads (code 2010); 1 km lets them route.
+    radiuses: [1000, 1000],
   });
   assert.equal(ctx.calls.upserts.length, 1);
   assert.deepEqual(JSON.parse(JSON.stringify(ctx.calls.upserts[0].create)), {
