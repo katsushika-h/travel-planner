@@ -4,6 +4,9 @@ import {
   WALK_DETOUR_FACTOR,
   dayLegs,
   dayTotals,
+  dayHotels,
+  dayRouteStops,
+  isRoutable,
   isWalkable,
   MAX_WALK_METERS,
   estimateWalk,
@@ -51,6 +54,57 @@ test("notes are skipped and legs bridge across them", () => {
   const legs = dayLegs([item("a", 1, 1), item("n", 2, 2, { kind: "note" }), item("b", 1, 1.01)]);
   assert.equal(legs.length, 1);
   assert.deepEqual([legs[0].fromId, legs[0].toId], ["a", "b"]);
+});
+
+const stay = (id, date, endDate, extra = {}) =>
+  item(id, 1, 1, { type: "hotel", isAllDay: true, date, endDate, ...extra });
+
+test("dayHotels: last night's hotel starts the day and tonight's hotel ends it", () => {
+  const a = stay("A", "2026-11-29", "2026-12-01");
+  const b = stay("B", "2026-12-01T00:00:00.000Z", "2026-12-02");
+  const ids = (date) => {
+    const { morning, evening } = dayHotels([a, b], date);
+    return [morning?.id ?? null, evening?.id ?? null];
+  };
+  assert.deepEqual(ids("2026-11-29"), [null, "A"]); // check-in day
+  assert.deepEqual(ids("2026-11-30"), ["A", "A"]); // middle day
+  assert.deepEqual(ids("2026-12-01"), ["A", "B"]); // hotel change
+  assert.deepEqual(ids("2026-12-02"), ["B", null]); // check-out, last day
+});
+
+test("dayHotels ignores single-day hotels and non-hotel stays", () => {
+  const single = stay("S", "2026-11-29", "2026-11-29");
+  const open = stay("O", "2026-11-29", undefined);
+  const rental = stay("R", "2026-11-28", "2026-11-30", { type: "activity" });
+  assert.deepEqual(dayHotels([single, open, rental], "2026-11-29"), { morning: null, evening: null });
+});
+
+test("dayRouteStops: hotels anchor the ends; notes and other all-day items are not routed", () => {
+  const hotel = stay("H", "2026-11-29", "2026-12-01");
+  const day = [
+    hotel,
+    item("a", 1, 1),
+    item("beach", 1, 1, { isAllDay: true }),
+    item("n", 1, 1, { kind: "note" }),
+    item("b", 1, 1.01),
+  ];
+  const { morning, evening, stops } = dayRouteStops(day, "2026-11-30");
+  assert.equal(morning.id, "H");
+  assert.equal(evening.id, "H");
+  assert.deepEqual(
+    stops.map((stop) => stop.id),
+    ["H", "a", "b", "H"],
+  );
+  assert.deepEqual(
+    dayLegs(stops).map((leg) => `${leg.fromId}>${leg.toId}`),
+    ["H>a", "a>b", "b>H"],
+  );
+  assert.equal(isRoutable(day[2]), false);
+});
+
+test("dayLegs skips a hotel to itself when a day has no other stops", () => {
+  const hotel = stay("H", "2026-11-29", "2026-12-01");
+  assert.deepEqual(dayLegs(dayRouteStops([hotel], "2026-11-30").stops), []);
 });
 
 test("unmapped when coordinates are missing or invalid", () => {

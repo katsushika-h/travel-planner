@@ -18,7 +18,7 @@ import { eventItems, isNote } from "@/lib/note-domain";
 import { allDayDropStartDate, flexibleDisplayTimes, occursOnItineraryDate } from "@/lib/schedule-domain";
 import { compareScheduleOrder, isTimedItem, itineraryDropPosition } from "@/lib/schedule-order";
 import { displayTotals, drivePlanTotals, parkingSpots, type DisplayLeg, type TravelMode } from "@/lib/routed-legs";
-import { formatDuration } from "@/lib/travel-legs";
+import { dayRouteStops, formatDuration } from "@/lib/travel-legs";
 import { useTravelStore } from "@/store/use-travel-store";
 import type { TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
 import { DayStrip } from "./plan/DayStrip";
@@ -125,7 +125,16 @@ export function TripDaysView({
   const setTravelMode = useTravelStore((state) => state.setTravelMode);
   const overrides = useTravelStore((state) => state.legOverridesByTrip[trip.id]);
   const setLegOverride = useTravelStore((state) => state.setLegOverride);
-  const { legs, mapLegs, planned, estimatedNote } = useDayRoutes(dayItems, mode, overrides);
+  // Last night's hotel is pinned to the start of the day and tonight's to the end; the route runs between them.
+  const { morning, evening, stops: routeStops } = useMemo(() => dayRouteStops(dayItems, date), [dayItems, date]);
+  const middleRows = useMemo(
+    () =>
+      dayItems
+        .map((item, order) => ({ item, order }))
+        .filter(({ item }) => item.id !== morning?.id && item.id !== evening?.id),
+    [dayItems, morning, evening],
+  );
+  const { legs, mapLegs, planned, estimatedNote } = useDayRoutes(routeStops, mode, overrides);
   const legByFromId = useMemo(() => new Map(legs.map((leg) => [leg.fromId, leg])), [legs]);
   const nextTitles = useMemo(() => {
     const titles = new Map(dayItems.map((item) => [item.id, item.title]));
@@ -153,10 +162,9 @@ export function TripDaysView({
     for (const leg of planned) {
       if (leg.segments.some((segment) => segment.mode === "drive" && segment.role === "leg")) ids.add(leg.toId);
     }
-    const first = dayItems.find((item) => !isNote(item));
-    if (first) ids.add(first.id);
+    if (routeStops[0]) ids.add(routeStops[0].id);
     return ids;
-  }, [mode, planned, dayItems]);
+  }, [mode, planned, routeStops]);
   const parkingMarkers = useMemo(
     () =>
       mode === "drive"
@@ -167,7 +175,16 @@ export function TripDaysView({
   const setLegMode = (leg: DisplayLeg, next: TravelMode) =>
     setLegOverride(trip.id, `${leg.fromId}>${leg.toId}`, next === leg.defaultMode ? null : next);
   const events = useMemo(() => eventItems(dayItems), [dayItems]);
-  const numbers = useMemo(() => stopNumbers(events), [events]);
+  // Map numbers follow the rows as shown: start hotel, the day's stops, then tonight's hotel (once if it is the same).
+  const numbers = useMemo(
+    () =>
+      stopNumbers([
+        ...(morning ? [morning] : []),
+        ...eventItems(middleRows.map(({ item }) => item)),
+        ...(evening && evening.id !== morning?.id ? [evening] : []),
+      ]),
+    [morning, evening, middleRows],
+  );
   const flexTimes = useMemo(() => flexibleDisplayTimes(events), [events]);
   const mapped = useMemo(() => events.filter((item) => hasMapCoordinates(item.location)), [events]);
   const unmapped = events.filter((item) => !hasMapCoordinates(item.location));
@@ -269,6 +286,32 @@ export function TripDaysView({
     void onReorder(item, targetDate, requestedOrder, false);
   };
 
+  const renderStop = (item: TravelObject, order: number, anchor?: "start" | "end") => (
+    <StopRow
+      key={anchor ? `${item.id}:${date}:${anchor}` : undefined}
+      item={item}
+      date={date}
+      order={order}
+      number={numbers.get(item.id) ?? null}
+      flexTime={flexTimes.get(item.id)}
+      // The end row is where the day finishes; its hotel's outgoing leg belongs to the start row.
+      leg={anchor === "end" ? undefined : legByFromId.get(item.id)}
+      nextTitle={nextTitles.get(item.id)}
+      selected={selectedIds.has(item.id)}
+      primary={primarySelectedId === item.id}
+      expanded={expandedId === item.id}
+      hovered={hoveredId === item.id}
+      driveMode={mode === "drive"}
+      canFindParking={parkingOfferIds.has(item.id)}
+      anchor={anchor}
+      showParking={!(anchor === "end" && item.id === morning?.id)}
+      onChangeItem={onChangeItem}
+      onSetLegMode={setLegMode}
+      onPick={pickStop}
+      onEdit={editStop}
+      onHover={setHoveredId}
+    />
+  );
   const listLabel = formatTripDate(`${date}T12:00:00Z`, "UTC", { month: "long", day: "numeric" });
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-8 sm:px-12">
@@ -318,33 +361,11 @@ export function TripDaysView({
         <div className="mt-4 flex flex-col gap-12 md:mt-6 md:flex-row">
           <div className={`min-w-0 md:block md:flex-[1_1_520px] ${mobileSurface === "map" ? "hidden" : ""}`}>
             <ol aria-label={`Stops on ${listLabel}`} className="border-t border-foreground">
-              {dayItems.map((item, order) => (
+              {morning && renderStop(morning, dayItems.indexOf(morning), "start")}
+              {middleRows.map(({ item, order }) => (
                 <Fragment key={`${item.id}:${date}`}>
                   <AddGap label={`Add stop at position ${order + 1}`} onAdd={() => onCreateItem(date, order)} />
-                  {isNote(item) ? (
-                    <NoteBlock item={item} date={date} order={order} />
-                  ) : (
-                    <StopRow
-                      item={item}
-                      date={date}
-                      order={order}
-                      number={numbers.get(item.id) ?? null}
-                      flexTime={flexTimes.get(item.id)}
-                      leg={legByFromId.get(item.id)}
-                      nextTitle={nextTitles.get(item.id)}
-                      selected={selectedIds.has(item.id)}
-                      primary={primarySelectedId === item.id}
-                      expanded={expandedId === item.id}
-                      hovered={hoveredId === item.id}
-                      driveMode={mode === "drive"}
-                      canFindParking={parkingOfferIds.has(item.id)}
-                      onChangeItem={onChangeItem}
-                      onSetLegMode={setLegMode}
-                      onPick={pickStop}
-                      onEdit={editStop}
-                      onHover={setHoveredId}
-                    />
-                  )}
+                  {isNote(item) ? <NoteBlock item={item} date={date} order={order} /> : renderStop(item, order)}
                 </Fragment>
               ))}
               <EndSlot
@@ -353,6 +374,7 @@ export function TripDaysView({
                 empty={dayItems.length === 0}
                 onAdd={() => onCreateItem(date, dayItems.length)}
               />
+              {evening && renderStop(evening, dayItems.indexOf(evening), "end")}
             </ol>
           </div>
           {(mapVisible || mobileSurface === "map") && (

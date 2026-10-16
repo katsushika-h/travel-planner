@@ -103,6 +103,8 @@ export function StopRow({
   hovered,
   driveMode = false,
   canFindParking = false,
+  anchor,
+  showParking = true,
   onChangeItem,
   onSetLegMode,
   onPick,
@@ -126,6 +128,10 @@ export function StopRow({
   driveMode?: boolean;
   /** Whether a drive arrives here (or the car starts here), so a parking search is offered. */
   canFindParking?: boolean;
+  /** A hotel pinned to the start (last night's) or end (tonight's) of the day. It is not a drop target. */
+  anchor?: "start" | "end";
+  /** False on the end row when the same hotel already shows its parking on the start row. */
+  showParking?: boolean;
   onChangeItem?: (id: string, patch: UpdateTravelObjectInput, immediate?: boolean) => void;
   onSetLegMode?: (leg: DisplayLeg, mode: TravelMode) => void;
   onPick: (item: TravelObject, additive: boolean) => void;
@@ -137,24 +143,26 @@ export function StopRow({
     setNodeRef: setDragRef,
     isDragging,
   } = useDraggable({
-    id: `${item.id}:${date}`,
+    id: anchor === "end" ? `${item.id}:${date}:end` : `${item.id}:${date}`,
     data: { item, draggedDate: date },
   });
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `trip-row:${date}:${order}` });
+  // Pinned hotel rows sit outside the saved order, so dropping onto them would land in the wrong place.
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `trip-row:${date}:${order}`, disabled: !!anchor });
   const confirmed = isConfirmedTime(item);
   const cost =
     item.cost && typeof item.cost.amount === "number" ? formatPlannedCost(item.cost.amount, item.cost.currency) : "";
   const mapsHref = safeMapsHref(item.location);
   const accentWhenOpen = primary ? "text-accent" : null;
-  const timeLabel = stopTimeLabel(item, flexTime);
-  const bodyId = `plan-stop-${item.id}`;
+  const timeLabel = anchor === "start" ? "Start" : anchor === "end" ? "End" : stopTimeLabel(item, flexTime);
+  const idSuffix = anchor === "end" ? "-end" : "";
+  const bodyId = `plan-stop-${item.id}${idSuffix}`;
   return (
     <li
       ref={(node) => {
         setDragRef(node);
         setDropRef(node);
       }}
-      id={`plan-row-${item.id}`}
+      id={`plan-row-${item.id}${idSuffix}`}
       data-travel-object-id={item.id}
       onMouseEnter={() => onHover(item.id)}
       onMouseLeave={() => onHover(null)}
@@ -210,7 +218,9 @@ export function StopRow({
           </div>
         </div>
       )}
-      {driveMode && onChangeItem && <ParkingControl item={item} canFind={canFindParking} onChangeItem={onChangeItem} />}
+      {driveMode && showParking && onChangeItem && (
+        <ParkingControl item={item} canFind={canFindParking} onChangeItem={onChangeItem} />
+      )}
       {leg && (
         <LegLine
           leg={leg}
