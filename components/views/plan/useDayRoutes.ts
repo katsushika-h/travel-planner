@@ -27,6 +27,7 @@ const NO_OVERRIDES: Record<string, TravelMode> = {};
  * (with the car's position and saved parking) and routes every segment. Results are cached by mode and coordinates.
  */
 export function useDayRoutes(
+  /** The day's route stops in order (see `dayRouteStops`): hotels at the ends, no notes or all-day items between. */
   dayItems: TravelObject[],
   mode: TravelMode,
   overrides: Record<string, TravelMode> = NO_OVERRIDES,

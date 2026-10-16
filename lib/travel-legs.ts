@@ -49,13 +49,39 @@ function isTransfer(item: TravelObject) {
   return item.type === "commute" || item.type === "flight";
 }
 
-/** One leg per adjacent pair of a day's items (already in display order); notes are skipped. */
+/** Whether an item is a stop on the day's route: notes and all-day items are not travelled to. */
+export function isRoutable(item: Pick<TravelObject, "kind" | "isAllDay">) {
+  return item.kind !== "note" && !item.isAllDay;
+}
+
+/** A hotel stay spanning at least one night: type `hotel` whose `endDate` (the check-out day) is after its `date`. */
+function isHotelStay(item: TravelObject): item is TravelObject & { date: string; endDate: string } {
+  return item.type === "hotel" && !!item.date && !!item.endDate && item.endDate.slice(0, 10) > item.date.slice(0, 10);
+}
+
+/** Last night's hotel (the day starts there) and tonight's hotel (the day ends there), from the day's items. */
+export function dayHotels(items: readonly TravelObject[], date: string) {
+  const stays = items.filter(isHotelStay);
+  const morning = stays.find((stay) => stay.date.slice(0, 10) < date && date <= stay.endDate.slice(0, 10)) ?? null;
+  const evening = stays.find((stay) => stay.date.slice(0, 10) <= date && date < stay.endDate.slice(0, 10)) ?? null;
+  return { morning, evening };
+}
+
+/** The day's route in order: last night's hotel, the routable stops, then tonight's hotel. */
+export function dayRouteStops(items: readonly TravelObject[], date: string) {
+  const { morning, evening } = dayHotels(items, date);
+  const middle = items.filter((item) => item.id !== morning?.id && item.id !== evening?.id && isRoutable(item));
+  return { morning, evening, stops: [...(morning ? [morning] : []), ...middle, ...(evening ? [evening] : [])] };
+}
+
+/** One leg per adjacent pair of route stops (see `dayRouteStops`); notes are skipped, and so is a hotel to itself. */
 export function dayLegs(items: readonly TravelObject[]): TravelLeg[] {
   const stops = items.filter((item) => item.kind !== "note");
   const legs: TravelLeg[] = [];
   for (let i = 1; i < stops.length; i++) {
     const from = stops[i - 1];
     const to = stops[i];
+    if (from.id === to.id) continue;
     const ids = { fromId: from.id, toId: to.id };
     if (isTransfer(from) || isTransfer(to)) {
       legs.push({ ...ids, status: "transfer" });
