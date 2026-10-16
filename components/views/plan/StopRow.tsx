@@ -1,7 +1,9 @@
 "use client";
 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
+import type { TravelLeg } from "@/lib/travel-legs";
 import type { TravelObject } from "@/types/travel";
+import { LegLine } from "./LegLine";
 import { formatPlannedCost, isConfirmedTime, safeMapsHref, stopMeta, stopTimeLabel } from "./plan-domain";
 
 /** Hover-revealed insertion point between stops. Always visible on touch screens. */
@@ -92,6 +94,8 @@ export function StopRow({
   order,
   number,
   flexTime,
+  leg,
+  nextTitle,
   selected,
   primary,
   expanded,
@@ -106,6 +110,9 @@ export function StopRow({
   number: number | null;
   /** Display time for a flexible stop, derived from list order (see `flexibleDisplayTimes`). */
   flexTime?: string;
+  /** Walking estimate to the next stop, when there is one. */
+  leg?: TravelLeg;
+  nextTitle?: string;
   selected: boolean;
   primary: boolean;
   expanded: boolean;
@@ -192,7 +199,7 @@ export function StopRow({
           </div>
         </div>
       )}
-      {/* Reserved: a travel-time line (walking leg to the next stop) arrives with WS7 and renders here. */}
+      {leg && <LegLine leg={leg} nextTitle={nextTitle ?? "the next stop"} />}
     </li>
   );
 }

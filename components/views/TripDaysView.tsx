@@ -17,6 +17,7 @@ import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { eventItems, isNote } from "@/lib/note-domain";
 import { allDayDropStartDate, flexibleDisplayTimes, occursOnItineraryDate } from "@/lib/schedule-domain";
 import { compareScheduleOrder, isTimedItem, itineraryDropPosition } from "@/lib/schedule-order";
+import { dayLegs, dayTotals, formatDuration } from "@/lib/travel-legs";
 import type { TravelObject, Trip } from "@/types/travel";
 import { DayStrip } from "./plan/DayStrip";
 import { PlanMap } from "./plan/PlanMap";
@@ -114,6 +115,16 @@ export function TripDaysView({
     () => items.filter((item) => occursOnItineraryDate(item, date)).sort(compareScheduleOrder),
     [items, date],
   );
+  const legs = useMemo(() => dayLegs(dayItems), [dayItems]);
+  const legByFromId = useMemo(() => new Map(legs.map((leg) => [leg.fromId, leg])), [legs]);
+  const nextTitles = useMemo(() => {
+    const titles = new Map(dayItems.map((item) => [item.id, item.title]));
+    return new Map(legs.map((leg) => [leg.fromId, titles.get(leg.toId) ?? ""]));
+  }, [legs, dayItems]);
+  const walking = useMemo(() => {
+    if (!legs.some((leg) => leg.status === "ok")) return "";
+    return `~${formatDuration(dayTotals(legs).seconds)} walking`;
+  }, [legs]);
   const events = useMemo(() => eventItems(dayItems), [dayItems]);
   const numbers = useMemo(() => stopNumbers(events), [events]);
   const flexTimes = useMemo(() => flexibleDisplayTimes(events), [events]);
@@ -122,7 +133,7 @@ export function TripDaysView({
   // A multi-day item's planned cost belongs to its first day only, so day totals never double count it.
   const totals = plannedTotals(events.filter((item) => item.date?.slice(0, 10) === date));
   const weekday = formatTripDate(`${date}T12:00:00Z`, "UTC", { weekday: "long" });
-  const summary = [weekday, `${events.length} ${events.length === 1 ? "stop" : "stops"}`, totals.join(", ")]
+  const summary = [weekday, `${events.length} ${events.length === 1 ? "stop" : "stops"}`, totals.join(", "), walking]
     .filter(Boolean)
     .join(" · ");
 
@@ -257,6 +268,8 @@ export function TripDaysView({
                       order={order}
                       number={numbers.get(item.id) ?? null}
                       flexTime={flexTimes.get(item.id)}
+                      leg={legByFromId.get(item.id)}
+                      nextTitle={nextTitles.get(item.id)}
                       selected={selectedIds.has(item.id)}
                       primary={primarySelectedId === item.id}
                       expanded={expandedId === item.id}
