@@ -19,6 +19,7 @@ import { allDayDropStartDate, flexibleDisplayTimes, occursOnItineraryDate } from
 import { compareScheduleOrder, isTimedItem, itineraryDropPosition } from "@/lib/schedule-order";
 import { displayTotals, drivePlanTotals, parkingSpots, type DisplayLeg, type TravelMode } from "@/lib/routed-legs";
 import { dayRouteStops, formatDuration } from "@/lib/travel-legs";
+import { typeColor } from "@/lib/type-color";
 import { useTravelStore } from "@/store/use-travel-store";
 import type { TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
 import { IdeasPanel } from "./calendar/IdeasPanel";
@@ -308,6 +309,7 @@ export function TripDaysView({
       date={date}
       order={order}
       number={numbers.get(item.id) ?? null}
+      color={typeColor(item.type, typeColors)}
       flexTime={flexTimes.get(item.id)}
       // The end row is where the day finishes; its hotel's outgoing leg belongs to the start row.
       leg={anchor === "end" ? undefined : legByFromId.get(item.id)}

@@ -94,6 +94,7 @@ export function StopRow({
   date,
   order,
   number,
+  color,
   flexTime,
   leg,
   nextTitle,
@@ -115,6 +116,8 @@ export function StopRow({
   date: string;
   order: number;
   number: number | null;
+  /** Item type colour, shown as a stripe in the gutter left of the row. */
+  color: string;
   /** Display time for a flexible stop, derived from list order (see `flexibleDisplayTimes`). */
   flexTime?: string;
   /** Walking estimate to the next stop, when there is one. */
@@ -174,8 +177,9 @@ export function StopRow({
         aria-controls={expanded ? bodyId : undefined}
         onClick={(event) => onPick(item, event.shiftKey || event.metaKey || event.ctrlKey)}
         {...listeners}
-        className="grid w-full grid-cols-[76px_24px_minmax(0,1fr)_auto] items-baseline gap-x-3 py-5 in-data-[density=compact]:py-2 text-left focus-visible:outline-2 focus-visible:outline-foreground sm:grid-cols-[112px_28px_minmax(0,1fr)_auto] sm:gap-x-4"
+        className="relative grid w-full grid-cols-[76px_24px_minmax(0,1fr)_auto] items-baseline gap-x-3 py-5 in-data-[density=compact]:py-2 text-left focus-visible:outline-2 focus-visible:outline-foreground sm:grid-cols-[112px_28px_minmax(0,1fr)_auto] sm:gap-x-4"
       >
+        <span aria-hidden="true" className="absolute inset-y-0 -left-3 w-[3px]" style={{ backgroundColor: color }} />
         <span
           className={`font-mono font-light tracking-tight ${/^~?\d{2}:\d{2}$/.test(timeLabel) ? "text-xl sm:text-[28px] in-data-[density=compact]:text-base in-data-[density=compact]:sm:text-xl" : "text-base sm:text-xl in-data-[density=compact]:sm:text-base"} ${accentWhenOpen ?? (confirmed ? "text-foreground" : "text-muted")}`}
         >
