@@ -571,6 +571,7 @@ export function AppShell() {
                 <TripDaysView
                   trip={activeTrip}
                   items={items.filter((item) => item.date !== null)}
+                  ideas={events.filter((item) => item.date === null)}
                   typeColors={eventTypeColors}
                   selectedIds={selectedIds}
                   primarySelectedId={primarySelectedId}
@@ -579,9 +580,11 @@ export function AppShell() {
                   onSelectForDrag={(item) => selectItem(item, false, false)}
                   onMove={moveSelectedItemsToDay}
                   onReorder={reorderItem}
+                  onUnschedule={unscheduleSelectedItems}
                   onCreateItem={(date, order) =>
                     void openCreateItem(date, undefined, "unclassified", "(untitled event)", order)
                   }
+                  onCreateIdea={() => void openCreateItem()}
                   onChangeItem={changeItem}
                 />
               ) : activeTab === "table" ? (

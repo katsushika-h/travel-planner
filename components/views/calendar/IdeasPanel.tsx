@@ -52,7 +52,7 @@ export function IdeasPanel({
   typeColors,
   selectedIds,
   primarySelectedId,
-  besideTimeline,
+  position,
   onSelect,
   onAdd,
   onClose,
@@ -61,7 +61,8 @@ export function IdeasPanel({
   typeColors: Record<string, string>;
   selectedIds: ReadonlySet<string>;
   primarySelectedId: string | null;
-  besideTimeline: boolean;
+  /** Where the panel docks: the left edge, beside the Day view timeline, or the right edge (over the Plan map). */
+  position: "left" | "beside-timeline" | "right";
   onSelect: (item: TravelObject, additive?: boolean) => void;
   onAdd: () => void;
   onClose: () => void;
@@ -74,15 +75,15 @@ export function IdeasPanel({
   return (
     <aside
       ref={setNodeRef}
-      style={besideTimeline ? { left: "max(360px, 44%)" } : undefined}
-      className={`absolute inset-y-0 z-[60] flex w-[min(88vw,320px)] flex-col border-r border-divider bg-background shadow-[8px_0_24px_rgb(0_0_0/0.08)] dark:shadow-[8px_0_24px_rgb(0_0_0/0.5)] ${besideTimeline ? "" : "left-0"} ${isOver ? "ring-1 ring-inset ring-accent" : ""}`}
+      style={position === "beside-timeline" ? { left: "max(360px, 44%)" } : undefined}
+      className={`absolute inset-y-0 z-[60] flex w-[min(88vw,320px)] flex-col border-divider bg-background ${position === "right" ? "right-0 border-l shadow-[-8px_0_24px_rgb(0_0_0/0.08)] dark:shadow-[-8px_0_24px_rgb(0_0_0/0.5)]" : "border-r shadow-[8px_0_24px_rgb(0_0_0/0.08)] dark:shadow-[8px_0_24px_rgb(0_0_0/0.5)]"} ${position === "left" ? "left-0" : ""} ${isOver ? "ring-1 ring-inset ring-accent" : ""}`}
     >
       <div className="flex items-start justify-between gap-2 border-b border-foreground px-4 pb-3 pt-4">
         <div>
           <p className="text-[15px] font-medium">
             Ideas <span className="ml-1 font-mono text-sm font-normal text-muted">{items.length}</span>
           </p>
-          <p className="mt-1 text-xs text-muted">Items without a day. Drag one onto the calendar.</p>
+          <p className="mt-1 text-xs text-muted">Items without a day. Drag one onto a day.</p>
         </div>
         <button
           type="button"

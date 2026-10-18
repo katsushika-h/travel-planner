@@ -496,7 +496,7 @@ export function CalendarView({
                 typeColors={typeColors}
                 selectedIds={selectedIds}
                 primarySelectedId={primarySelectedId}
-                besideTimeline={mode === "day"}
+                position={mode === "day" ? "beside-timeline" : "left"}
                 onSelect={selectFromClick}
                 onAdd={() => onCreateItem()}
                 onClose={() => setIdeasOpen(false)}
