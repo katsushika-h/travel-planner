@@ -75,6 +75,7 @@ export function IdeasPanel({
   return (
     <aside
       ref={setNodeRef}
+      data-map-overlay
       style={position === "beside-timeline" ? { left: "max(360px, 44%)" } : undefined}
       className={`absolute inset-y-0 z-[60] flex w-[min(88vw,320px)] flex-col border-divider bg-background ${position === "right" ? "right-0 border-l shadow-[-8px_0_24px_rgb(0_0_0/0.08)] dark:shadow-[-8px_0_24px_rgb(0_0_0/0.5)]" : "border-r shadow-[8px_0_24px_rgb(0_0_0/0.08)] dark:shadow-[8px_0_24px_rgb(0_0_0/0.5)]"} ${position === "left" ? "left-0" : ""} ${isOver ? "ring-1 ring-inset ring-accent" : ""}`}
     >

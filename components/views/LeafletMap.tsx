@@ -13,15 +13,16 @@ function markerColor(type: string, colors: Record<string, string>) {
   return /^#[0-9a-f]{6}$/i.test(color) ? color : defaultTypeColor(type);
 }
 
-type MarkerState = "default" | "active" | "dimmed";
+type MarkerState = "default" | "active" | "dimmed" | "preview";
 
 /** Numbered stops are outlined circles; unnumbered stops are small type-colour dots. Colours come from theme tokens. */
 function markerIcon(color: string, number?: number, state: MarkerState = "default") {
   const numbered = number != null;
-  const size = state === "active" ? (numbered ? 36 : 22) : state === "dimmed" ? 10 : numbered ? 26 : 16;
+  const size =
+    state === "active" || state === "preview" ? (numbered ? 36 : 22) : state === "dimmed" ? 10 : numbered ? 26 : 16;
   return L.divIcon({
     className: "travel-map-marker",
-    html: `<span class="travel-map-pin" aria-hidden="true" data-numbered="${numbered}" data-active="${state === "active"}" data-dimmed="${state === "dimmed"}" style="--pin-type: ${color}">${numbered ? number : ""}</span>`,
+    html: `<span class="travel-map-pin" aria-hidden="true" data-numbered="${numbered}" data-active="${state === "active"}" data-dimmed="${state === "dimmed"}" data-preview="${state === "preview"}" style="--pin-type: ${color}">${numbered ? number : ""}</span>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -size / 2],
@@ -60,6 +61,23 @@ function parkingIcon() {
   });
 }
 
+/**
+ * How far floating panels marked `data-map-overlay` reach into the map from its left and right edges, so a fit can
+ * keep pins out from under them. A panel covering most of the map (a phone) is ignored.
+ */
+function overlayInsets(container: HTMLElement) {
+  const box = container.getBoundingClientRect();
+  let left = 0;
+  let right = 0;
+  for (const element of document.querySelectorAll("[data-map-overlay]")) {
+    const panel = element.getBoundingClientRect();
+    if (panel.bottom <= box.top || panel.top >= box.bottom) continue;
+    if (panel.left <= box.left && panel.right > box.left) left = Math.max(left, panel.right - box.left);
+    else if (panel.right >= box.right && panel.left < box.right) right = Math.max(right, box.right - panel.left);
+  }
+  return left + right > box.width - 160 ? { left: 0, right: 0 } : { left, right };
+}
+
 export type MapLeg = { id: string; positions: [number, number][]; mode: "walk" | "drive" };
 
 const ROUTE_ATTRIBUTION = 'Routes &copy; <a href="https://openrouteservice.org/">openrouteservice</a> by HeiGIT';
@@ -82,6 +100,8 @@ export interface LeafletMapProps {
   legs?: MapLeg[];
   /** Small "P" markers for saved car parks; they show a title tooltip and open nothing. */
   parkingMarkers?: MapParkingMarker[];
+  /** An item outside `items` (a selected idea) shown as a temporary dashed pin; the map frames it with the day. */
+  previewItem?: TravelObject | null;
   className?: string;
 }
 
@@ -100,6 +120,7 @@ export function LeafletMap({
   dimmedItemIds,
   legs,
   parkingMarkers,
+  previewItem = null,
   className = "min-h-[360px] flex-1",
 }: LeafletMapProps) {
   const theme = useResolvedTheme();
@@ -108,6 +129,7 @@ export function LeafletMap({
   const layerRef = useRef<L.LayerGroup | null>(null);
   const legLayerRef = useRef<L.LayerGroup | null>(null);
   const parkingLayerRef = useRef<L.LayerGroup | null>(null);
+  const previewLayerRef = useRef<L.LayerGroup | null>(null);
   const markersRef = useRef(new Map<string, Marker>());
   const callbacksRef = useRef({ onSelect, onHover, onUserMove });
   const lastFitRef = useRef("");
@@ -129,6 +151,7 @@ export function LeafletMap({
     const layer = L.layerGroup().addTo(map);
     legLayerRef.current = L.layerGroup().addTo(map);
     parkingLayerRef.current = L.layerGroup().addTo(map);
+    previewLayerRef.current = L.layerGroup().addTo(map);
     const markers = markersRef.current;
     mapRef.current = map;
     layerRef.current = layer;
@@ -150,6 +173,7 @@ export function LeafletMap({
       layerRef.current = null;
       legLayerRef.current = null;
       parkingLayerRef.current = null;
+      previewLayerRef.current = null;
       markers.clear();
       lastFitRef.current = "";
       lastSelectedItemRef.current = undefined;
@@ -220,6 +244,23 @@ export function LeafletMap({
     }
   }, [parkingMarkers, theme]);
 
+  const preview = previewItem && hasMapCoordinates(previewItem.location) ? previewItem : null;
+  useEffect(() => {
+    const layer = previewLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    if (!preview) return;
+    const popup = popupContent(preview);
+    popup.querySelector("button")?.remove();
+    L.marker([preview.location!.lat!, preview.location!.lng!], {
+      title: preview.title || "Untitled item",
+      icon: markerIcon(markerColor(preview.type, typeColors), undefined, "preview"),
+      zIndexOffset: 1000,
+    })
+      .bindPopup(popup)
+      .addTo(layer);
+  }, [preview, typeColors]);
+
   useEffect(() => {
     for (const item of items.filter((item) => hasMapCoordinates(item.location))) {
       const marker = markersRef.current.get(item.id);
@@ -258,21 +299,27 @@ export function LeafletMap({
     const map = mapRef.current;
     const located = items.filter((item) => hasMapCoordinates(item.location));
     const focused = located.filter((item) => !dimmedItemIds?.has(item.id));
-    const points = (focused.length ? focused : located).map(
+    const points = [...(focused.length ? focused : located), ...(preview ? [preview] : [])].map(
       (item) => [item.location!.lat!, item.location!.lng!] as [number, number],
     );
-    const nextFit = `${fitKey ?? "items"}:${recenterToken}`;
+    // Showing or clearing a preview pin reframes the day so the pin is seen in relation to its stops.
+    const nextFit = `${fitKey ?? "items"}:${recenterToken}:${preview?.id ?? ""}`;
     if (!map || lastFitRef.current === nextFit) return;
     lastFitRef.current = nextFit;
     const timer = window.setTimeout(() => {
       map.invalidateSize({ pan: false });
       if (!points.length) return;
       programmaticMoveRef.current = true;
-      if (points.length === 1) map.setView(points[0], 14, { animate: true });
-      else map.fitBounds(points, { padding: [48, 48], maxZoom: 15, animate: true });
+      const inset = overlayInsets(map.getContainer());
+      map.fitBounds(points, {
+        paddingTopLeft: [48 + inset.left, 48],
+        paddingBottomRight: [48 + inset.right, 48],
+        maxZoom: points.length === 1 ? 14 : 15,
+        animate: true,
+      });
     }, 140);
     return () => window.clearTimeout(timer);
-  }, [dimmedItemIds, fitKey, items, recenterToken]);
+  }, [dimmedItemIds, fitKey, items, preview, recenterToken]);
 
   return <div ref={containerRef} className={`travel-leaflet-map relative z-0 isolate text-sm ${className}`} />;
 }

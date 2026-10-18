@@ -315,6 +315,11 @@
   box-shadow: none;
   font-size: 13px;
 }
+.travel-map-pin[data-preview="true"] {
+  background: var(--pin-type);
+  border: 2px dashed var(--ink);
+  box-shadow: 0 0 0 2px var(--background);
+}
 .travel-map-pin[data-dimmed="true"] {
   background: var(--faint);
   border: 2px solid var(--background);

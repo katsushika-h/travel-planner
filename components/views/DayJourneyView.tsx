@@ -439,6 +439,7 @@ export function DayJourneyView({
   onSelect,
   onInspect,
   onCreateItem,
+  previewItem,
 }: {
   onCreateNote: (date: string, order: number) => Promise<string | undefined>;
   onSaveNote: (id: string, data: { title: string; noteBody: string }) => Promise<void>;
@@ -453,6 +454,8 @@ export function DayJourneyView({
   onSelect: (item: TravelObject, additive?: boolean) => void;
   onInspect: (item: TravelObject) => void;
   onCreateItem: (date: string, order: number) => void;
+  /** A selected idea shown as a temporary pin on the day map. */
+  previewItem?: TravelObject | null;
 }) {
   const [noteFocusId, setNoteFocusId] = useState<string | null>(null);
   const [noteCreateError, setNoteCreateError] = useState("");
@@ -749,6 +752,7 @@ export function DayJourneyView({
               fitKey={activeDate}
               recenterToken={recenterToken}
               onUserMove={() => setMapMoved(true)}
+              previewItem={previewItem}
               className="min-h-72 flex-1"
             />
           )}

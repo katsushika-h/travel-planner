@@ -537,6 +537,7 @@ export function CalendarView({
                 onSelect={selectDayItem}
                 onInspect={onInspect}
                 onCreateItem={(date, order) => onCreateItem(date, undefined, undefined, "(untitled event)", order)}
+                previewItem={ideasOpen ? (ideas.find((idea) => idea.id === primarySelectedId) ?? null) : null}
               />
             )}
           </div>

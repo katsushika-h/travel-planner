@@ -198,6 +198,8 @@ export function TripDaysView({
   );
   const flexTimes = useMemo(() => flexibleDisplayTimes(events), [events]);
   const mapped = useMemo(() => events.filter((item) => hasMapCoordinates(item.location)), [events]);
+  // The idea selected in the open Ideas panel gets a temporary pin on the day map.
+  const previewIdea = ideasOpen ? (ideas.find((idea) => idea.id === primarySelectedId) ?? null) : null;
   const unmapped = events.filter((item) => !hasMapCoordinates(item.location));
   // A multi-day item's planned cost belongs to its first day only, so day totals never double count it.
   const totals = plannedTotals(events.filter((item) => item.date?.slice(0, 10) === date));
@@ -449,6 +451,7 @@ export function TripDaysView({
                   onAddLink={unmapped[0] ? () => editStop(unmapped[0]) : undefined}
                   legs={mapLegs}
                   parkingMarkers={parkingMarkers}
+                  previewItem={previewIdea}
                 />
               </div>
             )}
