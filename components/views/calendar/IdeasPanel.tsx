@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { X } from "lucide-react";
 import { typeColor } from "@/lib/type-color";
@@ -27,6 +27,7 @@ function IdeaCard({
       ref={setNodeRef}
       {...attributes}
       {...listeners}
+      data-idea-id={item.id}
       type="button"
       onClick={(event) => {
         event.stopPropagation();
@@ -72,6 +73,21 @@ export function IdeasPanel({
   const filtered = items.filter((item) =>
     `${item.title} ${item.type} ${item.location?.name ?? ""}`.toLowerCase().includes(query.toLowerCase()),
   );
+  // Type-ahead: a letter moves to the next idea whose title starts with it, wrapping around the list.
+  function jumpToLetter(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.altKey || event.ctrlKey || event.metaKey || !/^[\p{L}\p{N}]$/u.test(event.key)) return;
+    // Consume the key so it never also triggers a view shortcut.
+    event.preventDefault();
+    const letter = event.key.toLocaleLowerCase();
+    const focusedId = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.ideaId : undefined;
+    const current = filtered.findIndex((item) => item.id === (focusedId ?? primarySelectedId));
+    const match = [...filtered.slice(current + 1), ...filtered.slice(0, current + 1)].find((item) =>
+      item.title.trim().toLocaleLowerCase().startsWith(letter),
+    );
+    if (!match) return;
+    onSelect(match);
+    event.currentTarget.querySelector<HTMLElement>(`[data-idea-id="${match.id}"]`)?.focus();
+  }
   return (
     <aside
       ref={setNodeRef}
@@ -104,7 +120,7 @@ export function IdeasPanel({
           className="h-9 w-full border-b border-input-rule bg-transparent text-sm outline-none placeholder:text-faint focus:border-foreground"
         />
       </label>
-      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-4" onKeyDown={jumpToLetter}>
         {filtered.map((item) => (
           <IdeaCard
             key={item.id}
