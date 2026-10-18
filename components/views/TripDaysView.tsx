@@ -219,6 +219,12 @@ export function TripDaysView({
     setRecenterToken((token) => token + 1);
   }
 
+  // From `md` the Ideas panel takes a column beside the map, so the narrower or wider map refits the day.
+  function toggleIdeas(open: boolean) {
+    setIdeasOpen(open);
+    if (!mapMoved) setRecenterToken((token) => token + 1);
+  }
+
   function pickStop(item: TravelObject, additive: boolean) {
     if (suppressClickRef.current) return;
     if (additive) {
@@ -331,11 +337,11 @@ export function TripDaysView({
   );
   const listLabel = formatTripDate(`${date}T12:00:00Z`, "UTC", { month: "long", day: "numeric" });
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col md:flex-row">
       <DndContext
         sensors={sensors}
         collisionDetection={(args) => {
-          // The Ideas panel floats over the page, so it wins over the rows and day buttons beneath it.
+          // On phones the Ideas panel floats over the page, so it wins over the rows and day buttons beneath it.
           const hits = pointerWithin(args);
           return hits
             .filter((hit) => hit.id === "unscheduled")
@@ -360,11 +366,15 @@ export function TripDaysView({
               if (!suppressClickRef.current) onSelect(item, additive);
             }}
             onAdd={onCreateIdea}
-            onClose={() => setIdeasOpen(false)}
+            onClose={() => toggleIdeas(false)}
           />
         )}
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-8 sm:px-12">
-          <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 bg-background px-4 pt-3 sm:-mx-12 sm:px-12 sm:pt-4">
+        <div
+          className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-4 pb-8 sm:px-12 ${ideasOpen ? "md:px-6 xl:px-12" : ""}`}
+        >
+          <div
+            className={`sticky top-0 z-20 -mx-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 bg-background px-4 pt-3 sm:-mx-12 sm:px-12 sm:pt-4 ${ideasOpen ? "md:-mx-6 md:px-6 xl:-mx-12 xl:px-12" : ""}`}
+          >
             <DayStrip days={days} activeDate={date} today={today} onPick={pickDay} />
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
               <p>{summary}</p>
@@ -385,7 +395,7 @@ export function TripDaysView({
               <button
                 type="button"
                 aria-pressed={ideasOpen}
-                onClick={() => setIdeasOpen((open) => !open)}
+                onClick={() => toggleIdeas(!ideasOpen)}
                 className={`min-h-8 text-xs ${ideasOpen ? "text-foreground" : "text-muted hover:text-foreground"}`}
               >
                 Ideas <span className="font-mono">{ideas.length}</span>
@@ -405,8 +415,11 @@ export function TripDaysView({
               ))}
             </div>
           </div>
-          <div className="mt-4 flex flex-col gap-12 md:mt-6 md:flex-row">
-            <div className={`min-w-0 md:block md:flex-[1_1_520px] ${mobileSurface === "map" ? "hidden" : ""}`}>
+          {/* With Ideas beside them, the list keeps room for its stop rows and the map takes the rest. */}
+          <div className={`mt-4 flex flex-col gap-12 md:mt-6 md:flex-row ${ideasOpen ? "md:gap-8" : ""}`}>
+            <div
+              className={`min-w-0 md:block ${ideasOpen ? "md:flex-[1_1_380px] lg:flex-[1_0_380px]" : "md:flex-[1_1_520px]"} ${mobileSurface === "map" ? "hidden" : ""}`}
+            >
               <ol aria-label={`Stops on ${listLabel}`} className="border-t border-foreground">
                 {morning && renderStop(morning, dayItems.indexOf(morning), "start")}
                 {middleRows.map(({ item, order }) => (
@@ -426,7 +439,7 @@ export function TripDaysView({
             </div>
             {(mapVisible || mobileSurface === "map") && (
               <div
-                className={`min-w-0 md:sticky md:top-28 md:block md:flex-[1_1_420px] md:self-start ${mobileSurface === "list" ? "hidden" : ""}`}
+                className={`min-w-0 md:sticky md:top-28 md:block md:flex-[1_1_420px] md:self-start ${ideasOpen ? "md:min-w-60" : ""} ${mobileSurface === "list" ? "hidden" : ""}`}
               >
                 <PlanMap
                   trip={trip}
