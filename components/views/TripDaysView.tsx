@@ -121,6 +121,32 @@ export function TripDaysView({
     return () => media.removeEventListener("change", update);
   }, []);
 
+  // Space toggles the Ideas panel, as in the Calendar, unless typing or a dialog is open.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (
+        event.code !== "Space" ||
+        event.defaultPrevented ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        document.querySelector('[role="dialog"][aria-modal="true"]')
+      )
+        return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
+      )
+        return;
+      event.preventDefault();
+      setIdeasOpen((open) => !open);
+      if (!mapMoved) setRecenterToken((token) => token + 1);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mapMoved]);
+
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 3 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
@@ -395,6 +421,7 @@ export function TripDaysView({
               <button
                 type="button"
                 aria-pressed={ideasOpen}
+                title="Ideas (Space)"
                 onClick={() => toggleIdeas(!ideasOpen)}
                 className={`min-h-8 text-xs ${ideasOpen ? "text-foreground" : "text-muted hover:text-foreground"}`}
               >
