@@ -20,6 +20,7 @@ import { compareScheduleOrder, isTimedItem, itineraryDropPosition } from "@/lib/
 import { displayTotals, drivePlanTotals, parkingSpots, type DisplayLeg, type TravelMode } from "@/lib/routed-legs";
 import { dayRouteStops, formatDuration } from "@/lib/travel-legs";
 import { typeColor } from "@/lib/type-color";
+import { setWorkingDay, workingDay } from "@/lib/working-day";
 import { useTravelStore } from "@/store/use-travel-store";
 import type { TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
 import { IdeasPanel } from "./calendar/IdeasPanel";
@@ -29,14 +30,11 @@ import { plannedTotals, stopMeta, stopNumbers, stopTimeLabel, tripDays } from ".
 import { AddGap, EndSlot, NoteBlock, StopRow } from "./plan/StopRow";
 import { useDayRoutes } from "./plan/useDayRoutes";
 
-/** Remembers the day each trip was last viewed so switching views and back keeps the place. */
-const lastViewedDate = new Map<string, string>();
-
 function initialDate(trip: Trip, days: string[], items: TravelObject[], primaryId: string | null) {
   const primary = primaryId ? items.find((item) => item.id === primaryId) : null;
   const primaryDate = primary?.date?.slice(0, 10);
   if (primaryDate && days.includes(primaryDate)) return primaryDate;
-  const remembered = lastViewedDate.get(trip.id);
+  const remembered = workingDay(trip.id);
   if (remembered && days.includes(remembered)) return remembered;
   const today = dateParts(new Date(), trip.timezone).date;
   return days.includes(today) ? today : days[0];
@@ -112,7 +110,7 @@ export function TripDaysView({
   }
 
   useEffect(() => {
-    lastViewedDate.set(trip.id, date);
+    setWorkingDay(trip.id, date);
   }, [trip.id, date]);
 
   useEffect(() => {
