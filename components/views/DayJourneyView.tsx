@@ -21,6 +21,7 @@ import { formatTripDate, shiftDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { flexibleDisplayTimes, itemDateSpan } from "@/lib/schedule-domain";
 import { sameDayGapOrder, sortDayDisplayItems } from "@/lib/schedule-order";
+import { dayHotels } from "@/lib/travel-legs";
 import { typeColor } from "@/lib/type-color";
 import { formatPlannedCost, stopNumbers } from "@/components/views/plan/plan-domain";
 import type { LocationData, TravelObject, Trip } from "@/types/travel";
@@ -102,8 +103,24 @@ function DayItemDrop({ date, order, children }: { date: string; order: number; c
   );
 }
 
+/** A day's items split around its hotels, as in the Plan view: last night's first, tonight's last. */
+function dayAnchors(items: TravelObject[], date: string) {
+  const { morning, evening } = dayHotels(items, date);
+  const middle = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => item.id !== morning?.id && item.id !== evening?.id);
+  // Numbers follow the cards as shown; a hotel kept for both nights is numbered once.
+  const numbers = stopNumbers([
+    ...(morning ? [morning] : []),
+    ...eventItems(middle.map(({ item }) => item)),
+    ...(evening && evening.id !== morning?.id ? [evening] : []),
+  ]);
+  return { morning, evening, middle, numbers };
+}
+
 /** Large mono start time in the Plan list: confirmed start, `~` derived time for flexible items, or a label. */
-function timeLabel(item: TravelObject, flexibleTime?: string) {
+function timeLabel(item: TravelObject, flexibleTime?: string, anchor?: "start" | "end") {
+  if (anchor) return { text: anchor === "start" ? "Start" : "End", flexible: false, small: true };
   if (item.isAllDay) return { text: "All day", flexible: false, small: true };
   if (item.startTime && item.endTime) return { text: item.startTime, flexible: false, small: false };
   if (flexibleTime) return { text: `~${flexibleTime}`, flexible: true, small: false };
@@ -119,6 +136,7 @@ const JourneyCard = memo(function JourneyCard({
   selected,
   primary,
   highlighted,
+  anchor,
   onSelect,
   onInspect,
   onHover,
@@ -131,16 +149,18 @@ const JourneyCard = memo(function JourneyCard({
   selected: boolean;
   primary: boolean;
   highlighted: boolean;
+  /** A hotel pinned to the start (last night's) or end (tonight's) of the day. */
+  anchor?: "start" | "end";
   onSelect: (item: TravelObject, additive?: boolean) => void;
   onInspect: (item: TravelObject) => void;
   onHover: (itemId: string | null) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `agenda:${date}:${item.id}`,
+    id: anchor === "end" ? `agenda:${date}:${item.id}:end` : `agenda:${date}:${item.id}`,
     data: { item, draggedDate: date },
   });
   const location = item.location?.name ?? item.location?.address;
-  const time = timeLabel(item, flexTime);
+  const time = timeLabel(item, flexTime, anchor);
   const cost = item.cost?.amount != null ? formatPlannedCost(item.cost.amount, item.cost.currency) : null;
   const detail = [
     item.type.charAt(0).toUpperCase() + item.type.slice(1),
@@ -151,7 +171,7 @@ const JourneyCard = memo(function JourneyCard({
   const active = primary || highlighted;
   return (
     <article
-      id={`day-card-${item.id}`}
+      id={anchor === "end" ? `day-card-${item.id}-end` : `day-card-${item.id}`}
       ref={setNodeRef}
       style={style}
       onDoubleClick={(event) => {
@@ -287,9 +307,27 @@ function DateSection({
     id: `day-section:${date}:${gapOrder(items.length)}`,
   });
   const events = eventItems(items);
-  const numbers = stopNumbers(events);
+  const { morning, evening, middle, numbers } = dayAnchors(items, date);
   const flexTimes = flexibleDisplayTimes(events);
   const fixedCount = items.filter((item) => item.startTime && item.endTime && !item.isAllDay).length;
+  // Pinned hotel cards sit outside the saved order, so they are not drop targets.
+  const renderCard = (item: TravelObject, anchor?: "start" | "end") => (
+    <JourneyCard
+      key={anchor ? `${item.id}:${anchor}` : undefined}
+      item={item}
+      date={date}
+      number={numbers.get(item.id) ?? null}
+      flexTime={flexTimes.get(item.id)}
+      color={typeColor(item.type, typeColors)}
+      selected={selectedIds.has(item.id)}
+      primary={primarySelectedId === item.id}
+      highlighted={highlightedItemId === item.id}
+      anchor={anchor}
+      onSelect={onSelect}
+      onInspect={onInspect}
+      onHover={onHover}
+    />
+  );
   return (
     <section
       ref={(node) => {
@@ -335,8 +373,9 @@ function DateSection({
         </div>
       </header>
       <div className="px-4 pt-1 sm:px-6">
-        {items.length ? (
-          items.map((item, index) => (
+        {morning && renderCard(morning, "start")}
+        {middle.length ? (
+          middle.map(({ item, index }) => (
             <div key={item.id}>
               <DropGap
                 date={date}
@@ -354,19 +393,7 @@ function DateSection({
                     onDelete={() => onDeleteNote(item)}
                   />
                 ) : (
-                  <JourneyCard
-                    item={item}
-                    date={date}
-                    number={numbers.get(item.id) ?? null}
-                    flexTime={flexTimes.get(item.id)}
-                    color={typeColor(item.type, typeColors)}
-                    selected={selectedIds.has(item.id)}
-                    primary={primarySelectedId === item.id}
-                    highlighted={highlightedItemId === item.id}
-                    onSelect={onSelect}
-                    onInspect={onInspect}
-                    onHover={onHover}
-                  />
+                  renderCard(item)
                 )}
               </DayItemDrop>
             </div>
@@ -384,7 +411,7 @@ function DateSection({
             </div>
           </div>
         )}
-        {items.length > 0 && (
+        {middle.length > 0 && (
           <DropGap
             date={date}
             order={gapOrder(items.length)}
@@ -392,6 +419,7 @@ function DateSection({
             onAddNote={() => onAddNote(date, gapOrder(items.length))}
           />
         )}
+        {evening && renderCard(evening, "end")}
       </div>
     </section>
   );
@@ -583,7 +611,10 @@ export function DayJourneyView({
 
   const activeItems = useMemo(() => eventItems(grouped.get(activeDate) ?? []), [activeDate, grouped]);
   const mappedItems = activeItems.filter((item) => hasMapCoordinates(item.location));
-  const markerNumbers = useMemo(() => stopNumbers(activeItems), [activeItems]);
+  const markerNumbers = useMemo(
+    () => dayAnchors(grouped.get(activeDate) ?? [], activeDate).numbers,
+    [activeDate, grouped],
+  );
 
   function selectFromMap(item: TravelObject) {
     onSelect(item);
