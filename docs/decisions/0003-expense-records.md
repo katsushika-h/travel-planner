@@ -6,4 +6,4 @@
 
 **Why:** An item cost does not prove that payment occurred. Separate records prevent planned and actual totals from being double-counted. Decimal strings preserve entered monetary values through the API and avoid binary floating-point addition in expense summaries.
 
-**Consequences:** Clients must send positive amount strings with at most ten whole and three fractional digits. The first release has fixed categories and no budget targets, split payments, refunds, exchange rates, or receipt uploads. Existing cost data and schedule APIs remain unchanged.
+**Consequences:** Clients must send positive amount strings with at most ten whole and three fractional digits. The first release has fixed categories and no budget targets, split payments, refunds, exchange rates, or receipt uploads. Existing cost data and schedule APIs remain unchanged. Advance bookings such as flights and hotels are logged as expenses dated before the trip and shown together with on-trip spending; item `cost` is never counted for them.

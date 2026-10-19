@@ -4,14 +4,15 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { LoaderCircle, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { SpendDashboard } from "@/components/views/expenses/SpendDashboard";
 import { api } from "@/lib/api-client";
 import {
   decimalToThousandths,
   EXPENSE_CATEGORIES,
+  expenseDashboard,
   expenseTotals,
   formatExpenseAmount,
   plannedCostTotals,
-  thousandthsToDecimal,
 } from "@/lib/expense-domain";
 import type { CreateExpenseInput, Expense, ExpenseCategory, TravelObject, Trip } from "@/types/travel";
 
@@ -74,7 +75,7 @@ export function ExpensesView({
   const [categoryFilter, setCategoryFilter] = useState("");
   const [currencyFilter, setCurrencyFilter] = useState("");
   const [sort, setSort] = useState<"newest" | "oldest" | "highest">("newest");
-  const [categoryCurrency, setCategoryCurrency] = useState("");
+  const [dashCurrency, setDashCurrency] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -109,27 +110,13 @@ export function ExpensesView({
     () => new Map(planned.map(({ currency, amount }) => [currency, amount])),
     [planned],
   );
-  const activeCategoryCurrency = totals.currencies.some(({ currency }) => currency === categoryCurrency)
-    ? categoryCurrency
+  const activeCurrency = totals.currencies.some(({ currency }) => currency === dashCurrency)
+    ? dashCurrency
     : (totals.currencies[0]?.currency ?? "");
-  const categoryRows = useMemo(() => {
-    const amounts = new Map(
-      totals.categories
-        .filter(({ currency }) => currency === activeCategoryCurrency)
-        .map(({ category, amount }) => [category, decimalToThousandths(amount)]),
-    );
-    const zero = BigInt(0);
-    const max = [...amounts.values()].reduce((largest, value) => (value > largest ? value : largest), zero);
-    return EXPENSE_CATEGORIES.map((category) => {
-      const value = amounts.get(category) ?? zero;
-      return {
-        category,
-        amount: value > zero ? thousandthsToDecimal(value) : null,
-        width: max > zero ? Number((value * BigInt(1000)) / max) / 10 : 0,
-        value,
-      };
-    }).sort((left, right) => (left.value === right.value ? 0 : left.value > right.value ? -1 : 1));
-  }, [activeCategoryCurrency, totals.categories]);
+  const dashboard = useMemo(
+    () => (activeCurrency ? expenseDashboard(expenses, trip, activeCurrency, todayInTimeZone(trip.timezone)) : null),
+    [activeCurrency, expenses, trip],
+  );
   const visibleExpenses = useMemo(() => {
     const search = query.trim().toLocaleLowerCase();
     return expenses
@@ -238,7 +225,7 @@ export function ExpensesView({
     <section className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-8 pt-4 sm:px-12 sm:pt-6">
       <div className="flex items-center justify-between gap-3">
         <h1 className="sr-only">Spend</h1>
-        <p className="min-w-0 text-[13px] text-muted">Actual spending for {trip.title}.</p>
+        <p className="min-w-0 text-[13px] text-muted">Everything spent on {trip.title}, before and during the trip.</p>
         <Button
           type="button"
           size="lg"
@@ -260,46 +247,24 @@ export function ExpensesView({
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap gap-x-16 gap-y-6 pb-8 pt-8 sm:pt-10">
-            {loadError ? (
-              <div role="alert">
-                <p className="text-sm text-danger">{loadError}</p>
-                <Button type="button" variant="outline" onClick={retryExpenseLoad} className="mt-3 min-h-11 px-3">
-                  Retry loading expenses
-                </Button>
-              </div>
-            ) : (
-              <>
-                {totals.currencies.map(({ currency, amount }) => {
-                  const plannedAmount = plannedByCurrency.get(currency);
-                  return (
-                    <div key={currency} className="flex flex-col gap-1.5">
-                      <span className="text-[13px] text-muted">Spent so far · {currency}</span>
-                      <span className="font-mono text-[34px] font-light tracking-[-0.03em] sm:text-[44px]">
-                        {formatExpenseAmount(amount, currency)}
-                      </span>
-                      {plannedAmount != null && (
-                        <span className="text-[13px] text-muted">
-                          of {formatExpenseAmount(plannedAmount, currency)} planned in the itinerary
-                          {Number(amount) > plannedAmount && (
-                            <span className="text-accent">
-                              {" "}
-                              · {formatExpenseAmount(Number(amount) - plannedAmount, currency)} over
-                            </span>
-                          )}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-                {!totals.currencies.length && <p className="text-sm text-muted">No expenses recorded yet.</p>}
-                <p className="max-w-md flex-1 basis-60 self-end text-[13px] leading-normal text-muted">
-                  Each currency is totalled on its own. Nothing is converted, and planned costs are never added to
-                  actual spend.
-                </p>
-              </>
-            )}
-          </div>
+          {loadError ? (
+            <div role="alert" className="pb-8 pt-8">
+              <p className="text-sm text-danger">{loadError}</p>
+              <Button type="button" variant="outline" onClick={retryExpenseLoad} className="mt-3 min-h-11 px-3">
+                Retry loading expenses
+              </Button>
+            </div>
+          ) : dashboard ? (
+            <SpendDashboard
+              dashboard={dashboard}
+              currencies={totals.currencies.map(({ currency }) => currency)}
+              onCurrency={setDashCurrency}
+              planned={plannedByCurrency.get(activeCurrency)}
+              itemTitles={itemTitles}
+            />
+          ) : (
+            <p className="pb-8 pt-8 text-sm text-muted">No expenses recorded yet.</p>
+          )}
           {!loadError && formOpen && (
             <form
               ref={expenseFormRef}
@@ -420,43 +385,7 @@ export function ExpensesView({
             </form>
           )}
           {!loadError && (
-            <div className="flex flex-col gap-10 lg:flex-row lg:gap-16">
-              {totals.currencies.length > 0 && (
-                <section
-                  aria-label={`Spend by category in ${activeCategoryCurrency}`}
-                  className="shrink-0 self-stretch border-t border-foreground lg:w-80 lg:max-w-[380px] lg:self-start"
-                >
-                  <div className="flex items-baseline justify-between pb-2 pt-3">
-                    <h2 className="text-[15px] font-medium">By category</h2>
-                    <div className="flex gap-4 text-[13px]">
-                      {totals.currencies.map(({ currency }) => (
-                        <button
-                          key={currency}
-                          type="button"
-                          aria-pressed={currency === activeCategoryCurrency}
-                          onClick={() => setCategoryCurrency(currency)}
-                          className={`min-h-8 px-0.5 max-sm:min-h-11 max-sm:min-w-11 ${currency === activeCategoryCurrency ? "font-medium shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted hover:text-foreground"}`}
-                        >
-                          {currency}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {categoryRows.map(({ category, amount, width }) => (
-                    <div key={category} className="flex flex-col gap-1.5 border-b border-divider py-3">
-                      <div className="flex justify-between gap-3 text-sm">
-                        <span>{categoryName(category)}</span>
-                        <span className="font-mono text-[13px]">
-                          {amount ? formatExpenseAmount(amount, activeCategoryCurrency) : "—"}
-                        </span>
-                      </div>
-                      <div className="h-0.5 bg-surface">
-                        <div className="h-0.5 bg-foreground" style={{ width: `${width}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </section>
-              )}
+            <div>
               <section aria-label="Expenses" className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-t border-foreground pt-3">
                   <p className="text-xs text-muted">
@@ -554,6 +483,9 @@ export function ExpensesView({
                               {expense.description}
                               {expense.notes && (
                                 <span className="mt-0.5 block text-xs font-normal text-muted">{expense.notes}</span>
+                              )}
+                              {expense.date < trip.startDate.slice(0, 10) && (
+                                <span className="mt-0.5 block text-xs font-normal text-muted">Booked before trip</span>
                               )}
                             </span>
                             <span className="text-muted max-lg:hidden">{categoryName(expense.category)}</span>
