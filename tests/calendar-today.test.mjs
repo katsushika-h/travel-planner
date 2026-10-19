@@ -56,6 +56,7 @@ function calendar(initialMode, start, end, today) {
           return { ...dates, dateParts: () => ({ date: today }), formatTripDate: () => "Date" };
         if (name === "@/lib/note-domain") return notes;
         if (name === "@/lib/schedule-domain") return schedule;
+        if (name === "@/lib/working-day") return { workingDay: () => undefined, setWorkingDay() {} };
         if (name === "@dnd-kit/core") return { useSensors: () => [], useSensor: () => null };
         if (name === "./calendar/WeekPlanner") return { WeekPlanner };
         return {};

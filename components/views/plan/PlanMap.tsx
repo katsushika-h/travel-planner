@@ -28,6 +28,7 @@ export function PlanMap({
   onAddLink,
   legs,
   parkingMarkers,
+  previewItem,
 }: {
   trip: Trip;
   date: string;
@@ -48,6 +49,8 @@ export function PlanMap({
   legs?: LeafletMapProps["legs"];
   /** Saved car parks to mark with a "P". */
   parkingMarkers?: LeafletMapProps["parkingMarkers"];
+  /** A selected idea shown as a temporary pin. */
+  previewItem?: TravelObject | null;
 }) {
   const note = "bg-background/90 px-2 py-1 text-xs text-muted";
   return (
@@ -66,6 +69,7 @@ export function PlanMap({
         onSelect={onSelect}
         legs={legs}
         parkingMarkers={parkingMarkers}
+        previewItem={previewItem}
         fitKey={date}
         recenterToken={recenterToken}
         onUserMove={onUserMove}

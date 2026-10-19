@@ -163,6 +163,7 @@ export function TableView({
   onSelectionChange,
   onChangeItems,
   onDeleteSelected,
+  onDuplicateSelected,
 }: {
   trip: Trip;
   items: TravelObject[];
@@ -178,6 +179,7 @@ export function TableView({
     immediate?: boolean,
   ) => void;
   onDeleteSelected?: (ids: string[]) => void;
+  onDuplicateSelected?: (ids: string[]) => void;
 }) {
   const [sortKey, setSortKey] = useState<SortKey>("startDate");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -517,6 +519,15 @@ export function TableView({
             <button type="button" onClick={bulkUnschedule} className="py-1 hover:text-muted">
               Unschedule
             </button>
+            {onDuplicateSelected && (
+              <button
+                type="button"
+                onClick={() => onDuplicateSelected(selectedItemIds)}
+                className="py-1 hover:text-muted"
+              >
+                Duplicate
+              </button>
+            )}
             {onDeleteSelected && (
               <button
                 type="button"

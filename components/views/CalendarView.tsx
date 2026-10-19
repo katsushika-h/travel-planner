@@ -22,6 +22,7 @@ import { api } from "@/lib/api-client";
 import { canDropInDayOrder, weekFlexibleDropOrder } from "@/lib/schedule-order";
 import { allDayDropStartDate, itemDateSpan } from "@/lib/schedule-domain";
 import type { TravelObject, Trip } from "@/types/travel";
+import { setWorkingDay, workingDay } from "@/lib/working-day";
 import { CalendarDragPreview } from "./calendar/calendar-shared";
 import { IdeasPanel } from "./calendar/IdeasPanel";
 import { MonthView } from "./calendar/MonthView";
@@ -112,11 +113,13 @@ export function CalendarView({
   const setMode = useTravelStore((state) => state.setCalendarMode);
   const selectedAtMount = primarySelectedId ? items.find((item) => item.id === primarySelectedId) : null;
   const selectedDateAtMount = selectedAtMount ? itemDateSpan(selectedAtMount).first : null;
-  const initialDate =
-    selectedDateAtMount && selectedDateAtMount >= start && selectedDateAtMount <= tripEnd ? selectedDateAtMount : start;
+  const inTrip = (date: string | null | undefined): date is string => !!date && date >= start && date <= tripEnd;
+  // The day last worked on in Plan or here, so switching between Plan and the Day view keeps the place.
+  const remembered = workingDay(trip.id);
+  const initialDate = inTrip(selectedDateAtMount) ? selectedDateAtMount : inTrip(remembered) ? remembered : start;
   // Month opens on the month holding most trip days, so a trip straddling two months is not a sliver in one grid.
   const [focusDate, setFocusDate] = useState(
-    !selectedDateAtMount && mode === "month" ? busiestMonthStart(start, tripEnd) : initialDate,
+    !selectedDateAtMount && !inTrip(remembered) && mode === "month" ? busiestMonthStart(start, tripEnd) : initialDate,
   );
   const [expandedWeekDate, setExpandedWeekDate] = useState<string | null>(null);
   const [dayScrollRequest, setDayScrollRequest] = useState({ date: initialDate, nonce: 0 });
@@ -144,6 +147,9 @@ export function CalendarView({
     },
     [start, tripEnd],
   );
+  useEffect(() => {
+    if (mode === "day" && focusDate >= start && focusDate <= tripEnd) setWorkingDay(trip.id, focusDate);
+  }, [focusDate, mode, start, trip.id, tripEnd]);
   useEffect(() => {
     const changedMode = previousModeRef.current !== mode;
     previousModeRef.current = mode;
@@ -496,8 +502,11 @@ export function CalendarView({
                 typeColors={typeColors}
                 selectedIds={selectedIds}
                 primarySelectedId={primarySelectedId}
-                besideTimeline={mode === "day"}
-                onSelect={selectFromClick}
+                position={mode === "day" ? "beside-timeline" : "left"}
+                onSelect={(item, additive) => {
+                  if (!suppressClickRef.current) onSelect(item, additive, false);
+                }}
+                onInspect={onInspect}
                 onAdd={() => onCreateItem()}
                 onClose={() => setIdeasOpen(false)}
               />
@@ -537,6 +546,7 @@ export function CalendarView({
                 onSelect={selectDayItem}
                 onInspect={onInspect}
                 onCreateItem={(date, order) => onCreateItem(date, undefined, undefined, "(untitled event)", order)}
+                previewItem={ideasOpen ? (ideas.find((idea) => idea.id === primarySelectedId) ?? null) : null}
               />
             )}
           </div>

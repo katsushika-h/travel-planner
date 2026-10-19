@@ -22,6 +22,7 @@ import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { flexibleDisplayTimes, itemDateSpan } from "@/lib/schedule-domain";
 import { sameDayGapOrder, sortDayDisplayItems } from "@/lib/schedule-order";
 import { dayHotels } from "@/lib/travel-legs";
+import { markdownToPlainText } from "@/lib/text-utils";
 import { typeColor } from "@/lib/type-color";
 import { formatPlannedCost, stopNumbers } from "@/components/views/plan/plan-domain";
 import type { LocationData, TravelObject, Trip } from "@/types/travel";
@@ -230,7 +231,7 @@ const JourneyCard = memo(function JourneyCard({
             )}
             {item.notes && (
               <span className="mt-2 line-clamp-2 block text-[13px] leading-relaxed text-muted in-data-[density=compact]:hidden">
-                {item.notes}
+                {markdownToPlainText(item.notes)}
               </span>
             )}
           </span>
@@ -439,6 +440,7 @@ export function DayJourneyView({
   onSelect,
   onInspect,
   onCreateItem,
+  previewItem,
 }: {
   onCreateNote: (date: string, order: number) => Promise<string | undefined>;
   onSaveNote: (id: string, data: { title: string; noteBody: string }) => Promise<void>;
@@ -453,6 +455,8 @@ export function DayJourneyView({
   onSelect: (item: TravelObject, additive?: boolean) => void;
   onInspect: (item: TravelObject) => void;
   onCreateItem: (date: string, order: number) => void;
+  /** A selected idea shown as a temporary pin on the day map. */
+  previewItem?: TravelObject | null;
 }) {
   const [noteFocusId, setNoteFocusId] = useState<string | null>(null);
   const [noteCreateError, setNoteCreateError] = useState("");
@@ -749,6 +753,7 @@ export function DayJourneyView({
               fitKey={activeDate}
               recenterToken={recenterToken}
               onUserMove={() => setMapMoved(true)}
+              previewItem={previewItem}
               className="min-h-72 flex-1"
             />
           )}

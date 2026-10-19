@@ -3,6 +3,7 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { DisplayLeg, TravelMode } from "@/lib/routed-legs";
 import type { TravelObject, UpdateTravelObjectInput } from "@/types/travel";
+import { markdownToPlainText } from "@/lib/text-utils";
 import { LegLine } from "./LegLine";
 import { ParkingControl } from "./ParkingControl";
 import { formatPlannedCost, isConfirmedTime, safeMapsHref, stopMeta, stopTimeLabel } from "./plan-domain";
@@ -94,6 +95,7 @@ export function StopRow({
   date,
   order,
   number,
+  color,
   flexTime,
   leg,
   nextTitle,
@@ -115,6 +117,8 @@ export function StopRow({
   date: string;
   order: number;
   number: number | null;
+  /** Item type colour, shown as a stripe in the gutter left of the row. */
+  color: string;
   /** Display time for a flexible stop, derived from list order (see `flexibleDisplayTimes`). */
   flexTime?: string;
   /** Walking estimate to the next stop, when there is one. */
@@ -174,8 +178,9 @@ export function StopRow({
         aria-controls={expanded ? bodyId : undefined}
         onClick={(event) => onPick(item, event.shiftKey || event.metaKey || event.ctrlKey)}
         {...listeners}
-        className="grid w-full grid-cols-[76px_24px_minmax(0,1fr)_auto] items-baseline gap-x-3 py-5 in-data-[density=compact]:py-2 text-left focus-visible:outline-2 focus-visible:outline-foreground sm:grid-cols-[112px_28px_minmax(0,1fr)_auto] sm:gap-x-4"
+        className="relative grid w-full grid-cols-[76px_24px_minmax(0,1fr)_auto] items-baseline gap-x-3 py-5 in-data-[density=compact]:py-2 text-left focus-visible:outline-2 focus-visible:outline-foreground sm:grid-cols-[112px_28px_minmax(0,1fr)_auto] sm:gap-x-4"
       >
+        <span aria-hidden="true" className="absolute inset-y-0 -left-3 w-[3px]" style={{ backgroundColor: color }} />
         <span
           className={`font-mono font-light tracking-tight ${/^~?\d{2}:\d{2}$/.test(timeLabel) ? "text-xl sm:text-[28px] in-data-[density=compact]:text-base in-data-[density=compact]:sm:text-xl" : "text-base sm:text-xl in-data-[density=compact]:sm:text-base"} ${accentWhenOpen ?? (confirmed ? "text-foreground" : "text-muted")}`}
         >
@@ -195,7 +200,7 @@ export function StopRow({
       {expanded && (
         <div id={bodyId} className="flex flex-wrap gap-x-8 gap-y-3 pb-6 sm:pl-[156px]">
           <p className="min-w-0 flex-1 basis-60 whitespace-pre-wrap leading-relaxed text-muted">
-            {item.notes || "No notes yet."}
+            {(item.notes && markdownToPlainText(item.notes)) || "No notes yet."}
           </p>
           <div className="flex items-start gap-5 text-sm">
             {mapsHref && (

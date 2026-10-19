@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { X } from "lucide-react";
 import { typeColor } from "@/lib/type-color";
@@ -13,12 +13,14 @@ function IdeaCard({
   selected,
   primary,
   onSelect,
+  onInspect,
 }: {
   item: TravelObject;
   color: string;
   selected: boolean;
   primary: boolean;
   onSelect: (item: TravelObject, additive?: boolean) => void;
+  onInspect: (item: TravelObject) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id, data: { item } });
   const place = item.location?.name ?? item.location?.address;
@@ -27,10 +29,15 @@ function IdeaCard({
       ref={setNodeRef}
       {...attributes}
       {...listeners}
+      data-idea-id={item.id}
       type="button"
       onClick={(event) => {
         event.stopPropagation();
         onSelect(item, event.shiftKey);
+      }}
+      onDoubleClick={(event) => {
+        event.stopPropagation();
+        onInspect(item);
       }}
       style={{
         borderLeftColor: color,
@@ -52,8 +59,9 @@ export function IdeasPanel({
   typeColors,
   selectedIds,
   primarySelectedId,
-  besideTimeline,
+  position,
   onSelect,
+  onInspect,
   onAdd,
   onClose,
 }: {
@@ -61,8 +69,15 @@ export function IdeasPanel({
   typeColors: Record<string, string>;
   selectedIds: ReadonlySet<string>;
   primarySelectedId: string | null;
-  besideTimeline: boolean;
+  /**
+   * Where the panel docks: the left edge, beside the Day view timeline, or the right edge. On the right it floats over
+   * the Plan map on phones and takes its own column from `md`, so the map's pins stay visible beside it.
+   */
+  position: "left" | "beside-timeline" | "right";
+  /** Selects without opening the editor, so the idea's map pin stays in view. */
   onSelect: (item: TravelObject, additive?: boolean) => void;
+  /** Opens the item editor (double-click). */
+  onInspect: (item: TravelObject) => void;
   onAdd: () => void;
   onClose: () => void;
 }) {
@@ -71,18 +86,34 @@ export function IdeasPanel({
   const filtered = items.filter((item) =>
     `${item.title} ${item.type} ${item.location?.name ?? ""}`.toLowerCase().includes(query.toLowerCase()),
   );
+  // Type-ahead: a letter moves to the next idea whose title starts with it, wrapping around the list.
+  function jumpToLetter(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.altKey || event.ctrlKey || event.metaKey || !/^[\p{L}\p{N}]$/u.test(event.key)) return;
+    // Consume the key so it never also triggers a view shortcut.
+    event.preventDefault();
+    const letter = event.key.toLocaleLowerCase();
+    const focusedId = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.ideaId : undefined;
+    const current = filtered.findIndex((item) => item.id === (focusedId ?? primarySelectedId));
+    const match = [...filtered.slice(current + 1), ...filtered.slice(0, current + 1)].find((item) =>
+      item.title.trim().toLocaleLowerCase().startsWith(letter),
+    );
+    if (!match) return;
+    onSelect(match);
+    event.currentTarget.querySelector<HTMLElement>(`[data-idea-id="${match.id}"]`)?.focus();
+  }
   return (
     <aside
       ref={setNodeRef}
-      style={besideTimeline ? { left: "max(360px, 44%)" } : undefined}
-      className={`absolute inset-y-0 z-[60] flex w-[min(88vw,320px)] flex-col border-r border-divider bg-background shadow-[8px_0_24px_rgb(0_0_0/0.08)] dark:shadow-[8px_0_24px_rgb(0_0_0/0.5)] ${besideTimeline ? "" : "left-0"} ${isOver ? "ring-1 ring-inset ring-accent" : ""}`}
+      data-map-overlay
+      style={position === "beside-timeline" ? { left: "max(360px, 44%)" } : undefined}
+      className={`absolute inset-y-0 z-[60] flex w-[min(88vw,320px)] flex-col border-divider bg-background ${position === "right" ? "right-0 border-l shadow-[-8px_0_24px_rgb(0_0_0/0.08)] md:static md:order-last md:w-60 md:shrink-0 md:shadow-none xl:w-80 dark:shadow-[-8px_0_24px_rgb(0_0_0/0.5)] md:dark:shadow-none" : "border-r shadow-[8px_0_24px_rgb(0_0_0/0.08)] dark:shadow-[8px_0_24px_rgb(0_0_0/0.5)]"} ${position === "left" ? "left-0" : ""} ${isOver ? "ring-1 ring-inset ring-accent" : ""}`}
     >
       <div className="flex items-start justify-between gap-2 border-b border-foreground px-4 pb-3 pt-4">
         <div>
           <p className="text-[15px] font-medium">
             Ideas <span className="ml-1 font-mono text-sm font-normal text-muted">{items.length}</span>
           </p>
-          <p className="mt-1 text-xs text-muted">Items without a day. Drag one onto the calendar.</p>
+          <p className="mt-1 text-xs text-muted">Items without a day. Drag one onto a day; double-click to edit.</p>
         </div>
         <button
           type="button"
@@ -102,7 +133,7 @@ export function IdeasPanel({
           className="h-9 w-full border-b border-input-rule bg-transparent text-sm outline-none placeholder:text-faint focus:border-foreground"
         />
       </label>
-      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-4" onKeyDown={jumpToLetter}>
         {filtered.map((item) => (
           <IdeaCard
             key={item.id}
@@ -111,6 +142,7 @@ export function IdeasPanel({
             selected={selectedIds.has(item.id)}
             primary={primarySelectedId === item.id}
             onSelect={onSelect}
+            onInspect={onInspect}
           />
         ))}
         {filtered.length === 0 && (

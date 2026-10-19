@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { KeyboardShortcutsDialog } from "@/components/ui/KeyboardShortcutsDialog";
 import { CreateTripDialog } from "@/components/trip/CreateTripDialog";
 import { ObjectInspectorPanel } from "@/components/inspector/ObjectInspectorPanel";
 import { CalendarView } from "@/components/views/CalendarView";
@@ -38,6 +39,8 @@ import { useItemSelection } from "@/components/layout/useItemSelection";
 import { menuItemClassName } from "@/components/ui/menu-item";
 import { ItemSearch } from "@/components/layout/ItemSearch";
 import { TripMenuContents, TripSwitcher, moveMenuFocus, useMenuDismiss } from "@/components/layout/TripMenu";
+import { api } from "@/lib/api-client";
+import { parseMapsUrl, placeNameFromMapsUrl } from "@/lib/maps-link";
 import { eventItems, isNote } from "@/lib/note-domain";
 import { formatTripDateRange } from "@/lib/trip-dates";
 
@@ -93,6 +96,7 @@ export function AppShell() {
   const [narrowScreen, setNarrowScreen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuCloseRef = useRef<HTMLButtonElement>(null);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -190,7 +194,12 @@ export function AppShell() {
     moveSelectedItemsToDay,
     unscheduleSelectedItems,
     reorderItem,
+    duplicateItems,
     moveType,
+    undoToast,
+    dismissUndoToast,
+    undo,
+    redo,
   } = useItemActions({
     activeTrip,
     activeTripKeyRef,
@@ -251,6 +260,14 @@ export function AppShell() {
         (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
       )
         return;
+      const modKey = (event.metaKey || event.ctrlKey) && !event.altKey;
+      const lowerKey = event.key.toLowerCase();
+      if (modKey && (lowerKey === "z" || (lowerKey === "y" && event.ctrlKey && !event.metaKey))) {
+        event.preventDefault();
+        if (lowerKey === "y" || event.shiftKey) redo();
+        else undo();
+        return;
+      }
       if (event.key === "Escape") {
         setSelectedIds(new Set());
         setPrimarySelectedId(null);
@@ -270,6 +287,23 @@ export function AppShell() {
         setPendingDeleteIds([...selectedIds]);
         return;
       }
+      if (
+        !event.repeat &&
+        !event.altKey &&
+        !event.shiftKey &&
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "d" &&
+        activeTab !== "expenses"
+      ) {
+        event.preventDefault();
+        if (selectedIds.size) void duplicateItems([...selectedIds]);
+        return;
+      }
+      if (event.key === "?" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
       if (event.altKey || event.ctrlKey || event.metaKey) return;
       const calendarMode = ({ q: "month", w: "week", e: "day" } as const)[event.key.toLowerCase() as "q" | "w" | "e"];
       if (calendarMode) {
@@ -286,7 +320,59 @@ export function AppShell() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTab, selectedIds, setActiveTab, setCalendarMode, setSelectedIds, setPrimarySelectedId, setInspectedItemId]);
+  }, [
+    activeTab,
+    selectedIds,
+    duplicateItems,
+    undo,
+    redo,
+    setActiveTab,
+    setCalendarMode,
+    setSelectedIds,
+    setPrimarySelectedId,
+    setInspectedItemId,
+  ]);
+
+  useEffect(() => {
+    if (!activeTrip) return;
+    function onPaste(event: ClipboardEvent) {
+      if (
+        event.defaultPrevented ||
+        document.querySelector('[role="dialog"][aria-modal="true"], [aria-label="Trip menu"]')
+      )
+        return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
+      )
+        return;
+      const url = parseMapsUrl(event.clipboardData?.getData("text/plain") ?? "");
+      if (!url) return;
+      event.preventDefault();
+      const link = url.toString();
+      void (async () => {
+        let name = placeNameFromMapsUrl(link);
+        let coordinates: { lat?: number; lng?: number } = {};
+        try {
+          const resolved = await api.resolveMapsUrl(link);
+          name ??= resolved.name?.trim() || null;
+          if (resolved.lat != null && resolved.lng != null) coordinates = { lat: resolved.lat, lng: resolved.lng };
+        } catch {
+          setError("Could not look up that Google Maps link; saved it without a map pin.");
+        }
+        await openCreateItem(undefined, undefined, "unclassified", (name ?? "New place").slice(0, 100), undefined, {
+          ...(name ? { name: name.slice(0, 300) } : {}),
+          googleMapsUrl: link,
+          ...coordinates,
+        });
+      })();
+    }
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // openCreateItem closes over the active trip, which this effect is keyed on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTrip]);
 
   const tripMenuProps = {
     trips,
@@ -311,6 +397,7 @@ export function AppShell() {
       if (activeTripKeyRef.current === tripId) setError(message);
     },
     onToggleTheme: cycleTheme,
+    onShowShortcuts: () => setShortcutsOpen(true),
   };
   const mobileSheetOpen = mobileSidebarOpen && narrowScreen;
 
@@ -487,6 +574,34 @@ export function AppShell() {
             </button>
           </div>
         )}
+        {undoToast && (
+          <div
+            role="status"
+            className="fixed bottom-20 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-1 border border-foreground bg-panel py-1 pr-1 pl-4 text-sm text-foreground sm:bottom-6"
+          >
+            <span>{undoToast.message}</span>
+            {undoToast.canUndo && (
+              <button
+                type="button"
+                onClick={() => {
+                  undo();
+                  dismissUndoToast();
+                }}
+                className="min-h-11 px-3 font-medium underline underline-offset-4 outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring sm:min-h-9"
+              >
+                Undo
+              </button>
+            )}
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={dismissUndoToast}
+              className="grid size-11 shrink-0 place-items-center text-muted outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring sm:size-9"
+            >
+              <X className="size-4" strokeWidth={1.5} />
+            </button>
+          </div>
+        )}
         {loadingTrips ? (
           <div className="grid flex-1 place-items-center">
             <LoaderCircle className="animate-spin text-muted" aria-label="Loading trips" />
@@ -571,6 +686,7 @@ export function AppShell() {
                 <TripDaysView
                   trip={activeTrip}
                   items={items.filter((item) => item.date !== null)}
+                  ideas={events.filter((item) => item.date === null)}
                   typeColors={eventTypeColors}
                   selectedIds={selectedIds}
                   primarySelectedId={primarySelectedId}
@@ -579,9 +695,11 @@ export function AppShell() {
                   onSelectForDrag={(item) => selectItem(item, false, false)}
                   onMove={moveSelectedItemsToDay}
                   onReorder={reorderItem}
+                  onUnschedule={unscheduleSelectedItems}
                   onCreateItem={(date, order) =>
                     void openCreateItem(date, undefined, "unclassified", "(untitled event)", order)
                   }
+                  onCreateIdea={() => void openCreateItem()}
                   onChangeItem={changeItem}
                 />
               ) : activeTab === "table" ? (
@@ -596,6 +714,7 @@ export function AppShell() {
                   onSelectionChange={replaceSelection}
                   onChangeItems={changeSelectedItems}
                   onDeleteSelected={(ids) => setPendingDeleteIds(ids)}
+                  onDuplicateSelected={(ids) => void duplicateItems(ids)}
                 />
               ) : activeTab === "expenses" ? (
                 <ExpensesView key={activeTrip.id} trip={activeTrip} items={events} />
@@ -624,6 +743,7 @@ export function AppShell() {
                   onClose={closeInspector}
                   onChange={changeItem}
                   onRequestDelete={(id) => setPendingDeleteIds([id])}
+                  onDuplicate={(id) => void duplicateItems([id])}
                   tripStartDate={activeTrip.startDate}
                   eventTypes={eventTypes}
                   typeColors={eventTypeColors}
@@ -695,6 +815,7 @@ export function AppShell() {
             }}
           />
         )}
+        {shortcutsOpen && <KeyboardShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
         {pendingDeleteIds && (
           <ConfirmDialog
             confirmOnDelete

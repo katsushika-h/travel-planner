@@ -11,6 +11,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { getEventCoordinates } from "@dnd-kit/utilities";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { dateParts, formatTripDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
@@ -19,22 +20,22 @@ import { allDayDropStartDate, flexibleDisplayTimes, occursOnItineraryDate } from
 import { compareScheduleOrder, isTimedItem, itineraryDropPosition } from "@/lib/schedule-order";
 import { displayTotals, drivePlanTotals, parkingSpots, type DisplayLeg, type TravelMode } from "@/lib/routed-legs";
 import { dayRouteStops, formatDuration } from "@/lib/travel-legs";
+import { typeColor } from "@/lib/type-color";
+import { setWorkingDay, workingDay } from "@/lib/working-day";
 import { useTravelStore } from "@/store/use-travel-store";
 import type { TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
+import { IdeasPanel } from "./calendar/IdeasPanel";
 import { DayStrip } from "./plan/DayStrip";
 import { PlanMap } from "./plan/PlanMap";
 import { plannedTotals, stopMeta, stopNumbers, stopTimeLabel, tripDays } from "./plan/plan-domain";
 import { AddGap, EndSlot, NoteBlock, StopRow } from "./plan/StopRow";
 import { useDayRoutes } from "./plan/useDayRoutes";
 
-/** Remembers the day each trip was last viewed so switching views and back keeps the place. */
-const lastViewedDate = new Map<string, string>();
-
 function initialDate(trip: Trip, days: string[], items: TravelObject[], primaryId: string | null) {
   const primary = primaryId ? items.find((item) => item.id === primaryId) : null;
   const primaryDate = primary?.date?.slice(0, 10);
   if (primaryDate && days.includes(primaryDate)) return primaryDate;
-  const remembered = lastViewedDate.get(trip.id);
+  const remembered = workingDay(trip.id);
   if (remembered && days.includes(remembered)) return remembered;
   const today = dateParts(new Date(), trip.timezone).date;
   return days.includes(today) ? today : days[0];
@@ -43,6 +44,7 @@ function initialDate(trip: Trip, days: string[], items: TravelObject[], primaryI
 export function TripDaysView({
   trip,
   items,
+  ideas,
   typeColors,
   selectedIds,
   primarySelectedId,
@@ -51,12 +53,16 @@ export function TripDaysView({
   onSelectForDrag,
   onMove,
   onReorder,
+  onUnschedule,
   onCreateItem,
+  onCreateIdea,
   onChangeItem,
 }: {
   trip: Trip;
   /** Dated items for the trip. Notes are shown inline when present. */
   items: TravelObject[];
+  /** Undated items, shown in the Ideas panel and dragged from there onto a day. */
+  ideas: TravelObject[];
   typeColors: Record<string, string>;
   selectedIds: ReadonlySet<string>;
   primarySelectedId: string | null;
@@ -67,7 +73,10 @@ export function TripDaysView({
   onSelectForDrag: (item: TravelObject) => void;
   onMove: (item: TravelObject, date: string) => Promise<void>;
   onReorder: (item: TravelObject, date: string, order: number, clearTime: boolean) => Promise<void>;
+  /** Removes an item's date, returning it to Ideas. */
+  onUnschedule: (item: TravelObject) => Promise<void>;
   onCreateItem: (date: string, order?: number) => void;
+  onCreateIdea: () => void;
   /** Saves a patch to an item (used to store a stop's parking spot). */
   onChangeItem: (id: string, patch: UpdateTravelObjectInput, immediate?: boolean) => void;
 }) {
@@ -82,6 +91,7 @@ export function TripDaysView({
   const [recenterToken, setRecenterToken] = useState(0);
   const [mobileSurface, setMobileSurface] = useState<"list" | "map">("list");
   const [mapVisible, setMapVisible] = useState(false);
+  const [ideasOpen, setIdeasOpen] = useState(false);
   const suppressClickRef = useRef(false);
   const date = days.includes(activeDate) ? activeDate : initialDate(trip, days, items, null);
 
@@ -101,7 +111,7 @@ export function TripDaysView({
   }
 
   useEffect(() => {
-    lastViewedDate.set(trip.id, date);
+    setWorkingDay(trip.id, date);
   }, [trip.id, date]);
 
   useEffect(() => {
@@ -111,6 +121,32 @@ export function TripDaysView({
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+
+  // Space toggles the Ideas panel, as in the Calendar, unless typing or a dialog is open.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (
+        event.code !== "Space" ||
+        event.defaultPrevented ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        document.querySelector('[role="dialog"][aria-modal="true"]')
+      )
+        return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
+      )
+        return;
+      event.preventDefault();
+      setIdeasOpen((open) => !open);
+      if (!mapMoved) setRecenterToken((token) => token + 1);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mapMoved]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 3 } }),
@@ -187,6 +223,8 @@ export function TripDaysView({
   );
   const flexTimes = useMemo(() => flexibleDisplayTimes(events), [events]);
   const mapped = useMemo(() => events.filter((item) => hasMapCoordinates(item.location)), [events]);
+  // The idea selected in the open Ideas panel gets a temporary pin on the day map.
+  const previewIdea = ideasOpen ? (ideas.find((idea) => idea.id === primarySelectedId) ?? null) : null;
   const unmapped = events.filter((item) => !hasMapCoordinates(item.location));
   // A multi-day item's planned cost belongs to its first day only, so day totals never double count it.
   const totals = plannedTotals(events.filter((item) => item.date?.slice(0, 10) === date));
@@ -206,6 +244,12 @@ export function TripDaysView({
     setExpandedId(null);
     setMapMoved(false);
     setRecenterToken((token) => token + 1);
+  }
+
+  // From `md` the Ideas panel takes a column beside the map, so the narrower or wider map refits the day.
+  function toggleIdeas(open: boolean) {
+    setIdeasOpen(open);
+    if (!mapMoved) setRecenterToken((token) => token + 1);
   }
 
   function pickStop(item: TravelObject, additive: boolean) {
@@ -245,9 +289,18 @@ export function TripDaysView({
     suppressClickRef.current = true;
     const item = (event.active.data.current as { item?: TravelObject } | undefined)?.item ?? null;
     setActiveItem(item);
-    if (item && !selectedIds.has(item.id)) onSelectForDrag(item);
+    if (item && !selectedIds.has(item.id)) {
+      // Keep the open stop as it is: expanding the dragged one would shift the rows under the pointer.
+      setSeenPrimaryId(item.id);
+      onSelectForDrag(item);
+    }
   };
   const onDragEnd = (event: DragEndEvent) => {
+    if (event.over?.id === "unscheduled") {
+      const item = (event.active.data.current as { item?: TravelObject } | undefined)?.item;
+      if (item && !item.isAllDay && item.date !== null) void onUnschedule(item);
+      return;
+    }
     const [kind, targetDate, rawOrder] = String(event.over?.id ?? "").split(":");
     if ((kind !== "trip-day" && kind !== "trip-row") || !targetDate) return;
     const data = event.active.data.current as { item?: TravelObject; draggedDate?: string } | undefined;
@@ -256,9 +309,10 @@ export function TripDaysView({
     // Dropping on a stop inserts before it or, in its lower half, after it. A day button has no position (end).
     let gap = rawOrder === undefined ? Number.NaN : Number(rawOrder);
     if (kind === "trip-row") {
-      const dragged = event.active.rect.current.translated;
+      // Judge the half by the pointer, as the collision check does; an open row is much taller than its handle.
+      const start = getEventCoordinates(event.activatorEvent);
       const over = event.over?.rect;
-      if (dragged && over && dragged.top + dragged.height / 2 > over.top + over.height / 2) gap += 1;
+      if (start && over && start.y + event.delta.y > over.top + over.height / 2) gap += 1;
     }
     const draggedDate = data?.draggedDate ?? item.date ?? targetDate;
     if (item.isAllDay) {
@@ -293,6 +347,7 @@ export function TripDaysView({
       date={date}
       order={order}
       number={numbers.get(item.id) ?? null}
+      color={typeColor(item.type, typeColors)}
       flexTime={flexTimes.get(item.id)}
       // The end row is where the day finishes; its hotel's outgoing leg belongs to the start row.
       leg={anchor === "end" ? undefined : legByFromId.get(item.id)}
@@ -314,10 +369,17 @@ export function TripDaysView({
   );
   const listLabel = formatTripDate(`${date}T12:00:00Z`, "UTC", { month: "long", day: "numeric" });
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-8 sm:px-12">
+    <div className="relative flex min-h-0 flex-1 flex-col md:flex-row">
       <DndContext
         sensors={sensors}
-        collisionDetection={(args) => pointerWithin(args).slice(0, 1)}
+        collisionDetection={(args) => {
+          // On phones the Ideas panel floats over the page, so it wins over the rows and day buttons beneath it.
+          const hits = pointerWithin(args);
+          return hits
+            .filter((hit) => hit.id === "unscheduled")
+            .concat(hits)
+            .slice(0, 1);
+        }}
         onDragStart={onDragStart}
         onDragCancel={finishDrag}
         onDragEnd={(event) => {
@@ -325,86 +387,120 @@ export function TripDaysView({
           finishDrag();
         }}
       >
-        <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 bg-background px-4 pt-3 sm:-mx-12 sm:px-12 sm:pt-4">
-          <DayStrip days={days} activeDate={date} today={today} onPick={pickDay} />
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
-            <p>{summary}</p>
-            {estimatedNote && <p className="text-xs">Estimated distances</p>}
-            <div role="group" aria-label="Travel mode" className="flex border border-divider">
-              {(["walk", "drive"] as const).map((option) => (
+        {ideasOpen && (
+          <IdeasPanel
+            items={ideas}
+            typeColors={typeColors}
+            selectedIds={selectedIds}
+            primarySelectedId={primarySelectedId}
+            position="right"
+            onSelect={(item, additive) => {
+              if (!suppressClickRef.current) onSelect(item, additive);
+            }}
+            onInspect={editStop}
+            onAdd={onCreateIdea}
+            onClose={() => toggleIdeas(false)}
+          />
+        )}
+        <div
+          className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-4 pb-8 sm:px-12 ${ideasOpen ? "md:px-6 xl:px-12" : ""}`}
+        >
+          <div
+            className={`sticky top-0 z-20 -mx-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 bg-background px-4 pt-3 sm:-mx-12 sm:px-12 sm:pt-4 ${ideasOpen ? "md:-mx-6 md:px-6 xl:-mx-12 xl:px-12" : ""}`}
+          >
+            <DayStrip days={days} activeDate={date} today={today} onPick={pickDay} />
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+              <p>{summary}</p>
+              {estimatedNote && <p className="text-xs">Estimated distances</p>}
+              <div role="group" aria-label="Travel mode" className="flex border border-divider">
+                {(["walk", "drive"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    aria-pressed={mode === option}
+                    onClick={() => setTravelMode(trip.id, option)}
+                    className={`min-h-8 px-2.5 text-xs ${mode === option ? "bg-foreground text-background" : "text-muted hover:text-foreground"}`}
+                  >
+                    {option === "walk" ? "Walk" : "Drive"}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                aria-pressed={ideasOpen}
+                title="Ideas (Space)"
+                onClick={() => toggleIdeas(!ideasOpen)}
+                className={`min-h-8 text-xs ${ideasOpen ? "text-foreground" : "text-muted hover:text-foreground"}`}
+              >
+                Ideas <span className="font-mono">{ideas.length}</span>
+              </button>
+            </div>
+            <div className="flex basis-full border-b border-divider md:hidden" role="group" aria-label="Plan surface">
+              {(["list", "map"] as const).map((surface) => (
                 <button
-                  key={option}
+                  key={surface}
                   type="button"
-                  aria-pressed={mode === option}
-                  onClick={() => setTravelMode(trip.id, option)}
-                  className={`min-h-8 px-2.5 text-xs ${mode === option ? "bg-foreground text-background" : "text-muted hover:text-foreground"}`}
+                  aria-pressed={mobileSurface === surface}
+                  onClick={() => setMobileSurface(surface)}
+                  className={`min-h-11 flex-1 text-sm ${mobileSurface === surface ? "font-medium text-foreground shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted"}`}
                 >
-                  {option === "walk" ? "Walk" : "Drive"}
+                  {surface === "list" ? "Stops" : "Map"}
                 </button>
               ))}
             </div>
           </div>
-          <div className="flex basis-full border-b border-divider md:hidden" role="group" aria-label="Plan surface">
-            {(["list", "map"] as const).map((surface) => (
-              <button
-                key={surface}
-                type="button"
-                aria-pressed={mobileSurface === surface}
-                onClick={() => setMobileSurface(surface)}
-                className={`min-h-11 flex-1 text-sm ${mobileSurface === surface ? "font-medium text-foreground shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted"}`}
-              >
-                {surface === "list" ? "Stops" : "Map"}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="mt-4 flex flex-col gap-12 md:mt-6 md:flex-row">
-          <div className={`min-w-0 md:block md:flex-[1_1_520px] ${mobileSurface === "map" ? "hidden" : ""}`}>
-            <ol aria-label={`Stops on ${listLabel}`} className="border-t border-foreground">
-              {morning && renderStop(morning, dayItems.indexOf(morning), "start")}
-              {middleRows.map(({ item, order }) => (
-                <Fragment key={`${item.id}:${date}`}>
-                  <AddGap label={`Add stop at position ${order + 1}`} onAdd={() => onCreateItem(date, order)} />
-                  {isNote(item) ? <NoteBlock item={item} date={date} order={order} /> : renderStop(item, order)}
-                </Fragment>
-              ))}
-              <EndSlot
-                date={date}
-                order={dayItems.length}
-                empty={dayItems.length === 0}
-                onAdd={() => onCreateItem(date, dayItems.length)}
-              />
-              {evening && renderStop(evening, dayItems.indexOf(evening), "end")}
-            </ol>
-          </div>
-          {(mapVisible || mobileSurface === "map") && (
+          {/* With Ideas beside them, the list keeps room for its stop rows and the map takes the rest. */}
+          <div className={`mt-4 flex flex-col gap-12 md:mt-6 md:flex-row ${ideasOpen ? "md:gap-8" : ""}`}>
             <div
-              className={`min-w-0 md:sticky md:top-28 md:block md:flex-[1_1_420px] md:self-start ${mobileSurface === "list" ? "hidden" : ""}`}
+              className={`min-w-0 md:block ${ideasOpen ? "md:flex-[1_1_380px] lg:flex-[1_0_380px]" : "md:flex-[1_1_520px]"} ${mobileSurface === "map" ? "hidden" : ""}`}
             >
-              <PlanMap
-                trip={trip}
-                date={date}
-                mapped={mapped}
-                unmappedCount={unmapped.length}
-                typeColors={typeColors}
-                markerNumbers={numbers}
-                selectedItemId={primarySelectedId}
-                hoveredItemId={hoveredId}
-                recenterToken={recenterToken}
-                mapMoved={mapMoved}
-                onHover={setHoveredId}
-                onSelect={selectFromMap}
-                onUserMove={() => setMapMoved(true)}
-                onRecenter={() => {
-                  setMapMoved(false);
-                  setRecenterToken((token) => token + 1);
-                }}
-                onAddLink={unmapped[0] ? () => editStop(unmapped[0]) : undefined}
-                legs={mapLegs}
-                parkingMarkers={parkingMarkers}
-              />
+              <ol aria-label={`Stops on ${listLabel}`} className="border-t border-foreground">
+                {morning && renderStop(morning, dayItems.indexOf(morning), "start")}
+                {middleRows.map(({ item, order }) => (
+                  <Fragment key={`${item.id}:${date}`}>
+                    <AddGap label={`Add stop at position ${order + 1}`} onAdd={() => onCreateItem(date, order)} />
+                    {isNote(item) ? <NoteBlock item={item} date={date} order={order} /> : renderStop(item, order)}
+                  </Fragment>
+                ))}
+                <EndSlot
+                  date={date}
+                  order={dayItems.length}
+                  empty={dayItems.length === 0}
+                  onAdd={() => onCreateItem(date, dayItems.length)}
+                />
+                {evening && renderStop(evening, dayItems.indexOf(evening), "end")}
+              </ol>
             </div>
-          )}
+            {(mapVisible || mobileSurface === "map") && (
+              <div
+                className={`min-w-0 md:sticky md:top-28 md:block md:flex-[1_1_420px] md:self-start ${ideasOpen ? "md:min-w-60" : ""} ${mobileSurface === "list" ? "hidden" : ""}`}
+              >
+                <PlanMap
+                  trip={trip}
+                  date={date}
+                  mapped={mapped}
+                  unmappedCount={unmapped.length}
+                  typeColors={typeColors}
+                  markerNumbers={numbers}
+                  selectedItemId={primarySelectedId}
+                  hoveredItemId={hoveredId}
+                  recenterToken={recenterToken}
+                  mapMoved={mapMoved}
+                  onHover={setHoveredId}
+                  onSelect={selectFromMap}
+                  onUserMove={() => setMapMoved(true)}
+                  onRecenter={() => {
+                    setMapMoved(false);
+                    setRecenterToken((token) => token + 1);
+                  }}
+                  onAddLink={unmapped[0] ? () => editStop(unmapped[0]) : undefined}
+                  legs={mapLegs}
+                  parkingMarkers={parkingMarkers}
+                  previewItem={previewIdea}
+                />
+              </div>
+            )}
+          </div>
         </div>
         <DragOverlay dropAnimation={null}>
           {activeItem && (
