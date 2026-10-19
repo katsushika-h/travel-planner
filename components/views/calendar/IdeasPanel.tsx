@@ -13,12 +13,14 @@ function IdeaCard({
   selected,
   primary,
   onSelect,
+  onInspect,
 }: {
   item: TravelObject;
   color: string;
   selected: boolean;
   primary: boolean;
   onSelect: (item: TravelObject, additive?: boolean) => void;
+  onInspect: (item: TravelObject) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id, data: { item } });
   const place = item.location?.name ?? item.location?.address;
@@ -32,6 +34,10 @@ function IdeaCard({
       onClick={(event) => {
         event.stopPropagation();
         onSelect(item, event.shiftKey);
+      }}
+      onDoubleClick={(event) => {
+        event.stopPropagation();
+        onInspect(item);
       }}
       style={{
         borderLeftColor: color,
@@ -55,6 +61,7 @@ export function IdeasPanel({
   primarySelectedId,
   position,
   onSelect,
+  onInspect,
   onAdd,
   onClose,
 }: {
@@ -67,7 +74,10 @@ export function IdeasPanel({
    * the Plan map on phones and takes its own column from `md`, so the map's pins stay visible beside it.
    */
   position: "left" | "beside-timeline" | "right";
+  /** Selects without opening the editor, so the idea's map pin stays in view. */
   onSelect: (item: TravelObject, additive?: boolean) => void;
+  /** Opens the item editor (double-click). */
+  onInspect: (item: TravelObject) => void;
   onAdd: () => void;
   onClose: () => void;
 }) {
@@ -103,7 +113,7 @@ export function IdeasPanel({
           <p className="text-[15px] font-medium">
             Ideas <span className="ml-1 font-mono text-sm font-normal text-muted">{items.length}</span>
           </p>
-          <p className="mt-1 text-xs text-muted">Items without a day. Drag one onto a day.</p>
+          <p className="mt-1 text-xs text-muted">Items without a day. Drag one onto a day; double-click to edit.</p>
         </div>
         <button
           type="button"
@@ -132,6 +142,7 @@ export function IdeasPanel({
             selected={selectedIds.has(item.id)}
             primary={primarySelectedId === item.id}
             onSelect={onSelect}
+            onInspect={onInspect}
           />
         ))}
         {filtered.length === 0 && (

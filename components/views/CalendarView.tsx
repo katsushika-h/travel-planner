@@ -503,7 +503,10 @@ export function CalendarView({
                 selectedIds={selectedIds}
                 primarySelectedId={primarySelectedId}
                 position={mode === "day" ? "beside-timeline" : "left"}
-                onSelect={selectFromClick}
+                onSelect={(item, additive) => {
+                  if (!suppressClickRef.current) onSelect(item, additive, false);
+                }}
+                onInspect={onInspect}
                 onAdd={() => onCreateItem()}
                 onClose={() => setIdeasOpen(false)}
               />

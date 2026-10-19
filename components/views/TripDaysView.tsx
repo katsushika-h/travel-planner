@@ -11,6 +11,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { getEventCoordinates } from "@dnd-kit/utilities";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { dateParts, formatTripDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
@@ -288,7 +289,11 @@ export function TripDaysView({
     suppressClickRef.current = true;
     const item = (event.active.data.current as { item?: TravelObject } | undefined)?.item ?? null;
     setActiveItem(item);
-    if (item && !selectedIds.has(item.id)) onSelectForDrag(item);
+    if (item && !selectedIds.has(item.id)) {
+      // Keep the open stop as it is: expanding the dragged one would shift the rows under the pointer.
+      setSeenPrimaryId(item.id);
+      onSelectForDrag(item);
+    }
   };
   const onDragEnd = (event: DragEndEvent) => {
     if (event.over?.id === "unscheduled") {
@@ -304,9 +309,10 @@ export function TripDaysView({
     // Dropping on a stop inserts before it or, in its lower half, after it. A day button has no position (end).
     let gap = rawOrder === undefined ? Number.NaN : Number(rawOrder);
     if (kind === "trip-row") {
-      const dragged = event.active.rect.current.translated;
+      // Judge the half by the pointer, as the collision check does; an open row is much taller than its handle.
+      const start = getEventCoordinates(event.activatorEvent);
       const over = event.over?.rect;
-      if (dragged && over && dragged.top + dragged.height / 2 > over.top + over.height / 2) gap += 1;
+      if (start && over && start.y + event.delta.y > over.top + over.height / 2) gap += 1;
     }
     const draggedDate = data?.draggedDate ?? item.date ?? targetDate;
     if (item.isAllDay) {
@@ -391,6 +397,7 @@ export function TripDaysView({
             onSelect={(item, additive) => {
               if (!suppressClickRef.current) onSelect(item, additive);
             }}
+            onInspect={editStop}
             onAdd={onCreateIdea}
             onClose={() => toggleIdeas(false)}
           />
