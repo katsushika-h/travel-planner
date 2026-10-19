@@ -4,6 +4,7 @@ import { useState, type Dispatch, type RefObject, type SetStateAction } from "re
 import { useItemSaveQueue } from "@/components/layout/useItemSaveQueue";
 import type { useItemSelection } from "@/components/layout/useItemSelection";
 import { api } from "@/lib/api-client";
+import { duplicableItems, duplicateCreateInput, duplicateDayOrder } from "@/lib/duplicate-item";
 import { groupedMoveTarget, oneHourEnd, resizeFixedTimeRange, schedulePatchForMove } from "@/lib/schedule-domain";
 import { mergeCreatedTravelObject, sortTravelObjects } from "@/lib/schedule-order";
 import type {
@@ -243,6 +244,41 @@ export function useItemActions({
     }
   }
 
+  /** Copies events (notes are skipped) directly after their originals, then selects the copies. */
+  async function duplicateItems(ids: string[]) {
+    const tripId = activeTrip?.id;
+    if (!tripId) return;
+    const wanted = new Set(ids);
+    const originals = duplicableItems(sortTravelObjects(items.filter((item) => wanted.has(item.id))));
+    const createdIds: string[] = [];
+    let working = items;
+    try {
+      for (const original of originals) {
+        const source = working.find((item) => item.id === original.id) ?? original;
+        const created = await api.createObject(duplicateCreateInput(source));
+        if (activeTripKeyRef.current !== tripId) return;
+        working = mergeCreatedTravelObject(working, created);
+        createdIds.push(created.id);
+        const dayOrder = duplicateDayOrder(source);
+        if (dayOrder !== null && created.date) {
+          working = sortTravelObjects(
+            await api.reorderObjects({ tripId, objectId: created.id, date: created.date.slice(0, 10), dayOrder }),
+          );
+          if (activeTripKeyRef.current !== tripId) return;
+        }
+      }
+    } catch (cause) {
+      if (activeTripKeyRef.current === tripId)
+        setError(cause instanceof Error ? cause.message : "Could not duplicate items.");
+    }
+    if (activeTripKeyRef.current !== tripId) return;
+    if (working !== items) setItems(working);
+    if (createdIds.length) {
+      replaceSelection(createdIds, createdIds[createdIds.length - 1]);
+      setInspectedItemId(createdIds.length === 1 ? createdIds[0] : null);
+    }
+  }
+
   async function moveType(item: TravelObject, type: string) {
     const tripId = activeTrip?.id;
     if (!tripId) return;
@@ -276,6 +312,7 @@ export function useItemActions({
     moveSelectedItemsToDay,
     unscheduleSelectedItems,
     reorderItem,
+    duplicateItems,
     moveType,
   };
 }

@@ -72,6 +72,7 @@ export function ObjectInspectorPanel({
   onClose,
   onChange,
   onRequestDelete,
+  onDuplicate,
 }: {
   item: TravelObject | null;
   timeZone: string;
@@ -83,6 +84,7 @@ export function ObjectInspectorPanel({
   onClose: () => void;
   onChange: (id: string, patch: UpdateTravelObjectInput, immediate?: boolean) => void;
   onRequestDelete: (id: string) => void;
+  onDuplicate: (id: string) => void;
 }) {
   const [typeOpen, setTypeOpen] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
@@ -877,13 +879,22 @@ export function ObjectInspectorPanel({
           <Check size={12} strokeWidth={2.4} aria-hidden />
           Autosave on
         </span>
-        <button
-          type="button"
-          onClick={() => onRequestDelete(item.id)}
-          className="min-h-11 text-[13px] text-danger hover:underline sm:min-h-9"
-        >
-          Delete item
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => onDuplicate(item.id)}
+            className="min-h-11 text-[13px] text-foreground hover:underline sm:min-h-9"
+          >
+            Duplicate
+          </button>
+          <button
+            type="button"
+            onClick={() => onRequestDelete(item.id)}
+            className="min-h-11 text-[13px] text-danger hover:underline sm:min-h-9"
+          >
+            Delete item
+          </button>
+        </div>
       </div>
     </aside>
   );
