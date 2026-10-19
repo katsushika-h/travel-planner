@@ -1,6 +1,6 @@
 # Today mode and read-only offline
 
-Status: Planned (2026-10-19). Nothing implemented. Phase 0 is a NAS configuration task for the user; phases 1–2 are code.
+Status: Phase 1 complete (2026-10-19, `4cd6ef5`). Phase 0 (HTTPS on the UGREEN reverse proxy) is waiting on the user; phase 2 follows it.
 
 Goal: On the phone during a trip, open the app to a single Today screen (next stop, leave-by time, today's timeline, tonight's hotel), and keep that screen and the trip readable without signal.
 
@@ -40,12 +40,19 @@ UGOS menu names were not verified from documentation; confirm them on the device
 
 ## Phase 1 — Today view (code, no offline)
 
-- [ ] Pure logic in `lib/today.ts` with `tests/today.test.mjs`: `isTripInProgress(trip, now)`, `todayDate(trip, now)` (trip timezone), `todayTimeline(items, date, now)` → past/next/upcoming with derived done state, `leaveBy(next, legSeconds, bufferMinutes)`.
-- [ ] `components/views/TodayView.tsx`: next-stop card (title, time, type colour, leg time, parking, Directions = item Maps link, attachments link), "Rest of today" list, tonight's hotel row, quick actions (log expense → existing expense form linked to the item; add note; map). Reuse the routed-legs fetch used by Plan; do not add a second routing path.
-- [ ] Mobile nav: swap Day → Today while the trip is in progress; open Today by default on phone widths during the trip. Keep `activeTab`/`calendarMode` semantics; add a `today` tab to `store/use-travel-store.ts` only if the swap cannot reuse existing state.
-- [ ] Empty states: no items today; trip not started (show days until start and first stop); last day.
-- [ ] Add the Today entry to `lib/keyboard-shortcuts.ts` only if a desktop shortcut is added.
-- [ ] Browser check at 320px and 390px, light and dark, on the retained QA trip with the clock faked to a trip date.
+- [x] Pure logic in `lib/today.ts` with `tests/today.test.mjs`: `isTripInProgress(trip, now)`, `todayDate(trip, now)` (trip timezone), `todayTimeline(items, date, now)` → past/next/upcoming with derived done state, `leaveBy(next, legSeconds, bufferMinutes)`.
+- [x] `components/views/TodayView.tsx`: next-stop card (title, time, type colour, leg time, parking, Directions = item Maps link, attachments link), "Rest of today" list, tonight's hotel row, quick actions (log expense → existing expense form linked to the item; add note; map). Reuse the routed-legs fetch used by Plan; do not add a second routing path.
+- [x] Mobile nav: swap Day → Today while the trip is in progress; open Today by default on phone widths during the trip. Keep `activeTab`/`calendarMode` semantics; add a `today` tab to `store/use-travel-store.ts` only if the swap cannot reuse existing state.
+- [x] Empty states: no items today; trip not started (show days until start and first stop); last day.
+- [x] No desktop shortcut added, so no shortcut entry.
+- [x] Browser check at 320px and 390px, light and dark, on the retained QA trip with the clock faked to a trip date.
+
+Phase 1 notes:
+
+- The swap uses local `todayMode` state in `AppShell.tsx` (starts true; `showToday = narrowScreen && tripInProgress && todayMode`); no store change and no new tab. Calendar, Places, Spend, More views, Map and Full itinerary clear it. On the full-itinerary Day view during a trip no nav slot is highlighted.
+- Fake the clock in development only with `?today=2026-11-29T13:05:00+09:00` (encode `+` as `%2B`) at a width ≤ 639px; `components/layout/useNow.ts`.
+- Log expense opens Spend with a new expense linked to the next stop via the new optional `startWith` prop on `ExpensesView`; its date still defaults to the real date.
+- Not done: attachments link on the next-stop card; trip-not-started state (unreachable, the swap only happens during the trip).
 
 ## Phase 2 — Read-only offline (code, after phase 0)
 
@@ -60,8 +67,8 @@ UGOS menu names were not verified from documentation; confirm them on the device
 
 ## Remaining work and next step
 
-Next step: the user completes phase 0 and confirms the hostname and protection. Phase 1 can start in parallel because it needs no HTTPS. Offline edits (queue expenses and notes, temp-id mapping for creates; reorders stay online-only) are a later handoff.
+Next step: the user completes phase 0 and confirms the hostname and protection; then phase 2. Offline edits (queue expenses and notes, temp-id mapping for creates; reorders stay online-only) are a later handoff.
 
 ## Verification
 
-None yet; this is a plan.
+Phase 1: `npm run check` (213 tests) and `npx next build --webpack` pass; Today checked in the browser at 375px (light) with the fake clock, and by the implementing agent at 320/390px.
