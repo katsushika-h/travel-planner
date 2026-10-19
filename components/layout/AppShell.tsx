@@ -196,6 +196,10 @@ export function AppShell() {
     reorderItem,
     duplicateItems,
     moveType,
+    undoToast,
+    dismissUndoToast,
+    undo,
+    redo,
   } = useItemActions({
     activeTrip,
     activeTripKeyRef,
@@ -256,6 +260,14 @@ export function AppShell() {
         (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
       )
         return;
+      const modKey = (event.metaKey || event.ctrlKey) && !event.altKey;
+      const lowerKey = event.key.toLowerCase();
+      if (modKey && (lowerKey === "z" || (lowerKey === "y" && event.ctrlKey && !event.metaKey))) {
+        event.preventDefault();
+        if (lowerKey === "y" || event.shiftKey) redo();
+        else undo();
+        return;
+      }
       if (event.key === "Escape") {
         setSelectedIds(new Set());
         setPrimarySelectedId(null);
@@ -312,6 +324,8 @@ export function AppShell() {
     activeTab,
     selectedIds,
     duplicateItems,
+    undo,
+    redo,
     setActiveTab,
     setCalendarMode,
     setSelectedIds,
@@ -555,6 +569,34 @@ export function AppShell() {
               title="Dismiss"
               onClick={() => setError("")}
               className="-my-2 grid size-11 shrink-0 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring sm:size-9"
+            >
+              <X className="size-4" strokeWidth={1.5} />
+            </button>
+          </div>
+        )}
+        {undoToast && (
+          <div
+            role="status"
+            className="fixed bottom-20 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-1 border border-foreground bg-panel py-1 pr-1 pl-4 text-sm text-foreground sm:bottom-6"
+          >
+            <span>{undoToast.message}</span>
+            {undoToast.canUndo && (
+              <button
+                type="button"
+                onClick={() => {
+                  undo();
+                  dismissUndoToast();
+                }}
+                className="min-h-11 px-3 font-medium underline underline-offset-4 outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring sm:min-h-9"
+              >
+                Undo
+              </button>
+            )}
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={dismissUndoToast}
+              className="grid size-11 shrink-0 place-items-center text-muted outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring sm:size-9"
             >
               <X className="size-4" strokeWidth={1.5} />
             </button>
