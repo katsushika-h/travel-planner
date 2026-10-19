@@ -15,6 +15,10 @@ export const shortcutGroups: ShortcutGroup[] = [
       { keys: ["?"], description: "Show or hide this list" },
       { keys: ["Esc"], description: "Clear the selection and close the item panel" },
       { keys: ["Delete"], description: "Delete the selected items (asks first)" },
+      { keys: ["Mod", "Z"], description: "Undo the last move, reorder, type change or delete" },
+      { keys: ["Mod", "Shift", "Z"], description: "Redo" },
+      { keys: ["Mod", "D"], description: "Duplicate the selected items" },
+      { keys: ["Mod", "V"], description: "Paste a Google Maps link to add it as an idea" },
     ],
   },
   {
@@ -37,6 +41,14 @@ export const shortcutGroups: ShortcutGroup[] = [
       { keys: ["←"], description: "Previous week or day" },
       { keys: ["→"], description: "Next week or day" },
       { keys: ["Space"], description: "Show or hide Ideas (week and day views)" },
+    ],
+  },
+  {
+    title: "Plan and Ideas",
+    shortcuts: [
+      { keys: ["Space"], description: "Show or hide the Ideas panel" },
+      { keys: ["A–Z"], description: "In the Ideas panel, jump to the next idea starting with that letter" },
+      { keys: ["Double-click"], description: "Open an idea in the item panel" },
     ],
   },
   {

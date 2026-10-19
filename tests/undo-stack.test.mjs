@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isNoopEntry, pushBounded, restorePatches, snapshotItems } from "../lib/undo-stack.ts";
+import { isNoopEntry, pushBounded, reorderRestoreRequest, restorePatches, snapshotItems } from "../lib/undo-stack.ts";
 
 const item = (id, over = {}) => ({
   id,
@@ -42,4 +42,31 @@ test("pushBounded keeps only the newest entries", () => {
   assert.equal(stack.length, 20);
   assert.equal(stack[0], 5);
   assert.equal(stack.at(-1), 24);
+});
+
+test("reorderRestoreRequest returns the original slot, one higher when moving later on the same day", () => {
+  const saved = { date: "2026-10-01", dayOrder: 3, isAllDay: false };
+  assert.deepEqual(reorderRestoreRequest(saved, { date: "2026-10-01", dayOrder: 0 }), {
+    date: "2026-10-01",
+    dayOrder: 4,
+  });
+  assert.deepEqual(reorderRestoreRequest(saved, { date: "2026-10-01", dayOrder: 5 }), {
+    date: "2026-10-01",
+    dayOrder: 3,
+  });
+  assert.deepEqual(reorderRestoreRequest(saved, { date: "2026-10-02", dayOrder: 0 }), {
+    date: "2026-10-01",
+    dayOrder: 3,
+  });
+});
+
+test("reorderRestoreRequest returns null for items that had no day position", () => {
+  assert.equal(
+    reorderRestoreRequest({ date: null, dayOrder: null, isAllDay: false }, { date: "2026-10-01", dayOrder: 0 }),
+    null,
+  );
+  assert.equal(
+    reorderRestoreRequest({ date: "2026-10-01", dayOrder: 0, isAllDay: true }, { date: "2026-10-02", dayOrder: 0 }),
+    null,
+  );
 });

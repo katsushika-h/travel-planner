@@ -24,6 +24,8 @@ export type UndoEntry = {
   before: UndoSnapshot;
   /** Items removed by the change; undo recreates them (with new ids). */
   deleted?: TravelObject[];
+  /** The item a reorder moved; undo puts it back through the reorder API instead of patching every sibling. */
+  movedId?: string;
 };
 
 /** Capture the undoable fields of the given items. */
@@ -61,4 +63,18 @@ export function isNoopEntry(entry: UndoEntry, current: readonly TravelObject[]) 
 /** Push onto a bounded stack, dropping the oldest entries. */
 export function pushBounded<T>(stack: readonly T[], entry: T, limit = UNDO_LIMIT): T[] {
   return [...stack, entry].slice(-limit);
+}
+
+/**
+ * Reorder request that puts a moved item back at its snapshot position, or null when it had no day position.
+ * The reorder API removes the item before inserting it, so a later slot on the same day is one higher.
+ */
+export function reorderRestoreRequest(
+  saved: Pick<TravelObject, "date" | "dayOrder" | "isAllDay">,
+  current: Pick<TravelObject, "date" | "dayOrder">,
+): { date: string; dayOrder: number } | null {
+  if (!saved.date || saved.dayOrder === null || saved.isAllDay) return null;
+  const date = saved.date.slice(0, 10);
+  const sameDay = current.date?.slice(0, 10) === date && current.dayOrder !== null;
+  return { date, dayOrder: sameDay && current.dayOrder! < saved.dayOrder ? saved.dayOrder + 1 : saved.dayOrder };
 }

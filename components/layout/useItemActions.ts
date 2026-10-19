@@ -8,7 +8,14 @@ import { api } from "@/lib/api-client";
 import { duplicableItems, duplicateCreateInput, duplicateDayOrder } from "@/lib/duplicate-item";
 import { groupedMoveTarget, oneHourEnd, resizeFixedTimeRange, schedulePatchForMove } from "@/lib/schedule-domain";
 import { mergeCreatedTravelObject, sortTravelObjects } from "@/lib/schedule-order";
-import { UNDO_FIELDS, pushBounded, restorePatches, snapshotItems, type UndoEntry } from "@/lib/undo-stack";
+import {
+  UNDO_FIELDS,
+  pushBounded,
+  reorderRestoreRequest,
+  restorePatches,
+  snapshotItems,
+  type UndoEntry,
+} from "@/lib/undo-stack";
 import type {
   CreateTravelObjectInput,
   LocationData,
@@ -49,9 +56,9 @@ export function useItemActions({
   }, [items]);
 
   /** Capture the affected items' fields before a change; call before applying it. */
-  function recordUndo(label: string, affected: readonly TravelObject[], toast?: string) {
+  function recordUndo(label: string, affected: readonly TravelObject[], toast?: string, movedId?: string) {
     if (!affected.length) return;
-    undoState.record({ label, before: snapshotItems(affected) }, toast);
+    undoState.record({ label, before: snapshotItems(affected), movedId }, toast);
   }
 
   /** Recreate deleted items from their last known fields (new ids; attachments are not restored). */
@@ -109,6 +116,37 @@ export function useItemActions({
         setError(cause instanceof Error ? cause.message : "Could not restore the deleted item.");
       }
       return;
+    }
+    if (entry.movedId) {
+      const saved = entry.before.get(entry.movedId);
+      const moved = itemsRef.current.find((item) => item.id === entry.movedId);
+      const request = saved && moved ? reorderRestoreRequest(saved, moved) : null;
+      if (request) {
+        to.current = pushBounded(to.current, {
+          label: entry.label,
+          before: snapshotItems(itemsRef.current),
+          movedId: entry.movedId,
+        });
+        try {
+          cancelPendingSave(entry.movedId);
+          const updated = sortTravelObjects(await api.reorderObjects({ tripId, objectId: entry.movedId, ...request }));
+          if (activeTripKeyRef.current !== tripId) return;
+          setItems(updated);
+          // The reorder restores the day position; patch back any time fields it changed on the moved item.
+          for (const { id, patch } of restorePatches(entry.before, updated)) {
+            if (id !== entry.movedId) continue;
+            const rest = { ...patch };
+            delete rest.date;
+            delete rest.dayOrder;
+            if (Object.keys(rest).length) changeItem(id, rest, true);
+          }
+          undoState.showToast(`${direction === "undo" ? "Undid" : "Redid"}: ${entry.label}`, false);
+        } catch (cause) {
+          if (activeTripKeyRef.current === tripId)
+            setError(cause instanceof Error ? cause.message : "Could not restore the previous order.");
+        }
+        return;
+      }
     }
     const patches = restorePatches(entry.before, itemsRef.current);
     if (!patches.length) return void stepHistory(direction);
@@ -332,7 +370,7 @@ export function useItemActions({
       return;
     }
     // The server renumbers siblings on reorder, so snapshot every item.
-    recordUndo("reorder items", itemsRef.current, "Item moved.");
+    recordUndo("reorder items", itemsRef.current, "Item moved.", item.id);
     try {
       const updated = await api.reorderObjects({
         tripId,
