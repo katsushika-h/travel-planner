@@ -8,6 +8,7 @@ import { SpendDashboard } from "@/components/views/expenses/SpendDashboard";
 import { api } from "@/lib/api-client";
 import {
   bookedItemExpenses,
+  convertExpenses,
   decimalToThousandths,
   EXPENSE_CATEGORIES,
   expenseDashboard,
@@ -42,6 +43,8 @@ function newDraft(trip: Trip): Draft {
   };
 }
 
+const COMBINED = "ALL";
+
 const fieldClass =
   "mt-1 block min-h-11 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-2 text-sm text-foreground outline-none placeholder:text-faint focus:border-foreground";
 const controlClass =
@@ -51,11 +54,17 @@ export function ExpensesView({
   trip,
   items,
   startWith,
+  onTripChange,
+  typeColors,
 }: {
   trip: Trip;
   items: TravelObject[];
   /** Opens the new-expense form, linked to this item when given (used by the Trip list's "Add expense"). */
   startWith?: { itemId?: string; description?: string };
+  /** Called with the saved trip after its exchange rates change. */
+  onTripChange: (trip: Trip) => void;
+  /** Per-trip itinerary type colours, reused for the matching expense categories. */
+  typeColors: Record<string, string>;
 }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,13 +127,33 @@ export function ExpensesView({
     () => new Map(planned.map(({ currency, amount }) => [currency, amount])),
     [planned],
   );
-  const activeCurrency = totals.currencies.some(({ currency }) => currency === dashCurrency)
-    ? dashCurrency
-    : (totals.currencies[0]?.currency ?? "");
-  const dashboard = useMemo(
-    () => (activeCurrency ? expenseDashboard(allExpenses, trip, activeCurrency, todayInTimeZone(trip.timezone)) : null),
-    [activeCurrency, allExpenses, trip],
+  const hasCombined = totals.currencies.length > 1;
+  const activeCurrency =
+    (dashCurrency === COMBINED && hasCombined) || totals.currencies.some(({ currency }) => currency === dashCurrency)
+      ? dashCurrency
+      : hasCombined
+        ? COMBINED
+        : (totals.currencies[0]?.currency ?? "");
+  const combined = useMemo(
+    () => convertExpenses(allExpenses, trip.defaultCurrency, trip.exchangeRates),
+    [allExpenses, trip.defaultCurrency, trip.exchangeRates],
   );
+  const dashboard = useMemo(() => {
+    if (!activeCurrency) return null;
+    const today = todayInTimeZone(trip.timezone);
+    return activeCurrency === COMBINED
+      ? expenseDashboard(combined.converted, trip, trip.defaultCurrency, today)
+      : expenseDashboard(allExpenses, trip, activeCurrency, today);
+  }, [activeCurrency, allExpenses, combined.converted, trip]);
+
+  async function saveRates(rates: Record<string, string>) {
+    setError("");
+    try {
+      onTripChange(await api.updateTrip(trip.id, { exchangeRates: rates }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save exchange rates.");
+    }
+  }
   const visibleExpenses = useMemo(() => {
     const search = query.trim().toLocaleLowerCase();
     return allExpenses
@@ -266,9 +295,21 @@ export function ExpensesView({
             <SpendDashboard
               dashboard={dashboard}
               currencies={totals.currencies.map(({ currency }) => currency)}
+              active={activeCurrency}
               onCurrency={setDashCurrency}
-              planned={plannedByCurrency.get(activeCurrency)}
+              combined={
+                hasCombined
+                  ? {
+                      defaultCurrency: trip.defaultCurrency,
+                      rates: trip.exchangeRates ?? {},
+                      missing: combined.missing,
+                      onSaveRates: saveRates,
+                    }
+                  : undefined
+              }
+              planned={activeCurrency === COMBINED ? undefined : plannedByCurrency.get(dashboard.currency)}
               itemTitles={itemTitles}
+              typeColors={typeColors}
             />
           ) : (
             <p className="pb-8 pt-8 text-sm text-muted">No expenses recorded yet.</p>

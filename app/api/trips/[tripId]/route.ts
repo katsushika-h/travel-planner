@@ -1,4 +1,5 @@
 import { isRecord, readDate, readJsonBody, readTimeZone, readTrimmedString } from "@/lib/api-validation";
+import { readExchangeRates } from "@/lib/expense-validation";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,14 @@ export async function PATCH(request: Request, { params }: Context) {
       if (typeof body.defaultCurrency !== "string" || !/^[A-Z]{3}$/.test(body.defaultCurrency))
         throw new Error("defaultCurrency must be a three-letter currency code.");
       data.defaultCurrency = body.defaultCurrency;
+    }
+
+    if (body.exchangeRates !== undefined) {
+      const existingTrip = await prisma.trip.findUnique({ where: { id: tripId } });
+      data.exchangeRates = readExchangeRates(
+        body.exchangeRates,
+        (data.defaultCurrency as string | undefined) ?? existingTrip?.defaultCurrency ?? "",
+      );
     }
 
     if (!isRecord(data) || Object.keys(data).length === 0) {

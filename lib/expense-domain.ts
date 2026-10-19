@@ -1,10 +1,31 @@
 import type { Expense, ExpenseCategory, TravelObject } from "../types/travel.ts";
 
-/** An itinerary booking counted as spend because no expense is logged for it. Read-only; edit the item instead. */
+/** An itinerary item cost counted as spend because no expense is logged for it. Read-only; edit the item instead. */
 export type BookedExpense = Expense & { fromItem: true };
 
-/** Itinerary types whose `cost` is a booking and counts as spend automatically. */
-export const BOOKING_CATEGORIES: Record<string, ExpenseCategory> = { hotel: "accommodation", flight: "transport" };
+/** The itinerary type whose colour represents each expense category; shopping and other have none. */
+export const CATEGORY_ITEM_TYPE: Record<ExpenseCategory, string> = {
+  accommodation: "hotel",
+  transport: "flight",
+  food: "food",
+  activities: "activity",
+  shopping: "unclassified",
+  other: "unclassified",
+};
+
+const ITEM_TYPE_CATEGORIES: Record<string, ExpenseCategory> = {
+  hotel: "accommodation",
+  flight: "transport",
+  commute: "transport",
+  food: "food",
+  activity: "activities",
+  sightseeing: "activities",
+};
+
+/** Expense category for an itinerary item type; custom types fall under "other". */
+export function itemExpenseCategory(type: string): ExpenseCategory {
+  return ITEM_TYPE_CATEGORIES[type] ?? "other";
+}
 
 export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   "accommodation",
@@ -160,8 +181,8 @@ export function expenseDashboard(
 }
 
 /**
- * Hotel and flight item costs as spend. An item with any logged expense linked to it is skipped, so the
- * logged amounts win and nothing is counted twice. Other item types keep their cost as a plan only.
+ * Every itinerary item cost as spend. An item with any logged expense linked to it is skipped, so the
+ * logged amounts win and nothing is counted twice.
  */
 export function bookedItemExpenses(
   items: Pick<
@@ -173,9 +194,9 @@ export function bookedItemExpenses(
 ): BookedExpense[] {
   const covered = new Set(expenses.map((expense) => expense.travelObjectId).filter(Boolean));
   return items.flatMap((item) => {
-    const category = BOOKING_CATEGORIES[item.type];
+    const category = itemExpenseCategory(item.type);
     const cost = item.cost;
-    if (!category || item.kind !== "event" || covered.has(item.id) || !cost) return [];
+    if (item.kind !== "event" || covered.has(item.id) || !cost) return [];
     if (!Number.isFinite(cost.amount) || cost.amount <= 0 || !/^[A-Za-z]{3}$/.test(cost.currency)) return [];
     const amount = thousandthsToDecimal(BigInt(Math.round(cost.amount * 1000)));
     return [
@@ -195,4 +216,41 @@ export function bookedItemExpenses(
       },
     ];
   });
+}
+
+const RATE_SCALE = BigInt(100_000_000);
+
+/** Parses a positive decimal rate with up to eight fractional digits, scaled by 1e8; null when invalid. */
+export function parseRate(rate: string): bigint | null {
+  const match = /^(0|[1-9][0-9]{0,5})(?:\.([0-9]{1,8}))?$/.exec(rate.trim());
+  if (!match) return null;
+  const scaled = BigInt(match[1]) * RATE_SCALE + BigInt((match[2] ?? "").padEnd(8, "0"));
+  return scaled > BigInt(0) ? scaled : null;
+}
+
+/**
+ * Restates every expense in `target` using the trip's manual rates. Currencies without a valid rate are
+ * left out and returned in `missing`, so the combined total never guesses.
+ */
+export function convertExpenses<T extends Expense>(
+  expenses: T[],
+  target: string,
+  rates: Record<string, string> | null | undefined,
+) {
+  const missing = new Set<string>();
+  const converted: Expense[] = [];
+  for (const expense of expenses) {
+    if (expense.currency === target) {
+      converted.push(expense);
+      continue;
+    }
+    const rate = rates?.[expense.currency] ? parseRate(rates[expense.currency]) : null;
+    if (!rate) {
+      missing.add(expense.currency);
+      continue;
+    }
+    const value = (decimalToThousandths(expense.amount) * rate + RATE_SCALE / BigInt(2)) / RATE_SCALE;
+    converted.push({ ...expense, currency: target, amount: thousandthsToDecimal(value) });
+  }
+  return { converted, missing: [...missing].sort() };
 }
