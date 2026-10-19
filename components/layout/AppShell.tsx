@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { KeyboardShortcutsDialog } from "@/components/ui/KeyboardShortcutsDialog";
 import { CreateTripDialog } from "@/components/trip/CreateTripDialog";
 import { ObjectInspectorPanel } from "@/components/inspector/ObjectInspectorPanel";
 import { CalendarView } from "@/components/views/CalendarView";
@@ -95,6 +96,7 @@ export function AppShell() {
   const [narrowScreen, setNarrowScreen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuCloseRef = useRef<HTMLButtonElement>(null);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -285,6 +287,11 @@ export function AppShell() {
         if (selectedIds.size) void duplicateItems([...selectedIds]);
         return;
       }
+      if (event.key === "?" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
       if (event.altKey || event.ctrlKey || event.metaKey) return;
       const calendarMode = ({ q: "month", w: "week", e: "day" } as const)[event.key.toLowerCase() as "q" | "w" | "e"];
       if (calendarMode) {
@@ -376,6 +383,7 @@ export function AppShell() {
       if (activeTripKeyRef.current === tripId) setError(message);
     },
     onToggleTheme: cycleTheme,
+    onShowShortcuts: () => setShortcutsOpen(true),
   };
   const mobileSheetOpen = mobileSidebarOpen && narrowScreen;
 
@@ -765,6 +773,7 @@ export function AppShell() {
             }}
           />
         )}
+        {shortcutsOpen && <KeyboardShortcutsDialog onClose={() => setShortcutsOpen(false)} />}
         {pendingDeleteIds && (
           <ConfirmDialog
             confirmOnDelete
