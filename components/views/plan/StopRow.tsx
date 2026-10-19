@@ -3,6 +3,7 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { DisplayLeg, TravelMode } from "@/lib/routed-legs";
 import type { TravelObject, UpdateTravelObjectInput } from "@/types/travel";
+import { markdownToPlainText } from "@/lib/text-utils";
 import { LegLine } from "./LegLine";
 import { ParkingControl } from "./ParkingControl";
 import { formatPlannedCost, isConfirmedTime, safeMapsHref, stopMeta, stopTimeLabel } from "./plan-domain";
@@ -199,7 +200,7 @@ export function StopRow({
       {expanded && (
         <div id={bodyId} className="flex flex-wrap gap-x-8 gap-y-3 pb-6 sm:pl-[156px]">
           <p className="min-w-0 flex-1 basis-60 whitespace-pre-wrap leading-relaxed text-muted">
-            {item.notes || "No notes yet."}
+            {(item.notes && markdownToPlainText(item.notes)) || "No notes yet."}
           </p>
           <div className="flex items-start gap-5 text-sm">
             {mapsHref && (
