@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
-import { Check, ChevronDown, Monitor, Moon, Sun } from "lucide-react";
+import { Check, ChevronDown, Keyboard, Monitor, Moon, Sun } from "lucide-react";
 import { CreateTripDialog } from "@/components/trip/CreateTripDialog";
 import { DeleteTripButton } from "@/components/trip/DeleteTripButton";
 import { EditTripDialog } from "@/components/trip/EditTripDialog";
@@ -31,6 +31,7 @@ export type TripMenuProps = {
   onItemsUpdated: (tripId: string, items: TravelObject[]) => void;
   onError: (tripId: string, message: string) => void;
   onToggleTheme: () => void;
+  onShowShortcuts: () => void;
   /** Closes the surrounding menu after an action that finishes the user's intent. */
   onDone: () => void;
 };
@@ -122,6 +123,7 @@ export function TripMenuContents({
   onItemsUpdated,
   onError,
   onToggleTheme,
+  onShowShortcuts,
   onDone,
 }: TripMenuProps) {
   return (
@@ -200,6 +202,17 @@ export function TripMenuContents({
         <button type="button" className={menuItemClassName} onClick={onToggleTheme}>
           {theme === "system" ? <Monitor /> : theme === "dark" ? <Moon /> : <Sun />}
           Theme: {themeLabels[theme]}
+        </button>
+        <button
+          type="button"
+          className={menuItemClassName}
+          onClick={() => {
+            onDone();
+            onShowShortcuts();
+          }}
+        >
+          <Keyboard />
+          Keyboard shortcuts
         </button>
       </MenuSection>
       {activeTrip && (
