@@ -48,8 +48,9 @@ export const shortcutGroups: ShortcutGroup[] = [
   {
     title: "Plan and Ideas",
     shortcuts: [
-      { keys: ["Space"], description: "Show or hide the Ideas panel" },
-      { keys: ["A–Z"], description: "In the Ideas panel, jump to the next idea starting with that letter" },
+      { keys: ["Space"], description: "Show or hide the Ideas panel (opens with the search box focused)" },
+      { keys: ["Esc"], description: "In the Ideas search, clear the text, then close the panel" },
+      { keys: ["A–Z"], description: "In the Ideas list, jump to the next idea starting with that letter" },
       { keys: ["Double-click"], description: "Open an idea in the item panel" },
     ],
   },

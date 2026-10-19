@@ -140,6 +140,17 @@ export function IdeasPanel({
           ref={searchRef}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          // The panel opens with focus here, so Space on an empty search still toggles it closed;
+          // Escape clears the search first, then closes.
+          onKeyDown={(event) => {
+            if ((event.key === " " && !query) || (event.key === "Escape" && !query)) {
+              event.preventDefault();
+              onClose();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              setQuery("");
+            }
+          }}
           placeholder="Search ideas"
           className="h-9 w-full border-b border-input-rule bg-transparent text-sm outline-none placeholder:text-faint focus:border-foreground"
         />
