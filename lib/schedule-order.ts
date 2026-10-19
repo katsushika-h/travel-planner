@@ -105,7 +105,11 @@ export function sortScheduleItems<T extends OrderableItem>(items: readonly T[]) 
   return [...items].sort(compareScheduleOrder);
 }
 
-/** Translate an Itinerary gap in the visible list into the reorder route's index. */
+/**
+ * Translate an Itinerary gap in the visible list into the reorder route's index. The visible list also
+ * holds items carried over from earlier dates and keeps all-day items in place, while the route counts
+ * only items dated on the target day with all-day items first, so the gap is anchored on the stop above it.
+ */
 export function itineraryDropPosition<
   T extends Pick<TravelObject, "id" | "date" | "startTime" | "endTime" | "isAllDay">,
 >(visibleItems: readonly T[], moving: T, targetDate: string, gap: number) {
@@ -115,8 +119,14 @@ export function itineraryDropPosition<
   const movingIndex = visibleItems.findIndex((item) => item.id === moving.id);
   const insertionIndex = visibleGap - (movingIndex >= 0 && movingIndex < visibleGap ? 1 : 0);
   const remaining = visibleItems.filter((item) => item.id !== moving.id);
+  const sameDay = visibleItems.filter((item) => item.date?.slice(0, 10) === targetDate);
+  const routeOrder = [...sameDay.filter((item) => item.isAllDay), ...sameDay.filter((item) => !item.isAllDay)];
+  const above = visibleItems
+    .slice(0, visibleGap)
+    .reverse()
+    .find((item) => !item.isAllDay && item.date?.slice(0, 10) === targetDate);
   return {
-    requestedOrder: moving.date === targetDate ? visibleGap : insertionIndex,
+    requestedOrder: above ? routeOrder.indexOf(above) + 1 : sameDay.filter((item) => item.isAllDay).length,
     betweenTimedAnchors:
       Boolean(remaining[insertionIndex - 1] && isTimedItem(remaining[insertionIndex - 1])) &&
       Boolean(remaining[insertionIndex] && isTimedItem(remaining[insertionIndex])),

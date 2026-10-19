@@ -140,6 +140,21 @@ test("Itinerary gap positions retain forward end drops and timed neighbors", () 
   });
 });
 
+test("Itinerary gap positions skip carried-over stops and count all-day items first", () => {
+  const date = "2026-09-24";
+  const flexible = (id) => ({ id, date, startTime: null, endTime: null, isAllDay: false });
+  const hotel = { id: "hotel", date: "2026-09-23", startTime: "15:00", endTime: "10:00", isAllDay: false };
+  const [a, b, c] = [flexible("a"), flexible("b"), flexible("c")];
+  // Route order is a, b, c; last night's hotel is shown first but belongs to the previous day.
+  assert.equal(itineraryDropPosition([hotel, a, b, c], b, date, 1).requestedOrder, 0);
+  assert.equal(itineraryDropPosition([hotel, a, b, c], a, date, 3).requestedOrder, 2);
+  assert.equal(itineraryDropPosition([hotel, a, b, c], a, date, 4).requestedOrder, 3);
+  // Route order is allDay, a, b, c.
+  const allDay = { ...flexible("all-day"), isAllDay: true };
+  assert.equal(itineraryDropPosition([a, b, allDay, c], c, date, 1).requestedOrder, 2);
+  assert.equal(itineraryDropPosition([a, b, allDay, c], c, date, 0).requestedOrder, 1);
+});
+
 test("Day displays all-day items first without changing order within either group", () => {
   const createdAt = "2026-09-24T00:00:00.000Z";
   const items = [
