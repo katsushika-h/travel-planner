@@ -38,6 +38,8 @@ import { useItemSelection } from "@/components/layout/useItemSelection";
 import { menuItemClassName } from "@/components/ui/menu-item";
 import { ItemSearch } from "@/components/layout/ItemSearch";
 import { TripMenuContents, TripSwitcher, moveMenuFocus, useMenuDismiss } from "@/components/layout/TripMenu";
+import { api } from "@/lib/api-client";
+import { parseMapsUrl, placeNameFromMapsUrl } from "@/lib/maps-link";
 import { eventItems, isNote } from "@/lib/note-domain";
 import { formatTripDateRange } from "@/lib/trip-dates";
 
@@ -287,6 +289,47 @@ export function AppShell() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activeTab, selectedIds, setActiveTab, setCalendarMode, setSelectedIds, setPrimarySelectedId, setInspectedItemId]);
+
+  useEffect(() => {
+    if (!activeTrip) return;
+    function onPaste(event: ClipboardEvent) {
+      if (
+        event.defaultPrevented ||
+        document.querySelector('[role="dialog"][aria-modal="true"], [aria-label="Trip menu"]')
+      )
+        return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
+      )
+        return;
+      const url = parseMapsUrl(event.clipboardData?.getData("text/plain") ?? "");
+      if (!url) return;
+      event.preventDefault();
+      const link = url.toString();
+      void (async () => {
+        let name = placeNameFromMapsUrl(link);
+        let coordinates: { lat?: number; lng?: number } = {};
+        try {
+          const resolved = await api.resolveMapsUrl(link);
+          name ??= resolved.name?.trim() || null;
+          if (resolved.lat != null && resolved.lng != null) coordinates = { lat: resolved.lat, lng: resolved.lng };
+        } catch {
+          setError("Could not look up that Google Maps link; saved it without a map pin.");
+        }
+        await openCreateItem(undefined, undefined, "unclassified", (name ?? "New place").slice(0, 100), undefined, {
+          ...(name ? { name: name.slice(0, 300) } : {}),
+          googleMapsUrl: link,
+          ...coordinates,
+        });
+      })();
+    }
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // openCreateItem closes over the active trip, which this effect is keyed on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTrip]);
 
   const tripMenuProps = {
     trips,

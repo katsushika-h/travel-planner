@@ -6,7 +6,13 @@ import type { useItemSelection } from "@/components/layout/useItemSelection";
 import { api } from "@/lib/api-client";
 import { groupedMoveTarget, oneHourEnd, resizeFixedTimeRange, schedulePatchForMove } from "@/lib/schedule-domain";
 import { mergeCreatedTravelObject, sortTravelObjects } from "@/lib/schedule-order";
-import type { CreateTravelObjectInput, TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
+import type {
+  CreateTravelObjectInput,
+  LocationData,
+  TravelObject,
+  Trip,
+  UpdateTravelObjectInput,
+} from "@/types/travel";
 
 type ItemActionsOptions = {
   activeTrip: Trip | null;
@@ -40,6 +46,7 @@ export function useItemActions({
     type = "unclassified",
     title = "(untitled event)",
     dayOrder?: number,
+    location: LocationData | null = null,
   ) {
     if (!activeTrip) return;
     const tripId = activeTrip.id;
@@ -61,7 +68,7 @@ export function useItemActions({
         type,
         ...schedule,
         isAllDay: false,
-        location: null,
+        location,
         cost: null,
         notes: null,
         tags: [],
