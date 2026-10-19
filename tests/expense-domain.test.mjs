@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decimalToThousandths, expenseDashboard, expenseTotals, plannedCostTotals } from "../lib/expense-domain.ts";
+import {
+  bookedItemExpenses,
+  decimalToThousandths,
+  expenseDashboard,
+  expenseTotals,
+  plannedCostTotals,
+} from "../lib/expense-domain.ts";
 import { readExpenseFields } from "../lib/expense-validation.ts";
 
 const base = {
@@ -114,4 +120,37 @@ test("expense dashboard keeps pre-trip bookings and on-trip spending in one set 
   assert.equal(dashboard.largest[0].expense.amount, "400.000");
   assert.equal(dashboard.largest[0].pre, true);
   assert.equal(expenseDashboard([], trip, "SGD", "2026-10-01").perDay, null);
+});
+
+test("hotel and flight costs count as pre-trip spend unless an expense is logged for the item", () => {
+  const item = (id, type, cost) => ({
+    id,
+    tripId: "t",
+    title: id,
+    type,
+    kind: "event",
+    date: "2026-11-30",
+    cost,
+    createdAt: "",
+    updatedAt: "",
+  });
+  const items = [
+    item("hotel-a", "hotel", { amount: 650.5, currency: "SGD" }),
+    item("flight-a", "flight", { amount: 300, currency: "SGD" }),
+    item("hotel-b", "hotel", { amount: 200, currency: "SGD" }),
+    item("dinner", "food", { amount: 50, currency: "SGD" }),
+    item("free-hotel", "hotel", { amount: 0, currency: "SGD" }),
+  ];
+  const booked = bookedItemExpenses(items, [{ travelObjectId: "hotel-b" }], "2026-11-29T00:00:00.000Z");
+  assert.deepEqual(
+    booked.map(({ id, amount, category }) => [id, amount, category]),
+    [
+      ["item:hotel-a", "650.500", "accommodation"],
+      ["item:flight-a", "300.000", "transport"],
+    ],
+  );
+  const trip = { startDate: "2026-11-29", endDate: "2026-12-07" };
+  const dashboard = expenseDashboard(booked, trip, "SGD", "2026-10-01");
+  assert.equal(dashboard.pre, "950.500");
+  assert.equal(dashboard.during, "0.000");
 });

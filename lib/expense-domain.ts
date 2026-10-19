@@ -1,4 +1,10 @@
-import type { Expense, ExpenseCategory } from "../types/travel.ts";
+import type { Expense, ExpenseCategory, TravelObject } from "../types/travel.ts";
+
+/** An itinerary booking counted as spend because no expense is logged for it. Read-only; edit the item instead. */
+export type BookedExpense = Expense & { fromItem: true };
+
+/** Itinerary types whose `cost` is a booking and counts as spend automatically. */
+export const BOOKING_CATEGORIES: Record<string, ExpenseCategory> = { hotel: "accommodation", flight: "transport" };
 
 export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   "accommodation",
@@ -88,7 +94,11 @@ export function expenseDashboard(
   const end = trip.endDate.slice(0, 10);
   const rows = expenses
     .filter((expense) => expense.currency === currency)
-    .map((expense) => ({ expense, value: decimalToThousandths(expense.amount), pre: expense.date < start }));
+    .map((expense) => ({
+      expense,
+      value: decimalToThousandths(expense.amount),
+      pre: "fromItem" in expense || expense.date < start,
+    }));
 
   let pre = zero;
   let during = zero;
@@ -147,4 +157,42 @@ export function expenseDashboard(
       .slice(0, 5)
       .map(({ expense, pre: isPre }) => ({ expense, pre: isPre })),
   };
+}
+
+/**
+ * Hotel and flight item costs as spend. An item with any logged expense linked to it is skipped, so the
+ * logged amounts win and nothing is counted twice. Other item types keep their cost as a plan only.
+ */
+export function bookedItemExpenses(
+  items: Pick<
+    TravelObject,
+    "id" | "tripId" | "title" | "type" | "date" | "cost" | "kind" | "createdAt" | "updatedAt"
+  >[],
+  expenses: Pick<Expense, "travelObjectId">[],
+  tripStart: string,
+): BookedExpense[] {
+  const covered = new Set(expenses.map((expense) => expense.travelObjectId).filter(Boolean));
+  return items.flatMap((item) => {
+    const category = BOOKING_CATEGORIES[item.type];
+    const cost = item.cost;
+    if (!category || item.kind !== "event" || covered.has(item.id) || !cost) return [];
+    if (!Number.isFinite(cost.amount) || cost.amount <= 0 || !/^[A-Za-z]{3}$/.test(cost.currency)) return [];
+    const amount = thousandthsToDecimal(BigInt(Math.round(cost.amount * 1000)));
+    return [
+      {
+        id: `item:${item.id}`,
+        tripId: item.tripId,
+        travelObjectId: item.id,
+        description: item.title,
+        date: item.date?.slice(0, 10) ?? tripStart.slice(0, 10),
+        amount,
+        currency: cost.currency.toUpperCase(),
+        category,
+        notes: null,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        fromItem: true as const,
+      },
+    ];
+  });
 }

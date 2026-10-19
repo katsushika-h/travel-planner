@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SpendDashboard } from "@/components/views/expenses/SpendDashboard";
 import { api } from "@/lib/api-client";
 import {
+  bookedItemExpenses,
   decimalToThousandths,
   EXPENSE_CATEGORIES,
   expenseDashboard,
@@ -107,10 +108,12 @@ export function ExpensesView({
       ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [formOpen]);
 
-  const totals = useMemo(() => expenseTotals(expenses), [expenses]);
+  const booked = useMemo(() => bookedItemExpenses(items, expenses, trip.startDate), [expenses, items, trip.startDate]);
+  const allExpenses = useMemo(() => [...expenses, ...booked], [expenses, booked]);
+  const totals = useMemo(() => expenseTotals(allExpenses), [allExpenses]);
   const planned = useMemo(() => plannedCostTotals(items), [items]);
   const itemTitles = useMemo(() => new Map(items.map((item) => [item.id, item.title])), [items]);
-  const currencies = useMemo(() => [...new Set(expenses.map((expense) => expense.currency))].sort(), [expenses]);
+  const currencies = useMemo(() => [...new Set(allExpenses.map((expense) => expense.currency))].sort(), [allExpenses]);
   const plannedByCurrency = useMemo(
     () => new Map(planned.map(({ currency, amount }) => [currency, amount])),
     [planned],
@@ -119,12 +122,12 @@ export function ExpensesView({
     ? dashCurrency
     : (totals.currencies[0]?.currency ?? "");
   const dashboard = useMemo(
-    () => (activeCurrency ? expenseDashboard(expenses, trip, activeCurrency, todayInTimeZone(trip.timezone)) : null),
-    [activeCurrency, expenses, trip],
+    () => (activeCurrency ? expenseDashboard(allExpenses, trip, activeCurrency, todayInTimeZone(trip.timezone)) : null),
+    [activeCurrency, allExpenses, trip],
   );
   const visibleExpenses = useMemo(() => {
     const search = query.trim().toLocaleLowerCase();
-    return expenses
+    return allExpenses
       .filter(
         (expense) =>
           (!search ||
@@ -142,7 +145,7 @@ export function ExpensesView({
         const dateOrder = left.date.localeCompare(right.date);
         return (sort === "oldest" ? dateOrder : -dateOrder) || left.description.localeCompare(right.description);
       });
-  }, [categoryFilter, currencyFilter, expenses, itemTitles, query, sort]);
+  }, [allExpenses, categoryFilter, currencyFilter, itemTitles, query, sort]);
 
   function startCreate() {
     setEditingId(null);
@@ -394,7 +397,7 @@ export function ExpensesView({
               <section aria-label="Expenses" className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-t border-foreground pt-3">
                   <p className="text-xs text-muted">
-                    {visibleExpenses.length} of {expenses.length} expenses
+                    {visibleExpenses.length} of {allExpenses.length} expenses
                   </p>
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     <label className="sr-only" htmlFor="expense-search">
@@ -489,8 +492,16 @@ export function ExpensesView({
                               {expense.notes && (
                                 <span className="mt-0.5 block text-xs font-normal text-muted">{expense.notes}</span>
                               )}
-                              {expense.date < trip.startDate.slice(0, 10) && (
-                                <span className="mt-0.5 block text-xs font-normal text-muted">Booked before trip</span>
+                              {"fromItem" in expense ? (
+                                <span className="mt-0.5 block text-xs font-normal text-muted">
+                                  Booking from the itinerary · edit the item&apos;s cost to change it
+                                </span>
+                              ) : (
+                                expense.date < trip.startDate.slice(0, 10) && (
+                                  <span className="mt-0.5 block text-xs font-normal text-muted">
+                                    Booked before trip
+                                  </span>
+                                )
                               )}
                             </span>
                             <span className="text-muted max-lg:hidden">{categoryName(expense.category)}</span>
@@ -503,22 +514,26 @@ export function ExpensesView({
                               {formatExpenseAmount(expense.amount, expense.currency)}
                             </span>
                             <span className="flex justify-end max-lg:order-4 max-lg:col-span-2">
-                              <button
-                                type="button"
-                                onClick={() => startEdit(expense)}
-                                aria-label={`Edit ${expense.description}`}
-                                className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-foreground lg:size-8"
-                              >
-                                <Pencil size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeleteTarget(expense)}
-                                aria-label={`Delete ${expense.description}`}
-                                className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-danger lg:size-8"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                              {!("fromItem" in expense) && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => startEdit(expense)}
+                                    aria-label={`Edit ${expense.description}`}
+                                    className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-foreground lg:size-8"
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget(expense)}
+                                    aria-label={`Delete ${expense.description}`}
+                                    className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-danger lg:size-8"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </>
+                              )}
                             </span>
                           </li>
                         );
@@ -527,7 +542,7 @@ export function ExpensesView({
                   </>
                 ) : (
                   <div className="py-10 text-center text-sm text-muted">
-                    {expenses.length
+                    {allExpenses.length
                       ? "No expenses match these filters."
                       : "No expenses yet. Log one to start tracking spending."}
                   </div>

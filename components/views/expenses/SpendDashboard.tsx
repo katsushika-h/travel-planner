@@ -77,8 +77,8 @@ export function SpendDashboard({
             value={money(total)}
             note={
               planned != null
-                ? `${dashboard.count} expenses · of ${formatExpenseAmount(planned, currency)} planned${over ? ` · ${formatExpenseAmount(Number(total) - planned, currency)} over` : ""}`
-                : `${dashboard.count} expenses`
+                ? `${dashboard.count} ${dashboard.count === 1 ? "expense" : "expenses"} · of ${formatExpenseAmount(planned, currency)} planned${over ? ` · ${formatExpenseAmount(Number(total) - planned, currency)} over` : ""}`
+                : `${dashboard.count} ${dashboard.count === 1 ? "expense" : "expenses"}`
             }
           />
         </div>
