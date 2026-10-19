@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { X } from "lucide-react";
 import { typeColor } from "@/lib/type-color";
@@ -82,6 +82,16 @@ export function IdeasPanel({
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  // The panel mounts only when opened, so focus the search box to let the user type straight away.
+  // On close, the input unmounts; blur it first so focus never stays on a hidden element.
+  useEffect(() => {
+    const input = searchRef.current;
+    input?.focus();
+    return () => {
+      if (document.activeElement === input) input?.blur();
+    };
+  }, []);
   const { setNodeRef, isOver } = useDroppable({ id: "unscheduled" });
   const filtered = items.filter((item) =>
     `${item.title} ${item.type} ${item.location?.name ?? ""}`.toLowerCase().includes(query.toLowerCase()),
@@ -127,6 +137,7 @@ export function IdeasPanel({
       <label className="mx-4 mt-3 block">
         <span className="sr-only">Search ideas</span>
         <input
+          ref={searchRef}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search ideas"
