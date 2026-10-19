@@ -87,6 +87,7 @@ export function ItemSearch({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        data-item-search=""
         aria-label="Search items"
         className="flex max-h-[min(36rem,calc(100dvh_-_2rem))] w-full max-w-xl flex-col border-t border-foreground bg-panel text-foreground shadow-[0_24px_48px_rgb(0_0_0/0.18)]"
       >

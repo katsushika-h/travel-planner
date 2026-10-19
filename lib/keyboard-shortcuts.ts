@@ -13,10 +13,12 @@ export const shortcutGroups: ShortcutGroup[] = [
     title: "Global",
     shortcuts: [
       { keys: ["?"], description: "Show or hide this list" },
+      { keys: ["Mod", "K"], description: "Search items" },
       { keys: ["Esc"], description: "Clear the selection and close the item panel" },
       { keys: ["Delete"], description: "Delete the selected items (asks first)" },
       { keys: ["Mod", "Z"], description: "Undo the last move, reorder, type change or delete" },
       { keys: ["Mod", "Shift", "Z"], description: "Redo" },
+      { keys: ["Ctrl", "Y"], description: "Redo (alternative, Windows and Linux style)" },
       { keys: ["Mod", "D"], description: "Duplicate the selected items" },
       { keys: ["Mod", "V"], description: "Paste a Google Maps link to add it as an idea" },
     ],
@@ -97,4 +99,25 @@ export function formatShortcutKey(key: string, apple: boolean) {
   if (key === "Delete") return apple ? "⌫" : "Del";
   if (key === "Backspace") return apple ? "⌫" : "Backspace";
   return key;
+}
+
+/** True for the platform command key: ⌘ on Apple platforms, Ctrl elsewhere. Either is accepted so handlers need no platform check. */
+export function isModKey(event: { metaKey: boolean; ctrlKey: boolean }) {
+  return event.metaKey || event.ctrlKey;
+}
+
+/** Mod+K, the global item search shortcut. */
+export function isSearchShortcut(event: {
+  key: string;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+}) {
+  return isModKey(event) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "k";
+}
+
+/** Tooltip for the Search button, with the shortcut hint for the platform. */
+export function searchButtonTitle(apple: boolean) {
+  return `Search items (${apple ? "⌘K" : "Ctrl K"})`;
 }

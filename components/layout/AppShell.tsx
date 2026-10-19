@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useSyncExternalStore,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -37,6 +38,7 @@ import { useTripData } from "@/components/layout/useTripData";
 import { useItemActions } from "@/components/layout/useItemActions";
 import { useItemSelection } from "@/components/layout/useItemSelection";
 import { menuItemClassName } from "@/components/ui/menu-item";
+import { isApplePlatform, isModKey, isSearchShortcut, searchButtonTitle } from "@/lib/keyboard-shortcuts";
 import { ItemSearch } from "@/components/layout/ItemSearch";
 import { TripMenuContents, TripSwitcher, moveMenuFocus, useMenuDismiss } from "@/components/layout/TripMenu";
 import { api } from "@/lib/api-client";
@@ -56,6 +58,8 @@ import type { TravelObject, Trip } from "@/types/travel";
 
 const EMPTY_EVENT_TYPES: string[] = [];
 const EMPTY_EVENT_TYPE_COLORS: Record<string, string> = {};
+
+const subscribeNever = () => () => {};
 
 export function AppShell() {
   const selection = useItemSelection();
@@ -96,6 +100,7 @@ export function AppShell() {
   const [narrowScreen, setNarrowScreen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const apple = useSyncExternalStore(subscribeNever, isApplePlatform, () => false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuCloseRef = useRef<HTMLButtonElement>(null);
@@ -247,6 +252,21 @@ export function AppShell() {
     setItemsTripId(null);
     clearSelection();
   };
+  // Mod+K toggles item search from anywhere, including text fields, but not over another dialog.
+  useEffect(() => {
+    if (!activeTrip) return;
+    function onSearchShortcut(event: KeyboardEvent) {
+      if (!isSearchShortcut(event) || event.repeat) return;
+      event.preventDefault();
+      if (
+        document.querySelector('[role="dialog"][aria-modal="true"]:not([data-item-search]), [aria-label="Trip menu"]')
+      )
+        return;
+      setSearchOpen((open) => !open);
+    }
+    window.addEventListener("keydown", onSearchShortcut);
+    return () => window.removeEventListener("keydown", onSearchShortcut);
+  }, [activeTrip]);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (
@@ -260,7 +280,7 @@ export function AppShell() {
         (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))
       )
         return;
-      const modKey = (event.metaKey || event.ctrlKey) && !event.altKey;
+      const modKey = isModKey(event) && !event.altKey;
       const lowerKey = event.key.toLowerCase();
       if (modKey && (lowerKey === "z" || (lowerKey === "y" && event.ctrlKey && !event.metaKey))) {
         event.preventDefault();
@@ -291,7 +311,7 @@ export function AppShell() {
         !event.repeat &&
         !event.altKey &&
         !event.shiftKey &&
-        (event.ctrlKey || event.metaKey) &&
+        isModKey(event) &&
         event.key.toLowerCase() === "d" &&
         activeTab !== "expenses"
       ) {
@@ -492,7 +512,7 @@ export function AppShell() {
             <button
               type="button"
               aria-label="Search items"
-              title="Search items"
+              title={searchButtonTitle(apple)}
               onClick={() => setSearchOpen(true)}
               className="grid size-10 place-items-center text-foreground outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
             >
@@ -541,6 +561,7 @@ export function AppShell() {
               <button
                 type="button"
                 aria-label="Search items"
+                title={searchButtonTitle(apple)}
                 onClick={() => setSearchOpen(true)}
                 className="grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
               >

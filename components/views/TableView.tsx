@@ -13,6 +13,7 @@ import {
 } from "@/lib/schedule-domain";
 import { formatExpenseAmount } from "@/lib/expense-domain";
 import { shortDayLabel } from "@/components/views/KanbanView";
+import { isModKey } from "@/lib/keyboard-shortcuts";
 import { typeColor } from "@/lib/type-color";
 import type { TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
 
@@ -278,7 +279,7 @@ export function TableView({
   }, [allVisibleSelected, someVisibleSelected]);
   useEffect(() => {
     function selectAll(event: KeyboardEvent) {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "a" || event.defaultPrevented) return;
+      if (!isModKey(event) || event.key.toLowerCase() !== "a" || event.defaultPrevented) return;
       const target = event.target;
       if (
         target instanceof HTMLElement &&
