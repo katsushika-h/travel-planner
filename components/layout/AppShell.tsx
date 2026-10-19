@@ -190,6 +190,7 @@ export function AppShell() {
     moveSelectedItemsToDay,
     unscheduleSelectedItems,
     reorderItem,
+    duplicateItems,
     moveType,
   } = useItemActions({
     activeTrip,
@@ -270,6 +271,18 @@ export function AppShell() {
         setPendingDeleteIds([...selectedIds]);
         return;
       }
+      if (
+        !event.repeat &&
+        !event.altKey &&
+        !event.shiftKey &&
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "d" &&
+        activeTab !== "expenses"
+      ) {
+        event.preventDefault();
+        if (selectedIds.size) void duplicateItems([...selectedIds]);
+        return;
+      }
       if (event.altKey || event.ctrlKey || event.metaKey) return;
       const calendarMode = ({ q: "month", w: "week", e: "day" } as const)[event.key.toLowerCase() as "q" | "w" | "e"];
       if (calendarMode) {
@@ -286,7 +299,16 @@ export function AppShell() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeTab, selectedIds, setActiveTab, setCalendarMode, setSelectedIds, setPrimarySelectedId, setInspectedItemId]);
+  }, [
+    activeTab,
+    selectedIds,
+    duplicateItems,
+    setActiveTab,
+    setCalendarMode,
+    setSelectedIds,
+    setPrimarySelectedId,
+    setInspectedItemId,
+  ]);
 
   const tripMenuProps = {
     trips,
@@ -596,6 +618,7 @@ export function AppShell() {
                   onSelectionChange={replaceSelection}
                   onChangeItems={changeSelectedItems}
                   onDeleteSelected={(ids) => setPendingDeleteIds(ids)}
+                  onDuplicateSelected={(ids) => void duplicateItems(ids)}
                 />
               ) : activeTab === "expenses" ? (
                 <ExpensesView key={activeTrip.id} trip={activeTrip} items={events} />
@@ -624,6 +647,7 @@ export function AppShell() {
                   onClose={closeInspector}
                   onChange={changeItem}
                   onRequestDelete={(id) => setPendingDeleteIds([id])}
+                  onDuplicate={(id) => void duplicateItems([id])}
                   tripStartDate={activeTrip.startDate}
                   eventTypes={eventTypes}
                   typeColors={eventTypeColors}
