@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   CalendarDays,
+  CalendarCheck,
   ChevronDown,
   Compass,
   List,
@@ -34,6 +35,8 @@ import { TripDaysView } from "@/components/views/TripDaysView";
 import { TableView } from "@/components/views/TableView";
 import { MapView } from "@/components/views/MapView";
 import { ExpensesView } from "@/components/views/ExpensesView";
+import { TodayView } from "@/components/views/TodayView";
+import { useTripInProgress } from "@/components/layout/useNow";
 import { useTripData } from "@/components/layout/useTripData";
 import { useItemActions } from "@/components/layout/useItemActions";
 import { useItemSelection } from "@/components/layout/useItemSelection";
@@ -112,16 +115,28 @@ export function AppShell() {
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
-  const mobileDestination =
-    activeTab === "calendar"
-      ? calendarMode === "day"
-        ? "day"
-        : "calendar"
-      : activeTab === "map"
-        ? "places"
-        : activeTab === "expenses"
-          ? "spend"
-          : "more";
+  // During the trip the phone's Day slot becomes Today. `todayMode` is true until another destination is chosen.
+  const tripInProgress = useTripInProgress(activeTrip);
+  const [todayMode, setTodayMode] = useState(true);
+  const [expenseFor, setExpenseFor] = useState<{ itemId: string; description: string } | undefined>();
+  const showToday = narrowScreen && tripInProgress && todayMode;
+  function leaveToday() {
+    setTodayMode(false);
+    setExpenseFor(undefined);
+  }
+  const mobileDestination = showToday
+    ? "day"
+    : tripInProgress && activeTab === "calendar" && calendarMode === "day"
+      ? "itinerary"
+      : activeTab === "calendar"
+        ? calendarMode === "day"
+          ? "day"
+          : "calendar"
+        : activeTab === "map"
+          ? "places"
+          : activeTab === "expenses"
+            ? "spend"
+            : "more";
   const theme = useTravelStore((state) => state.theme);
   const resolvedTheme = useResolvedTheme();
   const compact = useTravelStore((state) => state.compact);
@@ -466,6 +481,7 @@ export function AppShell() {
                 type="button"
                 aria-current={activeTab === id ? "page" : undefined}
                 onClick={() => {
+                  leaveToday();
                   setActiveTab(id);
                   closeMobileMenu();
                 }}
@@ -667,6 +683,29 @@ export function AppShell() {
                     <LoaderCircle className="animate-spin text-muted" aria-label="Loading itinerary" />
                   )}
                 </div>
+              ) : showToday ? (
+                <TodayView
+                  trip={activeTrip}
+                  items={items}
+                  typeColors={eventTypeColors}
+                  onInspect={inspectItem}
+                  onCreateNote={createNote}
+                  onSaveNote={saveNote}
+                  onLogExpense={(item) => {
+                    setExpenseFor(item ? { itemId: item.id, description: item.title } : undefined);
+                    setTodayMode(false);
+                    setActiveTab("expenses");
+                  }}
+                  onOpenMap={() => {
+                    leaveToday();
+                    setActiveTab("map");
+                  }}
+                  onOpenFullItinerary={() => {
+                    leaveToday();
+                    setActiveTab("calendar");
+                    setCalendarMode("day");
+                  }}
+                />
               ) : activeTab === "calendar" ? (
                 <CalendarView
                   onCreateNote={createNote}
@@ -738,7 +777,12 @@ export function AppShell() {
                   onDuplicateSelected={(ids) => void duplicateItems(ids)}
                 />
               ) : activeTab === "expenses" ? (
-                <ExpensesView key={activeTrip.id} trip={activeTrip} items={events} />
+                <ExpensesView
+                  key={`${activeTrip.id}:${expenseFor?.itemId ?? ""}`}
+                  trip={activeTrip}
+                  items={events}
+                  startWith={expenseFor}
+                />
               ) : (
                 <MapView
                   key={activeTrip.id}
@@ -749,7 +793,7 @@ export function AppShell() {
                 />
               )}
             </div>
-            {activeTab !== "expenses" && selectedItem && (
+            {(showToday || activeTab !== "expenses") && selectedItem && (
               <div
                 role={narrowScreen ? "dialog" : undefined}
                 aria-modal={narrowScreen ? true : undefined}
@@ -780,26 +824,54 @@ export function AppShell() {
             className="z-20 grid shrink-0 grid-cols-5 border-t border-divider bg-background px-1 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:hidden"
           >
             {[
-              {
-                id: "day",
-                label: "Day",
-                icon: List,
-                onClick: () => {
-                  setActiveTab("calendar");
-                  setCalendarMode("day");
-                },
-              },
+              tripInProgress
+                ? {
+                    id: "day",
+                    label: "Today",
+                    icon: CalendarCheck,
+                    onClick: () => {
+                      setExpenseFor(undefined);
+                      setTodayMode(true);
+                    },
+                  }
+                : {
+                    id: "day",
+                    label: "Day",
+                    icon: List,
+                    onClick: () => {
+                      leaveToday();
+                      setActiveTab("calendar");
+                      setCalendarMode("day");
+                    },
+                  },
               {
                 id: "calendar",
                 label: "Calendar",
                 icon: CalendarDays,
                 onClick: () => {
+                  leaveToday();
                   setActiveTab("calendar");
                   setCalendarMode("month");
                 },
               },
-              { id: "places", label: "Places", icon: MapIcon, onClick: () => setActiveTab("map") },
-              { id: "spend", label: "Spend", icon: ReceiptText, onClick: () => setActiveTab("expenses") },
+              {
+                id: "places",
+                label: "Places",
+                icon: MapIcon,
+                onClick: () => {
+                  leaveToday();
+                  setActiveTab("map");
+                },
+              },
+              {
+                id: "spend",
+                label: "Spend",
+                icon: ReceiptText,
+                onClick: () => {
+                  leaveToday();
+                  setActiveTab("expenses");
+                },
+              },
             ].map(({ id, label, icon: Icon, onClick }) => (
               <button
                 key={id}
@@ -831,7 +903,7 @@ export function AppShell() {
             onPick={(item) => {
               setSearchOpen(false);
               // The inspector is not shown on Spend, so move to a view that has it first.
-              if (activeTab === "expenses") setActiveTab("days");
+              if (activeTab === "expenses" && !showToday) setActiveTab("days");
               inspectItem(item);
             }}
           />

@@ -45,17 +45,30 @@ const fieldClass =
 const controlClass =
   "min-h-11 rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-2 text-sm text-foreground outline-none placeholder:text-faint focus:border-foreground sm:min-h-9";
 
-export function ExpensesView({ trip, items }: { trip: Trip; items: TravelObject[] }) {
+export function ExpensesView({
+  trip,
+  items,
+  startWith,
+}: {
+  trip: Trip;
+  items: TravelObject[];
+  /** Opens the new-expense form already linked to this item (used by Today's "Log expense"). */
+  startWith?: { itemId: string; description: string };
+}) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [reloadNonce, setReloadNonce] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(!!startWith);
   const expenseFormRef = useRef<HTMLFormElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState(() => newDraft(trip));
+  const [draft, setDraft] = useState(() =>
+    startWith
+      ? { ...newDraft(trip), description: startWith.description.slice(0, 100), travelObjectId: startWith.itemId }
+      : newDraft(trip),
+  );
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
