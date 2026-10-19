@@ -25,6 +25,7 @@ import { dayHotels } from "@/lib/travel-legs";
 import { markdownToPlainText } from "@/lib/text-utils";
 import { typeColor } from "@/lib/type-color";
 import { formatPlannedCost, stopNumbers } from "@/components/views/plan/plan-domain";
+import { placeLabel } from "@/lib/place-label";
 import type { LocationData, TravelObject, Trip } from "@/types/travel";
 
 const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.LeafletMap), {
@@ -160,7 +161,7 @@ const JourneyCard = memo(function JourneyCard({
     id: anchor === "end" ? `agenda:${date}:${item.id}:end` : `agenda:${date}:${item.id}`,
     data: { item, draggedDate: date },
   });
-  const location = item.location?.name ?? item.location?.address;
+  const location = placeLabel(item);
   const time = timeLabel(item, flexTime, anchor);
   const cost = item.cost?.amount != null ? formatPlannedCost(item.cost.amount, item.cost.currency) : null;
   const detail = [

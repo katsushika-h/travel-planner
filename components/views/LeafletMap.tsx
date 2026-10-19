@@ -6,6 +6,7 @@ import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { itemScheduleLabel } from "@/lib/schedule-domain";
 import { defaultTypeColor, typeColor } from "@/lib/type-color";
 import { useResolvedTheme } from "@/store/use-travel-store";
+import { placeLabel } from "@/lib/place-label";
 import type { TravelObject, Trip } from "@/types/travel";
 
 function markerColor(type: string, colors: Record<string, string>) {
@@ -37,9 +38,7 @@ function popupContent(item: TravelObject, number?: number) {
   const details = document.createElement("div");
   details.className = "travel-map-popup-meta";
   const fixedTime = itemScheduleLabel(item);
-  details.textContent = [item.type, item.location?.name ?? item.location?.address, fixedTime]
-    .filter(Boolean)
-    .join(" · ");
+  details.textContent = [item.type, placeLabel(item), fixedTime].filter(Boolean).join(" · ");
   content.appendChild(details);
   const action = document.createElement("button");
   action.type = "button";
