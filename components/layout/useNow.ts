@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { isTripInProgress } from "@/lib/today";
-import type { Trip } from "@/types/travel";
 
 const MINUTE = 60_000;
 
@@ -32,17 +30,4 @@ export function useNow() {
     return () => clearTimeout(timer);
   }, []);
   return now;
-}
-
-/** Whether today is within the trip. Re-checked every minute, but only re-renders when the answer changes. */
-export function useTripInProgress(trip: Trip | null | undefined) {
-  const [inProgress, setInProgress] = useState(false);
-  useEffect(() => {
-    if (!trip) return;
-    const update = () => setInProgress(isTripInProgress(trip, currentTime()));
-    update();
-    const timer = setInterval(update, MINUTE);
-    return () => clearInterval(timer);
-  }, [trip]);
-  return trip ? inProgress : false;
 }

@@ -1,6 +1,6 @@
 # Mobile UI implementation
 
-**Status:** In progress (2026-09-30). The mobile shell, Day touch actions, Month agenda, full-width inspector, and secondary-view adjustments are implemented. A persistent populated QA trip supplies representative schedule, map, long-text, and expense data; a second retained trip supplies a true empty state. Item and expense creation/editing, exact-gap insertion, reload, populated-to-empty trip switching, itinerary display, expense totals, pointer reorder, and user-confirmed phone keyboard and touch reorder checks are verified. Browser viewport checks cover inspector dismissal, dark-theme type menu, long-title display, short-height containment, short-screen expense form visibility, and empty states across all six mobile destinations. The expense load-failure state now has an explicit retry path; injected-error UI verification remains open.
+**Status:** In progress (2026-09-30). The mobile shell, Day touch actions, Month agenda, full-width inspector, and secondary-view adjustments are implemented. A persistent populated QA trip supplies representative schedule, map, long-text, and expense data; a second retained trip supplies a true empty state. Item and expense creation/editing, exact-gap insertion, reload, populated-to-empty trip switching, itinerary display, expense totals, pointer reorder, and user-confirmed phone keyboard and touch reorder checks are verified. Browser viewport checks cover inspector dismissal, dark-theme type menu, long-title display, short-height containment, short-screen expense form visibility, and empty states across all six mobile destinations. The expense load-failure state now has an explicit retry path; injected-error UI verification remains open. **Pass 6 (compact trip-use layout) is implemented (2026-10-21):** one-row header and day pills, compact two-line rows with long-press actions and floating +, four-tab nav (Trip / Places / Spend / More) with Today merged into Trip (`useTodayMark.ts`; `TodayView.tsx` deleted at the user's request — its Directions/parking lines, done state, "Day N of M" and inline note form were dropped), phone Week starting Monday (`PhoneWeek.tsx`, `lib/phone-week.ts`, tests), compact Places, and More → Calendar / Ideas. `npm run check` passes (231 tests). Browser-checked at 390x844 (dark) and, per step, 320x568; desktop Day unchanged. Open: a full light-theme sweep, real-phone long-press/swipe check, and end-to-end runs of Insert above/below from the long-press sheet.
 
 **Goal:** Make the Travel Planner usable on a phone with the **Trip scroll** design: a compact trip header, continuous Day itinerary, day-map switch, and bottom navigation. The mockup in the planning conversation illustrates the layout with sample data; this document is the implementation contract.
 
@@ -89,6 +89,58 @@ Complete these passes in order. One agent should own a pass and update this docu
 - [ ] Run `npx next build --webpack` after the live development server is stopped; its shared `.next` output is in use.
 - [ ] Add behavioral tests where a practical seam exists, especially if navigation mapping or reorder behavior changes. Report only checks actually run.
 - [ ] Update this file with findings, exact verification, remaining limitations, and final status. Add an ADR only if implementation requires a durable new decision; update `docs/architecture.md` only for an architectural change.
+
+### Pass 6 — Compact trip-use layout (planned 2026-10-20)
+
+**Why:** On a phone the app is used to follow an already-made plan, not to plan. At 390x844 the Day view spends ~290px on chrome before the first item (trip header, "Day itinerary · Ideas · Add idea" bar, Itinerary/Map tabs, day heading, Add event/Add note row); each card is ~170px with an Add row between cards, so only ~3 stops fit. Target: ~88px of chrome and ~9 stops visible. The before/after mockup was shown in the planning conversation (2026-10-20). All changes apply below 640px only; desktop is unchanged. No API, schema, or persisted-format changes.
+
+**Decisions (user, 2026-10-20):** Today merges into a single **Trip** tab. Reorder and exact-position insert move behind long-press. Mobile Calendar becomes a compressed Week view only (no Month); its layout follows a reference image the user will supply.
+
+Header and day navigation (`AppShell.tsx`, `CalendarView.tsx`, `plan/DayStrip.tsx`):
+
+- [ ] Mobile header is one 44px row: trip name + chevron (opens the existing trip menu), Day-map toggle, Search. Remove the date range and the compact-rows toggle; compact density is the mobile default.
+- [ ] Add a sticky, horizontally scrolling day-pill strip ("1 Sun 29") under the header, reusing `DayStrip`. Tapping a pill scrolls the continuous list; scrolling updates the active pill. Derive the active day from the existing scroll/active-day logic — no new selected-day store.
+- [ ] Hide the "Day itinerary / Ideas / Add idea" bar and the Itinerary/Map tabs on mobile. The header map toggle switches the Day map in place; Ideas move to More.
+- [ ] Replace the per-day heading with a small sticky label ("Sun 29 Nov · 6 stops"). Empty days keep a visible label and an Add action.
+
+Item rows (`DayJourneyView.tsx`):
+
+- [ ] Single compact row (~52px, 44px minimum touch target): time (13px mono), type-colour dot, title (one line, ellipsis), one muted meta line (type or place · cost or duration), navigate icon on the right. Drop stop numbers, drag handles, and the "Maps" text link from the default row.
+- [ ] Flexible items show their `placementTime` as an approximate muted label (e.g. "~16") and never as a confirmed time. All-day and multi-day items stay correct.
+- [ ] "No location" becomes an inline warning in the meta line, not its own line.
+- [ ] Remove the between-item "Add event / Add note" rows. A floating + adds an event or note to the day in view (menu); long-press a row for Insert above/below, Move up/down, and Reorder mode. Touch reorder must keep current `dayOrder` behavior (see invariants).
+
+Trip tab replaces Today (`AppShell.tsx`, `TodayView.tsx`, `DayJourneyView.tsx`):
+
+- [ ] Bottom navigation becomes four tabs: **Trip**, **Places**, **Spend**, **More**. Remove the separate Today destination and `todayMode` switching once Trip covers it.
+- [ ] While the trip is in progress, Trip opens scrolled to today, marks the current or next item ("now"/"next") with its leave-by time from the existing Today logic, and keeps tonight's stay visible as its row. Move Today's quick actions (add note, add expense) into the + menu. Outside the trip, Trip opens at day 1 (or the last viewed day).
+- [x] `TodayView.tsx` deleted (user decision 2026-10-21); now/next and leave-by live in `components/views/useTodayMark.ts`.
+
+Calendar (`CalendarView.tsx`, `calendar/WeekPlanner.tsx`):
+
+Mobile Calendar is a compressed seven-day week only; Month is not shown on mobile. Reachable from More. Reference: `docs/design/mobile/week-reference.png` (a phone calendar's week view, supplied by the user 2026-10-20).
+
+- [ ] Header: month name centred, Search, and a Today button showing today's date number. No Month/Week/Day switcher on mobile.
+- [ ] Day header row: seven columns (weekday letter over date), no horizontal scroll at 320px. The selected day has an outline; today is marked. Swipe left/right changes week. Tapping a date selects it.
+- [ ] All-day lane under the dates: the trip as a full-width bar, then all-day/multi-day items and day notes as bars spanning their dates, truncated to one line each. Cap the lane height (e.g. three lanes) with a "+N" overflow.
+- [ ] Time grid: narrow hour gutter, hour lines, and half-hour dotted lines. Fit the trip's used hour range to the screen height instead of a fixed 24h scroll; keep it scrollable when the range doesn't fit. Timed items are blocks at their start/end with wrapped titles; overlapping items share the column.
+- [ ] Flexible items must look different from confirmed times (e.g. muted or dashed outline at `placementTime`), so the week never presents them as bookings.
+- [ ] Floating "Add on <selected date> +" pill creates an item on the selected day via the existing create flow. Tapping a block opens the inspector. Reuse `WeekPlanner.tsx` layout logic where possible; desktop Week is unchanged.
+
+Places (`MapView.tsx`):
+
+- [ ] Remove the help paragraph on mobile, use the same pill strip for day filters, and let the map fill the remaining height. Keep OpenStreetMap attribution and the "N items have no location" count (as a small chip).
+
+More menu:
+
+- [ ] Add Calendar (week) and Ideas; keep Kanban, Itinerary, Table, and trip actions.
+
+Verification:
+
+- [ ] At 320x568 and 390x844 in light and dark: chrome height above the first item ≤ ~100px at 390px; no horizontal page overflow; every action from the previous mobile layout is still reachable (add, insert at position, reorder, ideas, calendar, map).
+- [ ] On `Codex Mobile UI QA`: flexible/all-day/overnight/long-title rows render correctly; long-press insert and reorder preserve `dayOrder` (API readback); Trip tab "now/next" with a trip date covering today (use the empty QA trip's dates or a temporary date override, not the user's trips).
+- [ ] Real-phone check of long-press vs scroll conflict and the + menu.
+- [ ] `npm run check`; add tests if a mobile navigation-mapping or row-label helper is extracted.
 
 ## Invariants and acceptance
 
