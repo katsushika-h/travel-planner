@@ -53,8 +53,8 @@ export function ExpensesView({
 }: {
   trip: Trip;
   items: TravelObject[];
-  /** Opens the new-expense form already linked to this item (used by Today's "Log expense"). */
-  startWith?: { itemId: string; description: string };
+  /** Opens the new-expense form, linked to this item when given (used by the Trip list's "Add expense"). */
+  startWith?: { itemId?: string; description?: string };
 }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +67,12 @@ export function ExpensesView({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState(() =>
     startWith
-      ? { ...newDraft(trip), description: startWith.description.slice(0, 100), travelObjectId: startWith.itemId }
+      ? {
+          ...newDraft(trip),
+          ...(startWith.itemId
+            ? { description: (startWith.description ?? "").slice(0, 100), travelObjectId: startWith.itemId }
+            : {}),
+        }
       : newDraft(trip),
   );
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);

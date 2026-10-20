@@ -58,6 +58,7 @@ function calendar(initialMode, start, end, today) {
         if (name === "@/lib/schedule-domain") return schedule;
         if (name === "@/lib/working-day") return { workingDay: () => undefined, setWorkingDay() {} };
         if (name === "@dnd-kit/core") return { useSensors: () => [], useSensor: () => null };
+        if (name === "./calendar/usePhone") return { usePhone: () => false };
         if (name === "./calendar/WeekPlanner") return { WeekPlanner };
         return {};
       },

@@ -9,23 +9,28 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Navigation, Plus } from "lucide-react";
 import { ItemNoteCard } from "@/components/notes/ItemNoteCard";
+import { ActionSheet, type SheetAction } from "@/components/ui/ActionSheet";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { eventItems, isNote } from "@/lib/note-domain";
 import { formatTripDate, shiftDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { flexibleDisplayTimes, itemDateSpan } from "@/lib/schedule-domain";
-import { sameDayGapOrder, sortDayDisplayItems } from "@/lib/schedule-order";
+import { canDropInDayOrder, sameDayGapOrder, sortDayDisplayItems } from "@/lib/schedule-order";
 import { dayHotels } from "@/lib/travel-legs";
 import { markdownToPlainText } from "@/lib/text-utils";
 import { typeColor } from "@/lib/type-color";
 import { formatPlannedCost, stopNumbers } from "@/components/views/plan/plan-domain";
 import { placeLabel } from "@/lib/place-label";
+import { useTodayMark, type TodayMark } from "@/components/views/useTodayMark";
+import { DayStrip } from "@/components/views/plan/DayStrip";
 import type { LocationData, TravelObject, Trip } from "@/types/travel";
 
 const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.LeafletMap), {
@@ -34,6 +39,24 @@ const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.
 });
 
 const savedScrollPositions = new Map<string, number>();
+
+const phoneQuery = "(max-width: 639px)";
+function subscribePhone(callback: () => void) {
+  const media = window.matchMedia(phoneQuery);
+  media.addEventListener("change", callback);
+  return () => media.removeEventListener("change", callback);
+}
+/** True below 640px, where rows are compact and reorder/insert move behind a long-press. */
+function usePhone() {
+  return useSyncExternalStore(
+    subscribePhone,
+    () => window.matchMedia(phoneQuery).matches,
+    () => false,
+  );
+}
+
+const LONG_PRESS_MS = 450;
+const LONG_PRESS_SLOP = 8;
 
 function tripDates(trip: Trip) {
   const dates: string[] = [];
@@ -129,7 +152,184 @@ function timeLabel(item: TravelObject, flexibleTime?: string, anchor?: "start" |
   return { text: "Flexible", flexible: true, small: true };
 }
 
-const JourneyCard = memo(function JourneyCard({
+type CardProps = {
+  item: TravelObject;
+  date: string;
+  number: number | null;
+  flexTime?: string;
+  color: string;
+  selected: boolean;
+  primary: boolean;
+  highlighted: boolean;
+  /** A hotel pinned to the start (last night's) or end (tonight's) of the day. */
+  anchor?: "start" | "end";
+  phone: boolean;
+  /** Phone, today's current or next stop during the trip: "now" / "next ~17:00" and its leave-by line. */
+  markLabel?: string;
+  markLeave?: string;
+  onSelect: (item: TravelObject, additive?: boolean) => void;
+  onInspect: (item: TravelObject) => void;
+  onHover: (itemId: string | null) => void;
+  /** Phone long-press / context menu / Shift+F10: open the row's action sheet. */
+  onActions: (item: TravelObject, date: string, anchor: "start" | "end" | undefined, trigger: HTMLElement) => void;
+};
+
+const JourneyCard = memo(function JourneyCard(props: CardProps) {
+  return props.phone ? <PhoneJourneyRow {...props} /> : <DesktopJourneyCard {...props} />;
+});
+
+/** Whether the item has anything Maps can open: a saved URL, a name or an address. */
+function hasPlace(item: TravelObject) {
+  const location = item.location;
+  return Boolean(location && (location.googleMapsUrl || location.name?.trim() || location.address?.trim()));
+}
+
+/** Compact two-line phone row: time, type dot, title over one muted meta line, navigate button. */
+function PhoneJourneyRow({
+  item,
+  date,
+  flexTime,
+  color,
+  selected,
+  primary,
+  anchor,
+  markLabel,
+  markLeave,
+  onInspect,
+  onActions,
+}: CardProps) {
+  const time = timeLabel(item, flexTime, anchor);
+  const place = placeLabel(item);
+  const cost = item.cost?.amount != null ? formatPlannedCost(item.cost.amount, item.cost.currency) : null;
+  const located = hasPlace(item);
+  const meta: ReactNode[] = [
+    markLabel ? <span className="font-medium text-accent">{markLabel}</span> : null,
+    markLeave ? <span className="font-medium text-foreground">{markLeave}</span> : null,
+    place ?? item.type.charAt(0).toUpperCase() + item.type.slice(1),
+    item.startTime && item.endTime && !item.isAllDay ? `until ${item.endTime}` : null,
+    cost,
+  ].filter(Boolean);
+  if (!located) meta.push(<span className="text-accent">No location</span>);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const press = useRef<{ x: number; y: number; timer: number } | null>(null);
+  const longPressed = useRef(false);
+  const openActions = () => {
+    if (buttonRef.current) onActions(item, date, anchor, buttonRef.current);
+  };
+  function cancelPress() {
+    if (press.current) window.clearTimeout(press.current.timer);
+    press.current = null;
+  }
+  useEffect(() => cancelPress, []);
+  return (
+    <article
+      id={anchor === "end" ? `day-card-${item.id}-end` : `day-card-${item.id}`}
+      className={`relative flex min-h-[52px] items-stretch border-b border-divider bg-background select-none [-webkit-touch-callout:none] ${selected && !primary ? "ring-1 ring-inset ring-accent" : ""}`}
+    >
+      <button
+        ref={buttonRef}
+        type="button"
+        data-item-content
+        aria-haspopup="dialog"
+        aria-keyshortcuts="Shift+F10 ContextMenu"
+        onClick={() => {
+          if (longPressed.current) {
+            longPressed.current = false;
+            return;
+          }
+          onInspect(item);
+        }}
+        onPointerDown={(event) => {
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          longPressed.current = false;
+          cancelPress();
+          press.current = {
+            x: event.clientX,
+            y: event.clientY,
+            timer: window.setTimeout(() => {
+              press.current = null;
+              longPressed.current = true;
+              openActions();
+            }, LONG_PRESS_MS),
+          };
+        }}
+        onPointerMove={(event) => {
+          const start = press.current;
+          if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > LONG_PRESS_SLOP) cancelPress();
+        }}
+        onPointerUp={cancelPress}
+        onPointerCancel={cancelPress}
+        onPointerLeave={cancelPress}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          cancelPress();
+          longPressed.current = true;
+          openActions();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+            event.preventDefault();
+            openActions();
+          }
+        }}
+        className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left select-none [-webkit-touch-callout:none]"
+      >
+        <span
+          className={`min-w-10 shrink-0 font-mono tracking-tighter ${time.small ? "max-w-10 text-[11px] leading-tight" : "text-[13px]"} ${primary ? "text-accent" : time.flexible ? "text-muted" : ""}`}
+        >
+          {time.flexible && !time.small ? (
+            <>
+              <span className="sr-only">Approximately </span>
+              {time.text}
+            </>
+          ) : (
+            time.text
+          )}
+        </span>
+        <span aria-hidden className="size-2 shrink-0" style={{ backgroundColor: color }} />
+        <span className="min-w-0 flex-1">
+          <span className="line-clamp-2 text-[15px] leading-tight font-medium break-words">{item.title}</span>
+          <span className="mt-0.5 block truncate text-xs leading-tight text-muted">
+            {meta.map((part, index) => (
+              <span key={index}>
+                {index > 0 && " · "}
+                {part}
+              </span>
+            ))}
+          </span>
+        </span>
+      </button>
+      {located && (
+        <a
+          href={safeMapsHref(item.location, item.title)}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`Open ${item.title} in Maps`}
+          className="grid size-11 shrink-0 place-items-center self-center text-muted outline-none hover:text-accent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring"
+        >
+          <Navigation aria-hidden="true" className="size-[18px]" strokeWidth={1.5} />
+        </a>
+      )}
+    </article>
+  );
+}
+
+/** Builds the sheet in its own render, so the (ref-using) action callbacks are only called from handlers. */
+function SheetHost({
+  build,
+  triggerRef,
+  onClose,
+}: {
+  build: () => { title: string; actions: SheetAction[] } | null;
+  triggerRef: RefObject<HTMLElement | null>;
+  onClose: (restoreFocus: boolean) => void;
+}) {
+  const view = build();
+  if (!view) return null;
+  return <ActionSheet title={view.title} actions={view.actions} triggerRef={triggerRef} onClose={onClose} />;
+}
+
+const DesktopJourneyCard = memo(function DesktopJourneyCard({
   item,
   date,
   number,
@@ -142,21 +342,7 @@ const JourneyCard = memo(function JourneyCard({
   onSelect,
   onInspect,
   onHover,
-}: {
-  item: TravelObject;
-  date: string;
-  number: number | null;
-  flexTime?: string;
-  color: string;
-  selected: boolean;
-  primary: boolean;
-  highlighted: boolean;
-  /** A hotel pinned to the start (last night's) or end (tonight's) of the day. */
-  anchor?: "start" | "end";
-  onSelect: (item: TravelObject, additive?: boolean) => void;
-  onInspect: (item: TravelObject) => void;
-  onHover: (itemId: string | null) => void;
-}) {
+}: CardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: anchor === "end" ? `agenda:${date}:${item.id}:end` : `agenda:${date}:${item.id}`,
     data: { item, draggedDate: date },
@@ -284,6 +470,9 @@ function DateSection({
   onHover,
   onCreate,
   onFocusDay,
+  phone,
+  mark,
+  onActions,
 }: {
   noteFocusId: string | null;
   onAddNote: (date: string, order: number) => void;
@@ -303,6 +492,10 @@ function DateSection({
   onHover: (itemId: string | null) => void;
   onCreate: (date: string, order: number) => void;
   onFocusDay: () => void;
+  phone: boolean;
+  /** Set only on today's section while the trip is in progress. */
+  mark: TodayMark | null;
+  onActions: CardProps["onActions"];
 }) {
   const gapOrder = (visibleGap: number) => sameDayGapOrder(items, date, visibleGap);
   const { setNodeRef: setSectionDropRef, isOver } = useDroppable({
@@ -312,6 +505,19 @@ function DateSection({
   const { morning, evening, middle, numbers } = dayAnchors(items, date);
   const flexTimes = flexibleDisplayTimes(events);
   const fixedCount = items.filter((item) => item.startTime && item.endTime && !item.isAllDay).length;
+  const fullLabel = formatTripDate(`${date}T12:00:00Z`, trip.timezone, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  const shortLabel = `${formatTripDate(`${date}T12:00:00Z`, trip.timezone, { weekday: "short" })} ${formatTripDate(`${date}T12:00:00Z`, trip.timezone, { day: "numeric" })} ${formatTripDate(`${date}T12:00:00Z`, trip.timezone, { month: "short" })}`;
+  const markFor = (item: TravelObject, anchor?: "start" | "end") =>
+    mark && !anchor && mark.itemId === item.id
+      ? {
+          label: `${mark.kind}${mark.approximateTime ? ` ${mark.approximateTime}` : ""}`,
+          leave: mark.leaveBy ? (mark.leaveNow ? "Leave now" : `Leave by ${mark.leaveBy}`) : undefined,
+        }
+      : undefined;
   // Pinned hotel cards sit outside the saved order, so they are not drop targets.
   const renderCard = (item: TravelObject, anchor?: "start" | "end") => (
     <JourneyCard
@@ -325,9 +531,13 @@ function DateSection({
       primary={primarySelectedId === item.id}
       highlighted={highlightedItemId === item.id}
       anchor={anchor}
+      phone={phone}
+      markLabel={markFor(item, anchor)?.label}
+      markLeave={markFor(item, anchor)?.leave}
       onSelect={onSelect}
       onInspect={onInspect}
       onHover={onHover}
+      onActions={onActions}
     />
   );
   return (
@@ -337,40 +547,55 @@ function DateSection({
         setSectionDropRef(node);
       }}
       data-date={date}
-      aria-labelledby={`day-heading-${date}`}
-      className={`min-h-[42vh] scroll-mt-0 pb-8 ${isOver ? "bg-surface/60" : ""}`}
+      aria-label={fullLabel}
+      className={`scroll-mt-0 pb-8 sm:min-h-[42vh] max-sm:last-of-type:min-h-[calc(100dvh-14rem)] ${isOver ? "bg-surface/60" : ""}`}
     >
       <header className={`sticky top-0 z-20 border-t bg-background ${isOver ? "border-accent" : "border-foreground"}`}>
-        <div className="flex flex-wrap items-center justify-between gap-2 max-sm:pb-2">
+        <div className="flex items-center justify-between gap-2 sm:hidden">
           <button
             type="button"
             onClick={onFocusDay}
-            aria-label={`Show all ${events.length} ${events.length === 1 ? "place" : "places"} for ${formatTripDate(`${date}T12:00:00Z`, trip.timezone, { weekday: "long", month: "long", day: "numeric" })} on the map`}
-            className="flex min-w-0 flex-1 items-baseline justify-between gap-3 px-4 py-3.5 text-left hover:bg-surface max-sm:basis-full sm:px-6"
+            aria-label={`Show all ${events.length} ${events.length === 1 ? "place" : "places"} for ${fullLabel} on the map`}
+            className="min-h-11 min-w-0 flex-1 truncate px-4 text-left text-xs text-muted"
+          >
+            <h2 className="inline font-normal">
+              <span className="font-medium text-foreground">{shortLabel}</span> · {events.length}{" "}
+              {events.length === 1 ? "stop" : "stops"}
+            </h2>
+          </button>
+          {items.length === 0 && (
+            <>
+              <button
+                type="button"
+                className="min-h-11 shrink-0 px-1.5 text-xs underline underline-offset-2"
+                onClick={() => onCreate(date, gapOrder(items.length))}
+              >
+                Add event
+              </button>
+              <button
+                type="button"
+                className="mr-2.5 min-h-11 shrink-0 px-1.5 text-xs text-muted underline underline-offset-2"
+                onClick={() => onAddNote(date, gapOrder(items.length))}
+              >
+                Add note
+              </button>
+            </>
+          )}
+        </div>
+        <div className="hidden flex-wrap items-center justify-between gap-2 sm:flex">
+          <button
+            type="button"
+            onClick={onFocusDay}
+            aria-label={`Show all ${events.length} ${events.length === 1 ? "place" : "places"} for ${fullLabel} on the map`}
+            className="flex min-w-0 flex-1 items-baseline justify-between gap-3 px-6 py-3.5 text-left hover:bg-surface"
           >
             <span className="flex min-w-0 items-baseline gap-3">
               <span className="shrink-0 font-mono text-xs text-faint">Day {dayNumber}</span>
-              <h2 id={`day-heading-${date}`} className="min-w-0 truncate text-[17px] font-medium">
-                {formatTripDate(`${date}T12:00:00Z`, trip.timezone, { weekday: "long", month: "long", day: "numeric" })}
-              </h2>
+              <h2 className="min-w-0 truncate text-[17px] font-medium">{fullLabel}</h2>
             </span>
-            <span className="hidden shrink-0 text-right text-xs text-muted sm:block">
+            <span className="shrink-0 text-right text-xs text-muted">
               {events.length} {events.length === 1 ? "stop" : "stops"} · {fixedCount} fixed
             </span>
-          </button>
-          <button
-            type="button"
-            className="mr-1 min-h-11 px-2 text-[13px] underline underline-offset-2 sm:hidden"
-            onClick={() => onCreate(date, gapOrder(items.length))}
-          >
-            Add event
-          </button>
-          <button
-            type="button"
-            className="mr-3 min-h-11 px-2 text-[13px] text-muted underline underline-offset-2 sm:hidden"
-            onClick={() => onAddNote(date, gapOrder(items.length))}
-          >
-            Add note
           </button>
         </div>
       </header>
@@ -379,12 +604,14 @@ function DateSection({
         {middle.length ? (
           middle.map(({ item, index }) => (
             <div key={item.id}>
-              <DropGap
-                date={date}
-                order={gapOrder(index)}
-                onCreate={onCreate}
-                onAddNote={() => onAddNote(date, gapOrder(index))}
-              />
+              {!phone && (
+                <DropGap
+                  date={date}
+                  order={gapOrder(index)}
+                  onCreate={onCreate}
+                  onAddNote={() => onAddNote(date, gapOrder(index))}
+                />
+              )}
               <DayItemDrop date={date} order={gapOrder(index)}>
                 {isNote(item) ? (
                   <ItemNoteCard
@@ -413,7 +640,7 @@ function DateSection({
             </div>
           </div>
         )}
-        {middle.length > 0 && (
+        {middle.length > 0 && !phone && (
           <DropGap
             date={date}
             order={gapOrder(items.length)}
@@ -441,7 +668,11 @@ export function DayJourneyView({
   onSelect,
   onInspect,
   onCreateItem,
+  onReorder,
   previewItem,
+  mapOpen,
+  onMapOpenChange,
+  onLogExpense,
 }: {
   onCreateNote: (date: string, order: number) => Promise<string | undefined>;
   onSaveNote: (id: string, data: { title: string; noteBody: string }) => Promise<void>;
@@ -456,8 +687,15 @@ export function DayJourneyView({
   onSelect: (item: TravelObject, additive?: boolean) => void;
   onInspect: (item: TravelObject) => void;
   onCreateItem: (date: string, order: number) => void;
+  /** Move an item to a gap of its day (the same call as a drag-drop in Day). */
+  onReorder: (item: TravelObject, date: string, order: number) => Promise<void>;
   /** A selected idea shown as a temporary pin on the day map. */
   previewItem?: TravelObject | null;
+  /** Below `md` the itinerary and the day map share the screen; the app header toggles this. */
+  mapOpen: boolean;
+  onMapOpenChange: (open: boolean) => void;
+  /** Phone: opens the Spend expense form, linked to the item when given. */
+  onLogExpense?: (item: TravelObject | null) => void;
 }) {
   const [noteFocusId, setNoteFocusId] = useState<string | null>(null);
   const [noteCreateError, setNoteCreateError] = useState("");
@@ -480,6 +718,14 @@ export function DayJourneyView({
       noteCreating.current = false;
     }
   }
+  const phone = usePhone();
+  const [sheet, setSheet] = useState<{ itemId: string; date: string; anchor?: "start" | "end" } | "add" | null>(null);
+  const sheetTrigger = useRef<HTMLElement | null>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
+  const openItemActions = useCallback<CardProps["onActions"]>((item, date, anchor, trigger) => {
+    sheetTrigger.current = trigger;
+    setSheet({ itemId: item.id, date, anchor });
+  }, []);
   const dates = useMemo(() => tripDates(trip), [trip]);
   const grouped = useMemo(
     () =>
@@ -492,11 +738,21 @@ export function DayJourneyView({
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const [mapMoved, setMapMoved] = useState(false);
   const [recenterToken, setRecenterToken] = useState(0);
-  const [mobileSurface, setMobileSurface] = useState<"itinerary" | "map">("itinerary");
+  const mobileSurface = mapOpen ? "map" : "itinerary";
+  const mapOpenRef = useRef(mapOpen);
+  useEffect(() => {
+    mapOpenRef.current = mapOpen;
+  }, [mapOpen]);
+  // Today in the trip timezone (honours the dev-only `?today=` clock); the Trip list flags the current/next stop on it.
+  const { date: todayDate, mark } = useTodayMark(trip, items, phone);
+  const today = todayDate;
   const [desktopMapVisible, setDesktopMapVisible] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef(new Map<string, HTMLElement>());
   const handledInitialScroll = useRef(false);
+  // Opening the Trip list on a phone during the trip lands on today instead of the remembered position.
+  const initialScrollRequest = useRef(scrollRequest);
+  const openAtToday = useRef(phone && dates.includes(todayDate) && !primarySelectedId);
   const activeDateRef = useRef(activeDate);
   const initialSelectionRef = useRef(primarySelectedId);
   const previousSelectionRef = useRef(primarySelectedId);
@@ -531,6 +787,8 @@ export function DayJourneyView({
   const detectActiveDate = useCallback(() => {
     const root = scrollRef.current;
     if (!root || root.clientHeight === 0) return;
+    // While the phone shows the map, the list is only parked off-screen (to keep its scroll position).
+    if (mapOpenRef.current && window.matchMedia("(max-width: 767px)").matches) return;
     const readingLine = root.getBoundingClientRect().top + 84;
     let next = dates[0];
     for (const date of dates) {
@@ -546,7 +804,7 @@ export function DayJourneyView({
     const root = scrollRef.current;
     if (!root) return;
     const restored = savedScrollPositions.get(trip.id);
-    if (restored != null && !initialSelectionRef.current) root.scrollTop = restored;
+    if (restored != null && !initialSelectionRef.current && !openAtToday.current) root.scrollTop = restored;
     lastScrollTopRef.current = root.scrollTop;
     detectActiveDate();
     const observer = new IntersectionObserver(() => detectActiveDate(), {
@@ -593,11 +851,17 @@ export function DayJourneyView({
   }, []);
 
   useEffect(() => {
+    // Compared by identity so a repeated effect run (Strict Mode) stays on today; any later request moves on.
+    if (openAtToday.current && scrollRequest === initialScrollRequest.current) {
+      scrollToDate(todayDate, "auto");
+      return;
+    }
     if (!handledInitialScroll.current) {
       handledInitialScroll.current = true;
       if (savedScrollPositions.has(trip.id) && !initialSelectionRef.current) return;
     }
     scrollToDate(scrollRequest.date);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- today only matters for the first scroll
   }, [scrollRequest, scrollToDate, trip.id]);
 
   useEffect(() => {
@@ -624,8 +888,99 @@ export function DayJourneyView({
   function selectFromMap(item: TravelObject) {
     onSelect(item);
     document.getElementById(`day-card-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-    setMobileSurface("itinerary");
+    onMapOpenChange(false);
   }
+
+  /** Actions for the long-pressed row, or for the floating + (the end of the day in view). */
+  function sheetContent(): { title: string; actions: SheetAction[] } | null {
+    if (sheet === "add") {
+      const list = grouped.get(activeDate) ?? [];
+      const end = sameDayGapOrder(list, activeDate, list.length);
+      const label = formatTripDate(`${activeDate}T12:00:00Z`, trip.timezone, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+      return {
+        title: `Add to ${label}`,
+        actions: [
+          { id: "event", label: "Add event", onSelect: () => onCreateItem(activeDate, end) },
+          { id: "note", label: "Add note", onSelect: () => void addNote(activeDate, end) },
+          ...(onLogExpense
+            ? [
+                {
+                  id: "expense",
+                  label: "Add expense",
+                  onSelect: () => onLogExpense(mark ? (items.find((item) => item.id === mark.itemId) ?? null) : null),
+                },
+              ]
+            : []),
+        ],
+      };
+    }
+    const item = sheet ? items.find((candidate) => candidate.id === sheet.itemId) : null;
+    if (!sheet || !item) return null;
+    const { date } = sheet;
+    const list = grouped.get(date) ?? [];
+    const { middle } = dayAnchors(list, date);
+    const position = sheet.anchor ? -1 : middle.findIndex((entry) => entry.item.id === item.id);
+    const actions: SheetAction[] = [];
+    if (position >= 0) {
+      const index = middle[position].index;
+      const gap = (visibleGap: number) => sameDayGapOrder(list, date, visibleGap);
+      const previous = middle[position - 1];
+      const next = middle[position + 1];
+      // Same ordering rules as a drag-drop in Day: the target gap is before the neighbour above, or after the one below.
+      const upOrder = previous ? gap(previous.index) : null;
+      const downOrder = next ? gap(next.index + 1) : null;
+      const canMove = (order: number | null) =>
+        order != null && !item.isAllDay && (isNote(item) || canDropInDayOrder(items, item, date, order));
+      actions.push(
+        { id: "above", label: "Insert event above", onSelect: () => onCreateItem(date, gap(index)) },
+        { id: "below", label: "Insert event below", onSelect: () => onCreateItem(date, gap(index + 1)) },
+        { id: "note", label: "Insert note below", onSelect: () => void addNote(date, gap(index + 1)) },
+        {
+          id: "up",
+          label: "Move up",
+          disabled: !canMove(upOrder),
+          restoreFocus: true,
+          onSelect: () => void onReorder(item, date, upOrder!),
+        },
+        {
+          id: "down",
+          label: "Move down",
+          disabled: !canMove(downOrder),
+          restoreFocus: true,
+          onSelect: () => void onReorder(item, date, downOrder!),
+        },
+      );
+    }
+    actions.push({ id: "open", label: "Open", onSelect: () => onInspect(item) });
+    return { title: item.title, actions };
+  }
+  function closeSheet(restoreFocus: boolean) {
+    const trigger = sheet === "add" ? fabRef.current : sheetTrigger.current;
+    setSheet(null);
+    if (restoreFocus) requestAnimationFrame(() => trigger?.focus());
+  }
+
+  function pickDay(date: string) {
+    if (mapOpen) setActive(date, true);
+    else scrollToDate(date);
+  }
+
+  // A hidden list loses its scroll position; return to the active day when it is shown again.
+  const previousMapOpen = useRef(mapOpen);
+  useLayoutEffect(() => {
+    const wasOpen = previousMapOpen.current;
+    previousMapOpen.current = mapOpen;
+    if (!wasOpen || mapOpen) return;
+    const date = activeDateRef.current;
+    scrollToDate(date, "auto");
+    // Note cards resize after the list is shown again, so settle on the day once more.
+    const frame = requestAnimationFrame(() => scrollToDate(date, "auto"));
+    return () => cancelAnimationFrame(frame);
+  }, [mapOpen, scrollToDate]);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -661,23 +1016,41 @@ export function DayJourneyView({
           </div>
         )}
       </div>
-      <div className="flex shrink-0 gap-6 border-b border-divider px-4 md:hidden">
+      <div className="shrink-0 border-b border-divider bg-background pl-2 sm:hidden">
+        <DayStrip days={dates} activeDate={activeDate} today={today} variant="pills" onPick={pickDay} />
+      </div>
+      <div className="flex shrink-0 gap-6 border-b border-divider px-4 max-sm:hidden md:hidden">
         {(["itinerary", "map"] as const).map((surface) => (
           <button
             key={surface}
             type="button"
             aria-pressed={mobileSurface === surface}
             className={`min-h-11 min-w-11 border-b px-0.5 text-sm capitalize ${mobileSurface === surface ? "border-foreground font-medium" : "border-transparent text-muted"}`}
-            onClick={() => setMobileSurface(surface)}
+            onClick={() => onMapOpenChange(surface === "map")}
           >
             {surface}
           </button>
         ))}
       </div>
-      <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(360px,44%)_minmax(0,1fr)]">
+      {phone && sheet && (
+        <SheetHost build={sheetContent} triggerRef={sheet === "add" ? fabRef : sheetTrigger} onClose={closeSheet} />
+      )}
+      {phone && !mapOpen && (
+        <button
+          ref={fabRef}
+          type="button"
+          aria-label="Add to this day"
+          aria-haspopup="dialog"
+          onClick={() => setSheet("add")}
+          className="absolute right-4 bottom-4 z-30 grid size-12 place-items-center rounded-full bg-ink text-background shadow-[0_2px_10px_var(--scrim)] outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring"
+        >
+          <Plus aria-hidden="true" className="size-5" strokeWidth={1.75} />
+        </button>
+      )}
+      <div className="relative grid min-h-0 flex-1 md:grid-cols-[minmax(360px,44%)_minmax(0,1fr)]">
         <div
           ref={scrollRef}
-          className={`${mobileSurface === "map" ? "hidden" : "block"} min-h-0 overflow-y-auto [overflow-anchor:none] md:block`}
+          className={`${mobileSurface === "map" ? "max-md:invisible max-md:absolute max-md:inset-0" : "block"} min-h-0 overflow-y-auto [overflow-anchor:none] md:block`}
           aria-label="Continuous trip itinerary"
         >
           {dates.map((date, index) => (
@@ -707,8 +1080,13 @@ export function DayJourneyView({
               onHover={setHoveredItemId}
               onCreate={onCreateItem}
               onFocusDay={() => setActive(date, true)}
+              phone={phone}
+              mark={phone && date === todayDate ? mark : null}
+              onActions={openItemActions}
             />
           ))}
+          {/* Keeps the last row clear of the floating + button. */}
+          <div aria-hidden className="h-24 sm:hidden" />
         </div>
         <section
           className={`${mobileSurface === "map" ? "flex" : "hidden"} relative min-h-0 flex-col overflow-hidden border-l border-divider md:flex`}

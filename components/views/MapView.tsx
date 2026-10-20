@@ -21,6 +21,13 @@ function dayLabel(date: string) {
   }).format(new Date(`${date}T12:00:00Z`));
 }
 
+/** Compact phone label such as "Sun 29", without the month. */
+function shortDayLabel(date: string) {
+  return new Intl.DateTimeFormat(undefined, { timeZone: "UTC", weekday: "short", day: "numeric" }).format(
+    new Date(`${date}T12:00:00Z`),
+  );
+}
+
 export function MapView({
   trip,
   items,
@@ -101,12 +108,16 @@ export function MapView({
     );
 
   const allActive = activeDates.size === 0;
+  // Phones: each row is a 44px touch target around a 32px pill. From sm up the pill is `display: contents`,
+  // so the desktop grid stays as it was.
   const rowBase =
-    "grid items-baseline text-left transition-colors hover:bg-surface max-sm:min-h-11 max-sm:shrink-0 max-sm:grid-cols-[auto_auto] max-sm:gap-x-2 max-sm:border max-sm:border-divider max-sm:px-3 max-sm:py-2 sm:min-h-14 sm:grid-cols-[52px_minmax(0,1fr)_auto] sm:gap-x-3 sm:border-b sm:border-divider sm:py-3";
+    "grid items-baseline text-left transition-colors hover:bg-surface max-sm:flex max-sm:min-h-11 max-sm:shrink-0 max-sm:items-center sm:min-h-14 sm:grid-cols-[52px_minmax(0,1fr)_auto] sm:gap-x-3 sm:border-b sm:border-divider sm:py-3";
+  const pillClass = (active: boolean) =>
+    `max-sm:flex max-sm:h-8 max-sm:items-center max-sm:gap-x-2 max-sm:whitespace-nowrap max-sm:rounded-full max-sm:border max-sm:px-3 sm:contents ${active ? "max-sm:border-ink" : "max-sm:border-divider"}`;
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4 pt-4 sm:flex-row sm:gap-12 sm:overflow-hidden sm:px-12 sm:pb-8 sm:pt-6"
+      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4 pt-4 max-sm:gap-2 max-sm:pb-0 max-sm:pt-2 sm:flex-row sm:gap-12 sm:overflow-hidden sm:px-12 sm:pb-8 sm:pt-6"
       aria-label="Trip locations map"
     >
       <nav aria-label="Filter map by day" className="flex shrink-0 flex-col sm:min-h-0 sm:w-72 lg:w-80">
@@ -118,14 +129,18 @@ export function MapView({
             onClick={() => setSelectedDates(new Set())}
             className={rowBase}
           >
-            <span className={`font-mono text-lg font-light max-sm:hidden ${allActive ? "text-accent" : "text-faint"}`}>
-              —
+            <span className={pillClass(allActive)}>
+              <span
+                className={`font-mono text-lg font-light max-sm:hidden ${allActive ? "text-accent" : "text-faint"}`}
+              >
+                —
+              </span>
+              <span className="flex flex-col gap-0.5">
+                <span className={`text-[15px] max-sm:text-[13px] ${allActive ? "font-semibold" : ""}`}>All days</span>
+                <span className="text-xs text-muted max-sm:hidden">{trip.title}</span>
+              </span>
+              <span className="font-mono text-xs text-muted">{mappedItems.length}</span>
             </span>
-            <span className="flex flex-col gap-0.5">
-              <span className={`text-[15px] ${allActive ? "font-semibold" : ""}`}>All days</span>
-              <span className="text-xs text-muted max-sm:hidden">{trip.title}</span>
-            </span>
-            <span className="font-mono text-xs text-muted">{mappedItems.length}</span>
           </button>
           {days.map(([date, count]) => {
             const dayNumber = dayIndexForDate(date, trip.startDate);
@@ -139,32 +154,46 @@ export function MapView({
                 onClick={(event) => filterDay(date, event)}
                 className={rowBase}
               >
-                <span className={`font-mono text-lg font-light max-sm:hidden ${active ? "text-accent" : "text-faint"}`}>
-                  {dayNumber > 0 ? String(dayNumber).padStart(2, "0") : "·"}
-                </span>
-                <span className="flex flex-col gap-0.5">
-                  <span className={`text-[15px] ${active ? "font-semibold" : ""}`}>
-                    <span className="sm:hidden">{dayNumber > 0 ? `Day ${dayNumber} · ` : ""}</span>
-                    {dayLabel(date)}
+                <span className={pillClass(active)}>
+                  <span
+                    className={`font-mono text-lg font-light max-sm:hidden ${active ? "text-accent" : "text-faint"}`}
+                  >
+                    {dayNumber > 0 ? String(dayNumber).padStart(2, "0") : "·"}
                   </span>
-                  <span className="text-xs text-muted max-sm:hidden">
-                    {count} {count === 1 ? "stop" : "stops"}
+                  <span className="flex flex-col gap-0.5">
+                    <span className={`text-[15px] max-sm:text-[13px] ${active ? "font-semibold" : ""}`}>
+                      <span className="sm:hidden">
+                        {dayNumber > 0 ? `${dayNumber} ` : ""}
+                        {shortDayLabel(date)}
+                      </span>
+                      <span className="max-sm:hidden">{dayLabel(date)}</span>
+                    </span>
+                    <span className="text-xs text-muted max-sm:hidden">
+                      {count} {count === 1 ? "stop" : "stops"}
+                    </span>
                   </span>
+                  <span className="font-mono text-xs text-muted">{count}</span>
                 </span>
-                <span className="font-mono text-xs text-muted">{count}</span>
               </button>
             );
           })}
         </div>
-        <p className="mt-4 text-[13px] leading-normal text-muted">
+        <p className="mt-4 text-[13px] leading-normal text-muted max-sm:hidden">
           Picking a day fits the map to its stops.
           <span className="hidden sm:inline"> Shift-click to select several days.</span>
-          <span className="sm:hidden"> Tap days to select several.</span>
           {unmappedCount > 0 &&
             ` ${unmappedCount} ${unmappedCount === 1 ? "item has" : "items have"} no location and ${unmappedCount === 1 ? "isn't" : "aren't"} shown.`}
         </p>
+        {unmappedCount > 0 && (
+          <p
+            className="mt-2 w-fit rounded-full border border-divider px-3 py-1 text-xs text-muted sm:hidden"
+            title={`${unmappedCount} ${unmappedCount === 1 ? "item has" : "items have"} no location and ${unmappedCount === 1 ? "isn't" : "aren't"} shown on the map.`}
+          >
+            {unmappedCount} without location
+          </p>
+        )}
       </nav>
-      <div className="flex min-h-[320px] min-w-0 flex-1 flex-col bg-surface max-sm:h-[60dvh] max-sm:flex-none sm:min-h-0">
+      <div className="flex min-h-[320px] min-w-0 flex-1 flex-col bg-surface sm:min-h-0">
         <LeafletMap
           key={trip.id}
           trip={trip}
@@ -174,6 +203,7 @@ export function MapView({
           markerNumbers={markerNumbers}
           dimmedItemIds={dimmedItemIds}
           fitKey={[...activeDates].sort().join(",") || "all"}
+          className="min-h-[360px] flex-1 max-sm:min-h-0"
         />
       </div>
     </section>
