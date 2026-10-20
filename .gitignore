@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Generated from pdfjs-dist by scripts/copy-pdfjs-cmaps.mjs
+public/pdfjs/
+
 # Next.js build output
 .next/
 out/

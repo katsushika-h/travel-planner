@@ -792,7 +792,7 @@ export function ObjectInspectorPanel({
             multiple
             className="sr-only"
             aria-label="Attach files"
-            accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+            accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.ics,.eml"
             onChange={(event) => void uploadAttachments(event.target.files ?? [])}
           />
           {attachmentError && (

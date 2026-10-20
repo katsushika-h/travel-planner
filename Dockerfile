@@ -20,6 +20,7 @@ COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 RUN cp next.config.docker.ts next.config.ts
 RUN npx prisma generate
+RUN node scripts/copy-pdfjs-cmaps.mjs
 RUN npx next build --webpack
 
 FROM base AS migrator

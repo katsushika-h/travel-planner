@@ -14,6 +14,8 @@ const contentTypes: Record<string, string> = {
   pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   txt: "text/plain; charset=utf-8",
   csv: "text/csv; charset=utf-8",
+  ics: "text/calendar; charset=utf-8",
+  eml: "message/rfc822",
 };
 
 export function attachmentExtension(fileName: string) {

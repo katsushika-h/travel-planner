@@ -34,7 +34,7 @@ export async function POST(request: Request, { params }: Context) {
     if (file.size > MAX_FILE_SIZE) throw new Error("Attachments must be 20 MB or smaller.");
     const fileName = safeFileName(file.name);
     if (!fileName || !attachmentExtension(fileName))
-      throw new Error("Supported formats: JPG, PNG, PDF, DOCX, spreadsheets, presentations, TXT, and CSV.");
+      throw new Error("Supported formats: JPG, PNG, PDF, DOCX, spreadsheets, presentations, TXT, CSV, ICS, and EML.");
 
     const attachment = await prisma.travelAttachment.create({
       data: {

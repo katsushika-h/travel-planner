@@ -4,6 +4,7 @@ Potential features to implement after the POC. These are ideas, not commitments 
 
 ## Completed recently
 
+- [x] **Reservation import** — create items from a PDF confirmation, an `.ics` invite, or schema.org JSON-LD in an `.eml` email or saved `.html` page. Review and edit every field, with each PDF value's source shown, before creating; the original PDF, `.ics` or `.eml` file is attached. PDFs are read locally with label rules; image-only scans are not read (no OCR).
 - [x] **Expense management** — record and edit actual trip spending, optionally link it to itinerary items, and view totals by currency and category alongside separate planned item costs.
 - [x] **Unscheduled ideas** — create an item without a date, keep it in the Ideas panel, drag it onto a date, and remove its date to return it to Ideas.
 - [x] **Travel document attachments** — upload, list, preview/download, and delete files on itinerary items. Current implementation stores file bytes in PostgreSQL and limits uploads to 20 MB.
