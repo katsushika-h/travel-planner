@@ -11,11 +11,32 @@ Potential features to implement after the POC. These are ideas, not commitments 
 - [x] **Google Maps saved-list import** — import Google Takeout CSV files, preserve place metadata and Maps links, and map CSV categories to event types.
 - [x] **Map view** — show items with extracted coordinates on a Leaflet/OpenStreetMap map with colored markers and day filters.
 - [x] **Calendar schedule modes** — month, week, and day views with fixed-time items, flexible placement, drag/drop, resizing, and itinerary ordering. `dayOrder` still needs verification.
-
 - [x] **CSV categorizing** — read the types categories from a CSV file and apply them to imported travel objects. Unmatched categories create new categories automatically.
-- [ ] **Undo** — allow recently made changes to be reversed.
-- [ ] **Rethink the unscheduled panel** — Something like a panel that the use can open with a hotkey, like Space button. Brainstormed locations will be here, and the user can add them to the itinerary by dragging them in. This dock will be accessible with mouseover as well.
-  - [ ] **Notes function** - User should be able to put notes, maybe only in the day view 
+- [x] **Undo** — reverse recently made changes (`lib/undo-stack.ts`, `components/layout/useUndo.ts`).
+- [x] **Ideas panel on a hotkey** — Space shows or hides the Ideas panel with its search box focused; ideas are dragged into the itinerary from it. Opening it on mouseover is not implemented.
+- [x] **Day notes** — notes attached to a day (ADR 0004, ADR 0005).
+- [x] **Calendar export** — export the trip as an `.ics` file.
+- [x] **PDF export** — a printable itinerary (`/trips/<id>/print`, Trip menu → Export PDF) saved through the browser's print dialog: each day's items with times, places, notes and planned costs, a Google Maps link per item, and a Google Maps route link per day.
+- [x] **Travel distance** — walking distance and time between consecutive stops, with parking suggestions for driving legs (`docs/work/travel-distance.md`).
+
+## Open
+
+- [ ] **Read-only offline and install to home screen** — service worker, web app manifest, and a per-trip IndexedDB snapshot so the trip can be read without a connection. Planned as phase 2 of `docs/work/today-and-offline.md`; it needs HTTPS on the NAS reverse proxy first (phase 0).
 - [ ] **Export locations to Google My Maps** — export itinerary locations as an importable CSV or KML file.
 - [ ] **Suggested-time auto-planning** — optionally calculate suggested times for flexible ordered activities using the day start, estimated durations, travel times, and existing fixed-time bookings; keep suggestions distinct from confirmed times until the user accepts them.
 - [ ] **User accounts and trip ownership** — allow users to log in, create their own trips, and access only the trips they own instead of every trip in the database.
+- [ ] **Reservation import gaps** — the PDF rules listed as not implemented in section 9 of `docs/work/reservation-pdf-extraction-recipe.md`, and OCR for image-only scans.
+- [ ] **Public transit routing** — travel legs currently support only walking and driving.
+- [ ] **Packing and to-do checklists** — per trip or per day.
+- [ ] **Read-only share link** — let travel companions view a trip; depends on some form of access control.
+- [ ] **Duplicate a trip or use it as a template** — for repeat trips.
+- [ ] **Budget targets** — set a budget per expense category and compare it with actual spending.
+
+## Out of scope for now
+
+These were deliberately left out of earlier work and could be revisited:
+
+- Offline edits (queued expenses or notes); offline is planned as read-only.
+- Booking-reference and opening-hours fields.
+- Weather and push notifications.
+- Currency conversion; expense totals stay grouped by currency.
