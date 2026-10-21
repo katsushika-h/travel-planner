@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { layoutOverlaps, phoneDaySegments, phoneHourRange, phoneLaneBars, weekStartOf } from "../lib/phone-week.ts";
+import {
+  layoutOverlaps,
+  phoneDaySegments,
+  phoneHourRange,
+  phoneLaneBars,
+  shiftWeekSelection,
+  weekStartOf,
+} from "../lib/phone-week.ts";
 
 const item = (id, fields = {}) => ({
   kind: "event",
@@ -89,4 +96,13 @@ test("week starts on Monday", () => {
   assert.equal(weekStartOf("2026-12-02"), "2026-11-30");
   assert.equal(weekStartOf("2026-11-30"), "2026-11-30");
   assert.equal(weekStartOf("2026-11-29"), "2026-11-23");
+});
+
+test("changing week keeps the weekday but stays on a trip day when the week overlaps the trip", () => {
+  // Trip Sun 29 Nov – Mon 7 Dec; weeks start on Monday.
+  assert.equal(shiftWeekSelection("2026-11-30", -1, "2026-11-29", "2026-12-07"), "2026-11-29");
+  assert.equal(shiftWeekSelection("2026-12-02", 1, "2026-11-29", "2026-12-07"), "2026-12-07");
+  assert.equal(shiftWeekSelection("2026-11-30", 1, "2026-11-29", "2026-12-07"), "2026-12-07");
+  assert.equal(shiftWeekSelection("2026-12-01", 1, "2026-11-01", "2026-12-31"), "2026-12-08");
+  assert.equal(shiftWeekSelection("2026-11-29", -1, "2026-11-29", "2026-12-07"), "2026-11-22");
 });

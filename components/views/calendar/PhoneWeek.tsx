@@ -9,6 +9,7 @@ import {
   phoneDaySegments,
   phoneHourRange,
   phoneLaneBars,
+  shiftWeekSelection,
   weekStartOf,
   type PhoneSegment,
 } from "@/lib/phone-week";
@@ -96,7 +97,10 @@ export function PhoneWeek({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, startHour, measured]);
 
-  const goWeek = useCallback((direction: number) => setSelectedDate((date) => shiftDate(date, direction * 7)), []);
+  const goWeek = useCallback(
+    (direction: number) => setSelectedDate((date) => shiftWeekSelection(date, direction, start, end)),
+    [start, end],
+  );
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (
