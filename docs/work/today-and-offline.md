@@ -4,7 +4,7 @@ Status: Phase 1 complete (2026-10-19, `4cd6ef5`). Phase 0 (HTTPS on the UGREEN r
 
 Goal: On the phone during a trip, open the app to a single Today screen (next stop, leave-by time, today's timeline, tonight's hotel), and keep that screen and the trip readable without signal.
 
-Scope: a mobile-first `TodayView`, HTTPS access through the UGREEN NAS reverse proxy, a web app manifest, a service worker for the app shell, and a per-trip read-only snapshot in IndexedDB. Out of scope: offline edits (queued expenses/notes), booking-reference and opening-hours fields, weather, push notifications, bulk map-tile download.
+Scope: a mobile-first `TodayView` (since 2026-10-21 merged into the phone Trip list; see `mobile-ui-implementation.md` Pass 6), HTTPS access through the UGREEN NAS reverse proxy, a web app manifest, a service worker for the app shell, and a per-trip read-only snapshot in IndexedDB. Out of scope: offline edits (queued expenses/notes), booking-reference and opening-hours fields, weather, push notifications, bulk map-tile download.
 
 ## Findings
 

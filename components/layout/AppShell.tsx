@@ -10,8 +10,6 @@ import {
   type MouseEvent,
 } from "react";
 import {
-  CalendarDays,
-  CalendarCheck,
   ChevronDown,
   Compass,
   List,
@@ -35,8 +33,6 @@ import { TripDaysView } from "@/components/views/TripDaysView";
 import { TableView } from "@/components/views/TableView";
 import { MapView } from "@/components/views/MapView";
 import { ExpensesView } from "@/components/views/ExpensesView";
-import { TodayView } from "@/components/views/TodayView";
-import { useTripInProgress } from "@/components/layout/useNow";
 import { useTripData } from "@/components/layout/useTripData";
 import { useItemActions } from "@/components/layout/useItemActions";
 import { useItemSelection } from "@/components/layout/useItemSelection";
@@ -47,7 +43,6 @@ import { TripMenuContents, TripSwitcher, moveMenuFocus, useMenuDismiss } from "@
 import { api } from "@/lib/api-client";
 import { parseMapsUrl, placeNameFromMapsUrl } from "@/lib/maps-link";
 import { eventItems, isNote } from "@/lib/note-domain";
-import { formatTripDateRange } from "@/lib/trip-dates";
 
 import { sortTravelObjects } from "@/lib/schedule-order";
 import {
@@ -103,6 +98,9 @@ export function AppShell() {
   const [narrowScreen, setNarrowScreen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [dayMapOpen, setDayMapOpen] = useState(false);
+  // Set by the phone More sheet's Ideas row; CalendarView opens the Ideas panel and clears it.
+  const [ideasRequested, setIdeasRequested] = useState(false);
   const apple = useSyncExternalStore(subscribeNever, isApplePlatform, () => false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -115,28 +113,19 @@ export function AppShell() {
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
-  // During the trip the phone's Day slot becomes Today. `todayMode` is true until another destination is chosen.
-  const tripInProgress = useTripInProgress(activeTrip);
-  const [todayMode, setTodayMode] = useState(true);
-  const [expenseFor, setExpenseFor] = useState<{ itemId: string; description: string } | undefined>();
-  const showToday = narrowScreen && tripInProgress && todayMode;
-  function leaveToday() {
-    setTodayMode(false);
+  // Opens Spend with the new-expense form (linked to an item when given); cleared when another destination is chosen.
+  const [expenseFor, setExpenseFor] = useState<{ itemId?: string; description?: string } | undefined>();
+  function clearExpenseStart() {
     setExpenseFor(undefined);
   }
-  const mobileDestination = showToday
-    ? "day"
-    : tripInProgress && activeTab === "calendar" && calendarMode === "day"
-      ? "itinerary"
-      : activeTab === "calendar"
-        ? calendarMode === "day"
-          ? "day"
-          : "calendar"
-        : activeTab === "map"
-          ? "places"
-          : activeTab === "expenses"
-            ? "spend"
-            : "more";
+  const mobileDestination =
+    activeTab === "calendar" && calendarMode === "day"
+      ? "trip"
+      : activeTab === "map"
+        ? "places"
+        : activeTab === "expenses"
+          ? "spend"
+          : "more";
   const theme = useTravelStore((state) => state.theme);
   const resolvedTheme = useResolvedTheme();
   const compact = useTravelStore((state) => state.compact);
@@ -231,6 +220,7 @@ export function AppShell() {
   });
 
   const events = eventItems(items);
+  const ideaCount = events.filter((item) => item.date === null).length;
   const eventTypes = [
     ...new Set([
       "unclassified",
@@ -435,11 +425,13 @@ export function AppShell() {
     onShowShortcuts: () => setShortcutsOpen(true),
   };
   const mobileSheetOpen = mobileSidebarOpen && narrowScreen;
+  // On a phone the Day list and Calendar week have their own floating add control; elsewhere the header + stays.
+  const dayFab = narrowScreen && activeTab === "calendar" && (calendarMode === "day" ? !dayMapOpen : true);
 
   return (
     <main
       style={{ colorScheme: resolvedTheme }}
-      data-density={compact ? "compact" : "comfortable"}
+      data-density={compact || narrowScreen ? "compact" : "comfortable"}
       className={`flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground sm:min-h-[620px] ${resolvedTheme === "dark" ? "dark" : ""}`}
     >
       {mobileSheetOpen && (
@@ -475,13 +467,39 @@ export function AppShell() {
           </div>
           <div className="border-b border-divider py-2">
             <p className="px-4 pt-1 pb-2 text-xs text-muted">Views</p>
+            <button
+              type="button"
+              aria-current={activeTab === "calendar" && calendarMode !== "day" ? "page" : undefined}
+              onClick={() => {
+                clearExpenseStart();
+                setActiveTab("calendar");
+                setCalendarMode("week");
+                closeMobileMenu();
+              }}
+              className={`${menuItemClassName} ${activeTab === "calendar" && calendarMode !== "day" ? "font-medium" : ""}`}
+            >
+              Calendar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                clearExpenseStart();
+                setActiveTab("calendar");
+                setCalendarMode("day");
+                setIdeasRequested(true);
+                closeMobileMenu();
+              }}
+              className={menuItemClassName}
+            >
+              Ideas <span className="font-mono text-muted">{ideaCount}</span>
+            </button>
             {(["days", "kanban", "table"] as const).map((id) => (
               <button
                 key={id}
                 type="button"
                 aria-current={activeTab === id ? "page" : undefined}
                 onClick={() => {
-                  leaveToday();
+                  clearExpenseStart();
                   setActiveTab(id);
                   closeMobileMenu();
                 }}
@@ -547,33 +565,30 @@ export function AppShell() {
         )}
       </header>
       <section className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-divider bg-background px-4 py-1 sm:hidden">
+        <header className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-divider bg-background pr-1 pl-4 sm:hidden">
           <button
             type="button"
             onClick={openMobileMenu}
             aria-expanded={mobileSidebarOpen}
             aria-label="Choose trip and open workspace menu"
-            className="flex min-h-11 min-w-0 items-baseline gap-2 text-left outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
+            className="flex h-11 min-w-0 items-center gap-1.5 text-left outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
           >
             <span className="truncate text-base font-medium tracking-tight">{activeTrip?.title ?? "Choose trip"}</span>
-            {activeTrip && (
-              <span className="shrink-0 text-xs text-muted">
-                {formatTripDateRange(activeTrip.startDate, activeTrip.endDate)}
-              </span>
-            )}
-            <ChevronDown aria-hidden="true" className="size-4 shrink-0 self-center text-muted" />
+            <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted" />
           </button>
           {activeTrip && (
             <div className="flex shrink-0 items-center">
-              <button
-                type="button"
-                aria-label="Compact rows"
-                aria-pressed={compact}
-                onClick={toggleCompact}
-                className={`grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring ${compact ? "text-accent" : "text-muted"}`}
-              >
-                <Rows3 className="size-[18px]" strokeWidth={1.5} />
-              </button>
+              {activeTab === "calendar" && calendarMode === "day" && (
+                <button
+                  type="button"
+                  aria-label="Day map"
+                  aria-pressed={dayMapOpen}
+                  onClick={() => setDayMapOpen((open) => !open)}
+                  className={`grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring ${dayMapOpen ? "text-accent" : "text-muted"}`}
+                >
+                  <MapIcon className="size-[18px]" strokeWidth={1.5} />
+                </button>
+              )}
               <button
                 type="button"
                 aria-label="Search items"
@@ -583,14 +598,16 @@ export function AppShell() {
               >
                 <Search className="size-[18px]" strokeWidth={1.5} />
               </button>
-              <button
-                type="button"
-                aria-label="Add an item"
-                onClick={() => void openCreateItem()}
-                className="grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
-              >
-                <Plus className="size-[18px]" strokeWidth={1.5} />
-              </button>
+              {!dayFab && (
+                <button
+                  type="button"
+                  aria-label="Add an item"
+                  onClick={() => void openCreateItem()}
+                  className="grid size-11 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring"
+                >
+                  <Plus className="size-[18px]" strokeWidth={1.5} />
+                </button>
+              )}
             </div>
           )}
         </header>
@@ -614,7 +631,7 @@ export function AppShell() {
         {undoToast && (
           <div
             role="status"
-            className="fixed bottom-20 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-1 border border-foreground bg-panel py-1 pr-1 pl-4 text-sm text-foreground sm:bottom-6"
+            className={`fixed ${dayFab ? "bottom-36" : "bottom-20"} left-1/2 z-[60] flex -translate-x-1/2 items-center gap-1 border border-foreground bg-panel py-1 pr-1 pl-4 text-sm text-foreground sm:bottom-6`}
           >
             <span>{undoToast.message}</span>
             {undoToast.canUndo && (
@@ -683,29 +700,6 @@ export function AppShell() {
                     <LoaderCircle className="animate-spin text-muted" aria-label="Loading itinerary" />
                   )}
                 </div>
-              ) : showToday ? (
-                <TodayView
-                  trip={activeTrip}
-                  items={items}
-                  typeColors={eventTypeColors}
-                  onInspect={inspectItem}
-                  onCreateNote={createNote}
-                  onSaveNote={saveNote}
-                  onLogExpense={(item) => {
-                    setExpenseFor(item ? { itemId: item.id, description: item.title } : undefined);
-                    setTodayMode(false);
-                    setActiveTab("expenses");
-                  }}
-                  onOpenMap={() => {
-                    leaveToday();
-                    setActiveTab("map");
-                  }}
-                  onOpenFullItinerary={() => {
-                    leaveToday();
-                    setActiveTab("calendar");
-                    setCalendarMode("day");
-                  }}
-                />
               ) : activeTab === "calendar" ? (
                 <CalendarView
                   onCreateNote={createNote}
@@ -724,6 +718,14 @@ export function AppShell() {
                   onUnschedule={unscheduleSelectedItems}
                   onFlexibleDrop={reorderItem}
                   onCreateItem={openCreateItem}
+                  ideasRequested={ideasRequested}
+                  onIdeasRequestHandled={() => setIdeasRequested(false)}
+                  dayMapOpen={dayMapOpen}
+                  onDayMapOpenChange={setDayMapOpen}
+                  onLogExpense={(item) => {
+                    setExpenseFor(item ? { itemId: item.id, description: item.title } : {});
+                    setActiveTab("expenses");
+                  }}
                 />
               ) : activeTab === "kanban" ? (
                 <KanbanView
@@ -778,7 +780,7 @@ export function AppShell() {
                 />
               ) : activeTab === "expenses" ? (
                 <ExpensesView
-                  key={`${activeTrip.id}:${expenseFor?.itemId ?? ""}`}
+                  key={`${activeTrip.id}:${expenseFor ? (expenseFor.itemId ?? "new") : ""}`}
                   trip={activeTrip}
                   items={events}
                   startWith={expenseFor}
@@ -793,7 +795,7 @@ export function AppShell() {
                 />
               )}
             </div>
-            {(showToday || activeTab !== "expenses") && selectedItem && (
+            {activeTab !== "expenses" && selectedItem && (
               <div
                 role={narrowScreen ? "dialog" : undefined}
                 aria-modal={narrowScreen ? true : undefined}
@@ -821,37 +823,17 @@ export function AppShell() {
         {activeTrip && (
           <nav
             aria-label="Mobile workspace"
-            className="z-20 grid shrink-0 grid-cols-5 border-t border-divider bg-background px-1 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:hidden"
+            className="z-20 grid shrink-0 grid-cols-4 border-t border-divider bg-background px-1 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:hidden"
           >
             {[
-              tripInProgress
-                ? {
-                    id: "day",
-                    label: "Today",
-                    icon: CalendarCheck,
-                    onClick: () => {
-                      setExpenseFor(undefined);
-                      setTodayMode(true);
-                    },
-                  }
-                : {
-                    id: "day",
-                    label: "Day",
-                    icon: List,
-                    onClick: () => {
-                      leaveToday();
-                      setActiveTab("calendar");
-                      setCalendarMode("day");
-                    },
-                  },
               {
-                id: "calendar",
-                label: "Calendar",
-                icon: CalendarDays,
+                id: "trip",
+                label: "Trip",
+                icon: List,
                 onClick: () => {
-                  leaveToday();
+                  clearExpenseStart();
                   setActiveTab("calendar");
-                  setCalendarMode("month");
+                  setCalendarMode("day");
                 },
               },
               {
@@ -859,7 +841,7 @@ export function AppShell() {
                 label: "Places",
                 icon: MapIcon,
                 onClick: () => {
-                  leaveToday();
+                  clearExpenseStart();
                   setActiveTab("map");
                 },
               },
@@ -868,7 +850,7 @@ export function AppShell() {
                 label: "Spend",
                 icon: ReceiptText,
                 onClick: () => {
-                  leaveToday();
+                  clearExpenseStart();
                   setActiveTab("expenses");
                 },
               },
@@ -903,7 +885,7 @@ export function AppShell() {
             onPick={(item) => {
               setSearchOpen(false);
               // The inspector is not shown on Spend, so move to a view that has it first.
-              if (activeTab === "expenses" && !showToday) setActiveTab("days");
+              if (activeTab === "expenses") setActiveTab("days");
               inspectItem(item);
             }}
           />

@@ -26,6 +26,8 @@ import { setWorkingDay, workingDay } from "@/lib/working-day";
 import { CalendarDragPreview } from "./calendar/calendar-shared";
 import { IdeasPanel } from "./calendar/IdeasPanel";
 import { MonthView } from "./calendar/MonthView";
+import { PhoneWeek } from "./calendar/PhoneWeek";
+import { usePhone } from "./calendar/usePhone";
 import { WeekPlanner } from "./calendar/WeekPlanner";
 
 type Mode = "month" | "week" | "day";
@@ -83,6 +85,11 @@ export function CalendarView({
     window.location.reload();
   },
   onCreateItem,
+  dayMapOpen = false,
+  onDayMapOpenChange = () => undefined,
+  onLogExpense,
+  ideasRequested = false,
+  onIdeasRequestHandled = () => undefined,
 }: {
   onCreateNote: (date: string, order: number) => Promise<string | undefined>;
   onSaveNote: (id: string, data: { title: string; noteBody: string }) => Promise<void>;
@@ -95,6 +102,14 @@ export function CalendarView({
   onSelect: (item: TravelObject, additive?: boolean, inspect?: boolean) => void;
   onInspect: (item: TravelObject) => void;
   onSelectForDrag: (item: TravelObject) => void;
+  /** Phone Day view: show the day map instead of the itinerary. Owned by the app header toggle. */
+  dayMapOpen?: boolean;
+  onDayMapOpenChange?: (open: boolean) => void;
+  /** Phone: the More sheet's Ideas row asks for the Day view with Ideas open; `onIdeasRequestHandled` clears it. */
+  ideasRequested?: boolean;
+  onIdeasRequestHandled?: () => void;
+  /** Phone Day view: the + menu's "Add expense". */
+  onLogExpense?: (item: TravelObject | null) => void;
   onMove: (item: TravelObject, date: string, time?: string) => Promise<void>;
   onResize?: (item: TravelObject, edge: "start" | "end", time: string) => void;
   onUnschedule: (item: TravelObject) => Promise<void>;
@@ -110,6 +125,8 @@ export function CalendarView({
   const start = trip.startDate.slice(0, 10);
   const tripEnd = trip.endDate.slice(0, 10);
   const mode = useTravelStore((state) => state.calendarMode);
+  // Below 640px every mode but Day is the compact PhoneWeek (Month is not offered on phones).
+  const phone = usePhone();
   const setMode = useTravelStore((state) => state.setCalendarMode);
   const selectedAtMount = primarySelectedId ? items.find((item) => item.id === primarySelectedId) : null;
   const selectedDateAtMount = selectedAtMount ? itemDateSpan(selectedAtMount).first : null;
@@ -125,6 +142,15 @@ export function CalendarView({
   const [dayScrollRequest, setDayScrollRequest] = useState({ date: initialDate, nonce: 0 });
   const [activeItem, setActiveItem] = useState<TravelObject | null>(null);
   const [ideasOpen, setIdeasOpen] = useState(false);
+  // Opened from the phone More sheet; the request is cleared once handled so a remount does not reopen Ideas.
+  const [handledIdeasRequest, setHandledIdeasRequest] = useState(false);
+  if (ideasRequested !== handledIdeasRequest) {
+    setHandledIdeasRequest(ideasRequested);
+    if (ideasRequested) setIdeasOpen(true);
+  }
+  useEffect(() => {
+    if (ideasRequested) onIdeasRequestHandled();
+  }, [ideasRequested, onIdeasRequestHandled]);
   const suppressClickRef = useRef(false);
   const previousModeRef = useRef<Mode>(mode);
   const today = dateParts(new Date(), trip.timezone).date;
@@ -166,6 +192,7 @@ export function CalendarView({
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (
+        (phone && mode !== "day") ||
         event.defaultPrevented ||
         event.altKey ||
         event.ctrlKey ||
@@ -197,7 +224,7 @@ export function CalendarView({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [focusDate, mode, requestDay]);
+  }, [focusDate, mode, phone, requestDay]);
   function finishDrag() {
     setActiveItem(null);
     requestAnimationFrame(() => {
@@ -330,6 +357,21 @@ export function CalendarView({
     setMode(view);
     if (view === "day") requestDay(focusDate);
   }
+  if (phone && mode !== "day")
+    return (
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+        <PhoneWeek
+          key={trip.id}
+          trip={trip}
+          items={scheduledItems}
+          typeColors={typeColors}
+          selectedIds={selectedIds}
+          primarySelectedId={primarySelectedId}
+          onSelect={selectFromClick}
+          onCreateItem={(date, order) => onCreateItem(date, undefined, undefined, "(untitled event)", order)}
+        />
+      </div>
+    );
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <div className="hidden flex-wrap items-center justify-between gap-x-6 gap-y-2 px-7 pb-4 pt-5 sm:flex">
@@ -389,7 +431,9 @@ export function CalendarView({
           </div>
         </div>
       </div>
-      <div className="shrink-0 border-b border-divider bg-background px-4 py-2 sm:hidden">
+      <div
+        className={`shrink-0 border-b border-divider bg-background px-4 py-2 sm:hidden ${mode === "day" ? "max-sm:hidden" : ""}`}
+      >
         <div className="flex min-h-11 items-center justify-between gap-2">
           <strong className="min-w-0 truncate text-[15px] font-medium">
             {mode === "day" ? "Day itinerary" : title}
@@ -502,7 +546,7 @@ export function CalendarView({
                 typeColors={typeColors}
                 selectedIds={selectedIds}
                 primarySelectedId={primarySelectedId}
-                position={mode === "day" ? "beside-timeline" : "left"}
+                position={mode === "day" && !phone ? "beside-timeline" : "left"}
                 onSelect={(item, additive) => {
                   if (!suppressClickRef.current) onSelect(item, additive, false);
                 }}
@@ -546,6 +590,10 @@ export function CalendarView({
                 onSelect={selectDayItem}
                 onInspect={onInspect}
                 onCreateItem={(date, order) => onCreateItem(date, undefined, undefined, "(untitled event)", order)}
+                onReorder={(item, date, order) => onFlexibleDrop(item, date, order, false)}
+                mapOpen={dayMapOpen}
+                onMapOpenChange={onDayMapOpenChange}
+                onLogExpense={onLogExpense}
                 previewItem={ideasOpen ? (ideas.find((idea) => idea.id === primarySelectedId) ?? null) : null}
               />
             )}
