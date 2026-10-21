@@ -5,6 +5,7 @@ import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { X } from "lucide-react";
 import { typeColor } from "@/lib/type-color";
 import type { TravelObject } from "@/types/travel";
+import { placeLabel } from "@/lib/place-label";
 import { selectionRing } from "./calendar-shared";
 
 function IdeaCard({
@@ -23,7 +24,7 @@ function IdeaCard({
   onInspect: (item: TravelObject) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id, data: { item } });
-  const place = item.location?.name ?? item.location?.address;
+  const place = placeLabel(item);
   return (
     <button
       ref={setNodeRef}

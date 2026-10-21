@@ -10,6 +10,7 @@ import {
 } from "../components/views/plan/plan-domain.ts";
 
 const base = {
+  title: "Lunch",
   startTime: null,
   endTime: null,
   isAllDay: false,
@@ -72,6 +73,8 @@ test("meta line names type, place, and the kind of time", () => {
     "sightseeing · Gion · until 11:00",
   );
   assert.equal(stopMeta(base), "food · flexible · no location");
+  // A place that only repeats the title is not shown a second time.
+  assert.equal(stopMeta({ ...base, title: "Gion", location: { name: "gion" } }), "food · flexible");
 });
 
 test("Maps link prefers the saved URL and omits itself without a place", () => {

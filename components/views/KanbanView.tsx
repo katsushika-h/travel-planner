@@ -22,6 +22,7 @@ import { tripFlexibleDisplayTimes } from "@/lib/schedule-domain";
 import { typeColor, typeTextColor } from "@/lib/type-color";
 import { useResolvedTheme, useTravelStore } from "@/store/use-travel-store";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { placeLabel } from "@/lib/place-label";
 import type { TravelObject, Trip } from "@/types/travel";
 
 const defaultTypes = ["unclassified", "flight", "hotel", "food", "commute", "activity", "sightseeing"];
@@ -55,14 +56,14 @@ const boardFilters: { value: BoardFilter; label: string }[] = [
 ];
 
 function CardText({ item, flexTime }: { item: TravelObject; flexTime?: string }) {
-  const location = item.location as { name?: string } | null;
+  const place = placeLabel(item);
   return (
     <>
       <span className={`font-mono text-xs ${item.date ? "text-muted" : "text-accent"}`}>
         {itemWhenLabel(item, flexTime)}
       </span>
       <span className="text-[15px] font-medium leading-snug">{item.title}</span>
-      {location?.name && <span className="truncate text-xs text-muted">{location.name}</span>}
+      {place && <span className="truncate text-xs text-muted">{place}</span>}
     </>
   );
 }

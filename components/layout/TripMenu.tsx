@@ -7,6 +7,7 @@ import { DeleteTripButton } from "@/components/trip/DeleteTripButton";
 import { EditTripDialog } from "@/components/trip/EditTripDialog";
 import { ExportIcsButton } from "@/components/trip/ExportIcsButton";
 import { ImportGoogleMapsCsvButton } from "@/components/trip/ImportGoogleMapsCsvButton";
+import { ImportReservationButton } from "@/components/trip/ImportReservationButton";
 import { RecalculateMapPinsButton } from "@/components/trip/RecalculateMapPinsButton";
 import { menuItemClassName } from "@/components/ui/menu-item";
 import { formatTripDateRange } from "@/lib/trip-dates";
@@ -187,6 +188,15 @@ export function TripMenuContents({
               onAddType={(type) => onAddType(activeTrip.id, type)}
               onImported={(imported) => onImported(activeTrip.id, imported)}
               onError={(message) => onError(activeTrip.id, message)}
+            />
+            <ImportReservationButton
+              key={`reservation-${activeTrip.id}`}
+              trip={activeTrip}
+              eventTypes={eventTypes}
+              onAddType={(type) => onAddType(activeTrip.id, type)}
+              onImported={(imported) => onImported(activeTrip.id, imported)}
+              onError={(message) => onError(activeTrip.id, message)}
+              onDone={onDone}
             />
             <RecalculateMapPinsButton
               key={`recalculate-${activeTrip.id}`}

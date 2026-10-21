@@ -6,6 +6,8 @@ test("attachment types come from the allowed extension, not the upload", () => {
   assert.equal(attachmentContentType("Boarding Pass.PDF"), "application/pdf");
   assert.equal(attachmentContentType("receipt.jpeg"), "image/jpeg");
   assert.equal(attachmentContentType("notes.txt"), "text/plain; charset=utf-8");
+  assert.equal(attachmentContentType("Booking.ics"), "text/calendar; charset=utf-8");
+  assert.equal(attachmentContentType("Your table.eml"), "message/rfc822");
 });
 
 test("unsupported or scriptable names never receive a renderable type", () => {

@@ -12,6 +12,7 @@ import { typeColor } from "@/lib/type-color";
 import { useTravelStore } from "@/store/use-travel-store";
 import type { TravelObject, Trip } from "@/types/travel";
 import { safeMapsHref, stopMeta, tripDays } from "./plan/plan-domain";
+import { placeLabel } from "@/lib/place-label";
 import { useDayRoutes } from "./plan/useDayRoutes";
 
 const actionClass =
@@ -243,9 +244,7 @@ export function TodayView({
           >
             <Stripe color={typeColor(evening.type, typeColors)} />
             <span className="block text-[15px] font-medium">{evening.title}</span>
-            {evening.location?.address && (
-              <span className="block truncate text-xs text-muted">{evening.location.address}</span>
-            )}
+            {placeLabel(evening) && <span className="block truncate text-xs text-muted">{placeLabel(evening)}</span>}
           </button>
         </section>
       )}

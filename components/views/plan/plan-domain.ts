@@ -1,6 +1,7 @@
 import { formatExpenseAmount } from "../../../lib/expense-domain.ts";
 import { shiftDate } from "../../../lib/date-utils.ts";
 import { hasMapCoordinates } from "../../../lib/map-coordinates.ts";
+import { placeLabel } from "../../../lib/place-label.ts";
 import { scheduleKind } from "../../../lib/schedule-domain.ts";
 import type { LocationData, TravelObject } from "../../../types/travel.ts";
 
@@ -54,11 +55,11 @@ export function plannedTotals(items: readonly Pick<TravelObject, "cost">[]) {
 
 /** Muted second line: type, place, and what kind of time the stop has. */
 export function stopMeta(
-  item: Pick<TravelObject, "type" | "location" | "startTime" | "endTime" | "isAllDay" | "date" | "endDate">,
+  item: Pick<TravelObject, "title" | "type" | "location" | "startTime" | "endTime" | "isAllDay" | "date" | "endDate">,
 ) {
   const kind = scheduleKind(item);
   const parts: string[] = [item.type];
-  const place = item.location?.name ?? item.location?.address;
+  const place = placeLabel(item);
   if (place) parts.push(place);
   if (kind === "fixed" && item.endTime) {
     const sameDay = !item.endDate || item.endDate.slice(0, 10) === item.date?.slice(0, 10);

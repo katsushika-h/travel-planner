@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decimalToThousandths, expenseTotals, plannedCostTotals } from "../lib/expense-domain.ts";
+import { decimalToThousandths, expenseDashboard, expenseTotals, plannedCostTotals } from "../lib/expense-domain.ts";
 import { readExpenseFields } from "../lib/expense-validation.ts";
 
 const base = {
@@ -66,4 +66,52 @@ test("actual expenses sum exactly by currency and category without mixing planne
       { currency: "USD", amount: 2 },
     ],
   );
+});
+
+test("expense dashboard keeps pre-trip bookings and on-trip spending in one set of figures", () => {
+  const trip = { startDate: "2026-11-10", endDate: "2026-11-12" };
+  const make = (amount, date, category, currency = "SGD") => ({
+    id: `${date}-${amount}`,
+    amount,
+    date,
+    category,
+    currency,
+    description: category,
+  });
+  const dashboard = expenseDashboard(
+    [
+      make("400.000", "2026-09-01", "accommodation"),
+      make("250.500", "2026-09-03", "transport"),
+      make("12.000", "2026-11-10", "food"),
+      make("8.000", "2026-11-11", "food"),
+      make("999.000", "2026-11-11", "food", "JPY"),
+    ],
+    trip,
+    "SGD",
+    "2026-11-11",
+  );
+  assert.equal(dashboard.total, "670.500");
+  assert.equal(dashboard.pre, "650.500");
+  assert.equal(dashboard.during, "20.000");
+  assert.equal(dashboard.count, 4);
+  assert.equal(dashboard.perDay, "10.000");
+  assert.deepEqual(
+    dashboard.categories.map(({ category, total, pre, during }) => [category, total, pre, during]),
+    [
+      ["accommodation", "400.000", "400.000", "0.000"],
+      ["transport", "250.500", "250.500", "0.000"],
+      ["food", "20.000", "0.000", "20.000"],
+    ],
+  );
+  assert.deepEqual(
+    dashboard.days.map(({ date, amount }) => [date, amount]),
+    [
+      ["2026-11-10", "12.000"],
+      ["2026-11-11", "8.000"],
+      ["2026-11-12", "0.000"],
+    ],
+  );
+  assert.equal(dashboard.largest[0].expense.amount, "400.000");
+  assert.equal(dashboard.largest[0].pre, true);
+  assert.equal(expenseDashboard([], trip, "SGD", "2026-10-01").perDay, null);
 });

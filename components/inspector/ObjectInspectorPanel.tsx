@@ -92,6 +92,7 @@ export function ObjectInspectorPanel({
   const [titleDraft, setTitleDraft] = useState(() => item?.title ?? "(untitled event)");
   const [tagDraft, setTagDraft] = useState("");
   const [mapMessage, setMapMessage] = useState("");
+  const [placeOpenFor, setPlaceOpenFor] = useState<string | null>(null);
   const [resolvingMap, setResolvingMap] = useState(false);
   const [imageError, setImageError] = useState("");
   const [attachments, setAttachments] = useState<TravelAttachment[]>([]);
@@ -298,6 +299,10 @@ export function ObjectInspectorPanel({
     }
   }
   const mapsUrl = location?.googleMapsUrl ?? "";
+  // The place name is hidden while it only repeats the title; "Add place name" reveals it for titles that aren't places.
+  const placeName = location?.name?.trim() ?? "";
+  const showPlace =
+    placeOpenFor === item.id || (placeName !== "" && placeName.toLowerCase() !== item.title.trim().toLowerCase());
   function focusNextEntryField(event: ReactKeyboardEvent<HTMLElement>) {
     if (event.key !== "Tab") return;
     const target = event.target;
@@ -596,20 +601,31 @@ export function ObjectInspectorPanel({
         </section>
 
         <section aria-label="Where" className={sectionClass}>
-          <label className={labelClass}>
-            Place
-            <input
-              value={location?.name ?? ""}
-              maxLength={300}
-              onChange={(e) =>
-                onChange(currentItem!.id, {
-                  location: { ...location, name: e.target.value, googleMapsUrl: location?.googleMapsUrl },
-                })
-              }
-              placeholder="Place name"
-              className={fieldClass}
-            />
-          </label>
+          {showPlace ? (
+            <label className={labelClass}>
+              Place
+              <input
+                value={location?.name ?? ""}
+                maxLength={300}
+                onFocus={() => setPlaceOpenFor(item.id)}
+                onChange={(e) =>
+                  onChange(currentItem!.id, {
+                    location: { ...location, name: e.target.value, googleMapsUrl: location?.googleMapsUrl },
+                  })
+                }
+                placeholder="Place name"
+                className={fieldClass}
+              />
+            </label>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setPlaceOpenFor(item.id)}
+              className="min-h-11 self-start text-left text-[13px] text-muted underline underline-offset-3 hover:text-foreground sm:min-h-0"
+            >
+              Add place name
+            </button>
+          )}
           <label className={labelClass}>
             Google Maps link
             <input
@@ -776,7 +792,7 @@ export function ObjectInspectorPanel({
             multiple
             className="sr-only"
             aria-label="Attach files"
-            accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+            accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.ics,.eml"
             onChange={(event) => void uploadAttachments(event.target.files ?? [])}
           />
           {attachmentError && (
