@@ -159,3 +159,13 @@ export function phoneLaneBars(
 export function weekStartOf(date: string) {
   return shiftDate(date, -((new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7));
 }
+
+/** Date selected after moving `direction` weeks: same weekday, pulled to the nearest trip day when that week overlaps the trip. */
+export function shiftWeekSelection(date: string, direction: number, tripStart: string, tripEnd: string) {
+  const shifted = shiftDate(date, direction * 7);
+  const weekStart = weekStartOf(shifted);
+  const weekEnd = shiftDate(weekStart, 6);
+  if (shifted < tripStart && tripStart <= weekEnd) return tripStart;
+  if (shifted > tripEnd && tripEnd >= weekStart) return tripEnd;
+  return shifted;
+}
