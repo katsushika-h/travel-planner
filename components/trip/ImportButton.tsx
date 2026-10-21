@@ -2,31 +2,32 @@
 
 import { useRef, useState } from "react";
 import { FileUp, LoaderCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ImportReservationDialog } from "@/components/trip/ImportReservationButton";
 import { menuItemClassName } from "@/components/ui/menu-item";
 import { importGoogleMapsCsv } from "@/lib/google-maps-import";
+import { reservationFileAccept } from "@/lib/reservation-import";
 import type { TravelObject, Trip } from "@/types/travel";
 
-export function ImportGoogleMapsCsvButton({
+/** One Import… entry: a .csv goes through the Google Maps flow, any other allowed file opens the reservation review. */
+export function ImportButton({
   trip,
   eventTypes,
   onAddType,
   onImported,
   onError,
-  compact = false,
-  menuItem = false,
+  onDone,
 }: {
   trip: Trip;
   eventTypes: string[];
   onAddType: (type: string) => void;
   onImported: (items: TravelObject[]) => void;
   onError: (message: string) => void;
-  compact?: boolean;
-  menuItem?: boolean;
+  onDone: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState<{ complete: number; total: number } | null>(null);
+  const [reservationFile, setReservationFile] = useState<File | null>(null);
 
   async function importFile(file: File | undefined) {
     if (!file) return;
@@ -61,40 +62,45 @@ export function ImportGoogleMapsCsvButton({
     }
   }
 
-  const label = importProgress ? `Resolving ${importProgress.complete}/${importProgress.total}` : "Import Maps CSV";
+  function chooseFile(file: File | undefined) {
+    if (!file) return;
+    if (/\.csv$/i.test(file.name)) return void importFile(file);
+    if (inputRef.current) inputRef.current.value = "";
+    onError("");
+    setReservationFile(file);
+  }
+
+  const label = importProgress ? `Resolving ${importProgress.complete}/${importProgress.total}` : "Importing…";
   return (
     <>
       <input
         ref={inputRef}
         type="file"
-        accept=".csv,text/csv"
+        accept={".csv," + reservationFileAccept}
         className="sr-only"
-        onChange={(event) => void importFile(event.target.files?.[0])}
+        onChange={(event) => chooseFile(event.target.files?.[0])}
       />
-      {menuItem ? (
-        <button
-          type="button"
-          className={menuItemClassName}
-          disabled={importing}
-          onClick={() => inputRef.current?.click()}
-        >
-          {importing ? <LoaderCircle className="animate-spin" /> : <FileUp />}
-          {label}
-        </button>
-      ) : (
-        <Button
-          type="button"
-          variant="ghost"
-          size={compact ? "icon" : "sm"}
-          className={compact ? "mx-auto size-11 sm:size-8" : "min-h-11 w-full justify-start sm:min-h-0"}
-          aria-label={label}
-          title={compact ? label : undefined}
-          disabled={importing}
-          onClick={() => inputRef.current?.click()}
-        >
-          {importing ? <LoaderCircle className="animate-spin" /> : <FileUp />}
-          {!compact && label}
-        </Button>
+      <button
+        type="button"
+        className={menuItemClassName}
+        disabled={importing}
+        onClick={() => inputRef.current?.click()}
+      >
+        {importing ? <LoaderCircle className="animate-spin" /> : <FileUp />}
+        {importing ? label : "Import…"}
+      </button>
+      <p className="pr-4 pb-2 pl-11 text-xs text-muted">Google Maps CSV, PDF, .ics or email</p>
+      {reservationFile && (
+        <ImportReservationDialog
+          file={reservationFile}
+          trip={trip}
+          eventTypes={eventTypes}
+          onAddType={onAddType}
+          onImported={onImported}
+          onError={onError}
+          onDone={onDone}
+          onClose={() => setReservationFile(null)}
+        />
       )}
     </>
   );

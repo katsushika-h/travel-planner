@@ -11,6 +11,7 @@ import * as schedule from "../lib/schedule-domain.ts";
 const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("../components/views/CalendarView.tsx", import.meta.url), "utf8");
 function calendar(initialMode, start, end, today) {
+  const opened = [];
   const states = [];
   let index = 0;
   let mode = initialMode;
@@ -77,10 +78,11 @@ function calendar(initialMode, start, end, today) {
         items: [],
         selectedIds: new Set(),
         primarySelectedId: null,
+        onOpenDay: (date) => opened.push(date),
       }),
     );
   }
-  return { render, changes, states, WeekPlanner };
+  return { render, changes, opened, states, WeekPlanner };
 }
 
 test("desktop and mobile Today keep Week mode and show the current week even outside the trip", () => {
@@ -98,17 +100,14 @@ test("desktop and mobile Today keep Week mode and show the current week even out
   }
 });
 
-test("Today retains existing Month and Day itinerary navigation and trip-start fallback", () => {
-  for (const mode of ["month", "day"]) {
-    for (const today of ["2026-10-13", "2026-11-20"]) {
-      const view = calendar(mode, "2026-10-01", "2026-10-31", today);
-      view
-        .render()
-        .find((node) => node.props?.children === "Today")
-        .props.onClick();
-      assert.deepEqual(view.changes, ["day"]);
-      assert.equal(view.states[2].date, today === "2026-10-13" ? today : "2026-10-01");
-      assert.equal(view.states[2].nonce, 1);
-    }
+test("Month Today opens the Plan view on today, or on the trip start outside the trip", () => {
+  for (const today of ["2026-10-13", "2026-11-20"]) {
+    const view = calendar("month", "2026-10-01", "2026-10-31", today);
+    view
+      .render()
+      .find((node) => node.props?.children === "Today")
+      .props.onClick();
+    assert.deepEqual(view.changes, []);
+    assert.deepEqual(view.opened, [today === "2026-10-13" ? today : "2026-10-01"]);
   }
 });

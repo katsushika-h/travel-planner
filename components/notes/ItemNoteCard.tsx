@@ -97,7 +97,7 @@ export function ItemNoteCard({
   }
   return (
     <article
-      id={`day-card-${item.id}`}
+      id={`plan-row-${item.id}-${date}`}
       ref={setNodeRef}
       aria-label="Day note"
       style={transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : undefined}

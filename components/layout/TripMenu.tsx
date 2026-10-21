@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
-import { Check, ChevronDown, FileText, Keyboard, Monitor, Moon, Sun } from "lucide-react";
+import { Check, ChevronDown, Download, FileText, Keyboard, Monitor, Moon, Sun } from "lucide-react";
 import { CreateTripDialog } from "@/components/trip/CreateTripDialog";
 import { DeleteTripButton } from "@/components/trip/DeleteTripButton";
 import { EditTripDialog } from "@/components/trip/EditTripDialog";
 import { ExportIcsButton } from "@/components/trip/ExportIcsButton";
-import { ImportGoogleMapsCsvButton } from "@/components/trip/ImportGoogleMapsCsvButton";
-import { ImportReservationButton } from "@/components/trip/ImportReservationButton";
-import { RecalculateMapPinsButton } from "@/components/trip/RecalculateMapPinsButton";
+import { ImportButton } from "@/components/trip/ImportButton";
 import { menuItemClassName } from "@/components/ui/menu-item";
 import { formatTripDateRange } from "@/lib/trip-dates";
 import type { ThemePreference } from "@/store/use-travel-store";
@@ -29,7 +27,6 @@ export type TripMenuProps = {
   onTripDeleted: (id: string) => void;
   onAddType: (tripId: string, type: string) => void;
   onImported: (tripId: string, items: TravelObject[]) => void;
-  onItemsUpdated: (tripId: string, items: TravelObject[]) => void;
   onError: (tripId: string, message: string) => void;
   onToggleTheme: () => void;
   onShowShortcuts: () => void;
@@ -108,6 +105,41 @@ function MenuSection({ label, children }: { label?: string; children: React.Reac
   );
 }
 
+/** Export… reveals the calendar file and the printable itinerary beneath it. */
+function ExportMenu({ trip, items, onDone }: { trip: Trip; items: TravelObject[] | null; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        className={menuItemClassName}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <Download />
+        Export…
+        <ChevronDown aria-hidden="true" className={`ml-auto transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div id={panelId} className="pl-6">
+          {items && <ExportIcsButton trip={trip} items={items} />}
+          <a
+            href={`/trips/${trip.id}/print`}
+            target="_blank"
+            rel="noreferrer"
+            className={menuItemClassName}
+            onClick={onDone}
+          >
+            <FileText /> Printable PDF
+          </a>
+        </div>
+      )}
+    </>
+  );
+}
+
 /** Trip list and trip actions; shared by the desktop trip switcher and the mobile More sheet. */
 export function TripMenuContents({
   trips,
@@ -121,7 +153,6 @@ export function TripMenuContents({
   onTripDeleted,
   onAddType,
   onImported,
-  onItemsUpdated,
   onError,
   onToggleTheme,
   onShowShortcuts,
@@ -181,16 +212,8 @@ export function TripMenuContents({
                 onDone();
               }}
             />
-            <ImportGoogleMapsCsvButton
-              menuItem
-              trip={activeTrip}
-              eventTypes={eventTypes}
-              onAddType={(type) => onAddType(activeTrip.id, type)}
-              onImported={(imported) => onImported(activeTrip.id, imported)}
-              onError={(message) => onError(activeTrip.id, message)}
-            />
-            <ImportReservationButton
-              key={`reservation-${activeTrip.id}`}
+            <ImportButton
+              key={`import-${activeTrip.id}`}
               trip={activeTrip}
               eventTypes={eventTypes}
               onAddType={(type) => onAddType(activeTrip.id, type)}
@@ -198,22 +221,7 @@ export function TripMenuContents({
               onError={(message) => onError(activeTrip.id, message)}
               onDone={onDone}
             />
-            <RecalculateMapPinsButton
-              key={`recalculate-${activeTrip.id}`}
-              trip={activeTrip}
-              onUpdated={(updated) => onItemsUpdated(activeTrip.id, updated)}
-              onError={(message) => onError(activeTrip.id, message)}
-            />
-            {exportItems && <ExportIcsButton menuItem trip={activeTrip} items={exportItems} />}
-            <a
-              href={`/trips/${activeTrip.id}/print`}
-              target="_blank"
-              rel="noreferrer"
-              className={menuItemClassName}
-              onClick={onDone}
-            >
-              <FileText /> Export PDF
-            </a>
+            <ExportMenu trip={activeTrip} items={exportItems} onDone={onDone} />
           </>
         )}
       </MenuSection>

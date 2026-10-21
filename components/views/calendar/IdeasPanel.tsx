@@ -74,7 +74,7 @@ export function IdeasPanel({
    * Where the panel docks: the left edge, beside the Day view timeline, or the right edge. On the right it floats over
    * the Plan map on phones and takes its own column from `md`, so the map's pins stay visible beside it.
    */
-  position: "left" | "beside-timeline" | "right";
+  position: "left" | "right";
   /** Selects without opening the editor, so the idea's map pin stays in view. */
   onSelect: (item: TravelObject, additive?: boolean) => void;
   /** Opens the item editor (double-click). */
@@ -116,7 +116,6 @@ export function IdeasPanel({
     <aside
       ref={setNodeRef}
       data-map-overlay
-      style={position === "beside-timeline" ? { left: "max(360px, 44%)" } : undefined}
       className={`absolute inset-y-0 z-[60] flex w-[min(88vw,320px)] flex-col border-divider bg-background ${position === "right" ? "right-0 border-l shadow-[-8px_0_24px_rgb(0_0_0/0.08)] md:static md:order-last md:w-60 md:shrink-0 md:shadow-none xl:w-80 dark:shadow-[-8px_0_24px_rgb(0_0_0/0.5)] md:dark:shadow-none" : "border-r shadow-[8px_0_24px_rgb(0_0_0/0.08)] dark:shadow-[8px_0_24px_rgb(0_0_0/0.5)]"} ${position === "left" ? "left-0" : ""} ${isOver ? "ring-1 ring-inset ring-accent" : ""}`}
     >
       <div className="flex items-start justify-between gap-2 border-b border-foreground px-4 pb-3 pt-4">

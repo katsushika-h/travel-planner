@@ -9,7 +9,17 @@ import { ParkingControl } from "./ParkingControl";
 import { formatPlannedCost, isConfirmedTime, safeMapsHref, stopMeta, stopTimeLabel } from "./plan-domain";
 
 /** Hover-revealed insertion point between stops. Always visible on touch screens. */
-export function AddGap({ onAdd, label }: { onAdd: () => void; label: string }) {
+export function AddGap({
+  onAdd,
+  onAddNote,
+  label,
+  noteLabel,
+}: {
+  onAdd: () => void;
+  onAddNote?: () => void;
+  label: string;
+  noteLabel?: string;
+}) {
   return (
     <li className="relative h-11 list-none sm:h-0">
       <div className="group/gap absolute inset-x-0 top-1/2 z-10 flex h-11 -translate-y-1/2 items-center justify-center sm:h-6">
@@ -21,6 +31,16 @@ export function AddGap({ onAdd, label }: { onAdd: () => void; label: string }) {
         >
           + Add stop
         </button>
+        {onAddNote && (
+          <button
+            type="button"
+            aria-label={noteLabel}
+            onClick={onAddNote}
+            className="flex min-h-11 items-center gap-1 bg-background px-3 text-xs text-muted opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-foreground sm:min-h-6 sm:px-2 sm:opacity-0 sm:group-hover/gap:opacity-100"
+          >
+            + Add note
+          </button>
+        )}
       </div>
     </li>
   );
@@ -32,11 +52,13 @@ export function EndSlot({
   order,
   empty,
   onAdd,
+  onAddNote,
 }: {
   date: string;
   order: number;
   empty: boolean;
   onAdd: () => void;
+  onAddNote?: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `trip-day:${date}:${order}` });
   return (
@@ -45,44 +67,22 @@ export function EndSlot({
       className={`flex list-none items-center ${empty ? "min-h-28 flex-col justify-center gap-2" : "min-h-14"} ${isOver ? "shadow-[inset_0_2px_0_var(--accent)]" : ""}`}
     >
       {empty && <p className="text-sm text-muted">Nothing planned for this day.</p>}
-      <button
-        type="button"
-        onClick={onAdd}
-        className="min-h-11 px-1 text-sm text-muted underline underline-offset-4 hover:text-foreground focus-visible:outline-2 focus-visible:outline-foreground"
-      >
-        + Add stop
-      </button>
-    </li>
-  );
-}
-
-export function NoteBlock({ item, date, order }: { item: TravelObject; date: string; order: number }) {
-  const {
-    listeners,
-    setNodeRef: setDragRef,
-    isDragging,
-  } = useDraggable({
-    id: `${item.id}:${date}`,
-    data: { item, draggedDate: date },
-  });
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `trip-row:${date}:${order}` });
-  const title = item.title && item.title !== "Note" ? item.title : null;
-  return (
-    <li
-      ref={(node) => {
-        setDragRef(node);
-        setDropRef(node);
-      }}
-      data-travel-object-id={item.id}
-      {...listeners}
-      className={`border-b border-divider py-1.5 ${isDragging ? "opacity-40" : ""} ${isOver ? "shadow-[inset_0_2px_0_var(--accent)]" : ""}`}
-    >
-      <div className="px-1 text-[13px] sm:ml-[156px]">
-        {title && <p className="font-medium text-muted">{title}</p>}
-        {item.noteBody ? (
-          <p className="whitespace-pre-wrap leading-snug text-faint">{item.noteBody}</p>
-        ) : (
-          !title && <p className="text-faint">Empty note</p>
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={onAdd}
+          className="min-h-11 px-1 text-sm text-muted underline underline-offset-4 hover:text-foreground focus-visible:outline-2 focus-visible:outline-foreground"
+        >
+          + Add stop
+        </button>
+        {onAddNote && (
+          <button
+            type="button"
+            onClick={onAddNote}
+            className="min-h-11 px-1 text-sm text-muted underline underline-offset-4 hover:text-foreground focus-visible:outline-2 focus-visible:outline-foreground"
+          >
+            + Add note
+          </button>
         )}
       </div>
     </li>
@@ -158,7 +158,8 @@ export function StopRow({
   const mapsHref = safeMapsHref(item.location);
   const accentWhenOpen = primary ? "text-accent" : null;
   const timeLabel = anchor === "start" ? "Start" : anchor === "end" ? "End" : stopTimeLabel(item, flexTime);
-  const idSuffix = anchor === "end" ? "-end" : "";
+  // A multi-day hotel shows on several days, so row ids carry the date.
+  const idSuffix = `-${date}${anchor === "end" ? "-end" : ""}`;
   const bodyId = `plan-stop-${item.id}${idSuffix}`;
   return (
     <li
@@ -177,6 +178,8 @@ export function StopRow({
         aria-expanded={expanded}
         aria-controls={expanded ? bodyId : undefined}
         onClick={(event) => onPick(item, event.shiftKey || event.metaKey || event.ctrlKey)}
+        // Double-click opens the editor, as in the old Day view; its two clicks leave the expansion as it was.
+        onDoubleClick={() => onEdit(item)}
         {...listeners}
         className="relative grid w-full grid-cols-[76px_24px_minmax(0,1fr)_auto] items-baseline gap-x-3 py-5 in-data-[density=compact]:py-2 text-left focus-visible:outline-2 focus-visible:outline-foreground sm:grid-cols-[112px_28px_minmax(0,1fr)_auto] sm:gap-x-4"
       >

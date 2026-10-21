@@ -9,7 +9,7 @@ const LeafletMap = dynamic(() => import("../LeafletMap").then((module) => module
   loading: () => <div className="grid flex-1 place-items-center text-sm text-muted">Loading map…</div>,
 });
 
-/** The active day's map. Pins are numbered like the stop list; stops without coordinates are counted, not plotted. */
+/** The active day's map; it fills the space its parent gives it. Pins are numbered like the stop list; stops without coordinates are counted, not plotted. */
 export function PlanMap({
   trip,
   date,
@@ -56,7 +56,7 @@ export function PlanMap({
   return (
     <section
       aria-label={`Map of ${date}`}
-      className="relative flex aspect-square min-h-72 w-full flex-col overflow-hidden bg-surface md:aspect-[838/876]"
+      className="relative flex h-full min-h-72 w-full flex-col overflow-hidden bg-surface"
     >
       <LeafletMap
         trip={trip}

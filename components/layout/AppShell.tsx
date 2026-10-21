@@ -36,6 +36,7 @@ import { ExpensesView } from "@/components/views/ExpensesView";
 import { useTripData } from "@/components/layout/useTripData";
 import { useItemActions } from "@/components/layout/useItemActions";
 import { useItemSelection } from "@/components/layout/useItemSelection";
+import { useLegacyPinCheck } from "@/components/layout/useLegacyPinCheck";
 import { menuItemClassName } from "@/components/ui/menu-item";
 import { isApplePlatform, isModKey, isSearchShortcut, searchButtonTitle } from "@/lib/keyboard-shortcuts";
 import { ItemSearch } from "@/components/layout/ItemSearch";
@@ -45,6 +46,7 @@ import { parseMapsUrl, placeNameFromMapsUrl } from "@/lib/maps-link";
 import { eventItems, isNote } from "@/lib/note-domain";
 
 import { sortTravelObjects } from "@/lib/schedule-order";
+import { setWorkingDay } from "@/lib/working-day";
 import {
   plannerTabLabels,
   plannerTabOrder,
@@ -76,6 +78,8 @@ export function AppShell() {
   } = selection;
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null);
   const [error, setError] = useState("");
+  // Neutral, dismissible message (for example, map pins updated in the background).
+  const [notice, setNotice] = useState("");
   const activeTripId = useTravelStore((state) => state.activeTripId);
   const setActiveTripId = useTravelStore((state) => state.setActiveTripId);
   const {
@@ -93,13 +97,12 @@ export function AppShell() {
     activeTrip,
   } = useTripData(activeTripId, setActiveTripId);
   const activeTab = useTravelStore((state) => state.activeTab);
-  const calendarMode = useTravelStore((state) => state.calendarMode);
   const setCalendarMode = useTravelStore((state) => state.setCalendarMode);
   const [narrowScreen, setNarrowScreen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [dayMapOpen, setDayMapOpen] = useState(false);
-  // Set by the phone More sheet's Ideas row; CalendarView opens the Ideas panel and clears it.
+  // Set by the phone More sheet's Ideas row; the Plan view opens the Ideas panel and clears it.
   const [ideasRequested, setIdeasRequested] = useState(false);
   const apple = useSyncExternalStore(subscribeNever, isApplePlatform, () => false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -119,13 +122,7 @@ export function AppShell() {
     setExpenseFor(undefined);
   }
   const mobileDestination =
-    activeTab === "calendar" && calendarMode === "day"
-      ? "trip"
-      : activeTab === "map"
-        ? "places"
-        : activeTab === "expenses"
-          ? "spend"
-          : "more";
+    activeTab === "days" ? "trip" : activeTab === "map" ? "places" : activeTab === "expenses" ? "spend" : "more";
   const theme = useTravelStore((state) => state.theme);
   const resolvedTheme = useResolvedTheme();
   const compact = useTravelStore((state) => state.compact);
@@ -330,7 +327,7 @@ export function AppShell() {
         return;
       }
       if (event.altKey || event.ctrlKey || event.metaKey) return;
-      const calendarMode = ({ q: "month", w: "week", e: "day" } as const)[event.key.toLowerCase() as "q" | "w" | "e"];
+      const calendarMode = ({ q: "month", w: "week" } as const)[event.key.toLowerCase() as "q" | "w"];
       if (calendarMode) {
         setActiveTab("calendar");
         setCalendarMode(calendarMode);
@@ -399,6 +396,11 @@ export function AppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTrip]);
 
+  const onItemsUpdated = (tripId: string, updated: TravelObject[]) => {
+    if (activeTripKeyRef.current !== tripId || !updated.length) return;
+    const byId = new Map(updated.map((item) => [item.id, item]));
+    setItems((current) => current.map((item) => byId.get(item.id) ?? item));
+  };
   const tripMenuProps = {
     trips,
     activeTrip,
@@ -413,20 +415,23 @@ export function AppShell() {
     onImported: (tripId: string, imported: TravelObject[]) => {
       if (activeTripKeyRef.current === tripId) setItems((current) => sortTravelObjects([...current, ...imported]));
     },
-    onItemsUpdated: (tripId: string, updated: TravelObject[]) => {
-      if (activeTripKeyRef.current !== tripId || !updated.length) return;
-      const byId = new Map(updated.map((item) => [item.id, item]));
-      setItems((current) => current.map((item) => byId.get(item.id) ?? item));
-    },
     onError: (tripId: string, message: string) => {
       if (activeTripKeyRef.current === tripId) setError(message);
     },
     onToggleTheme: cycleTheme,
     onShowShortcuts: () => setShortcutsOpen(true),
   };
+  useLegacyPinCheck({
+    tripId: activeTrip?.id ?? null,
+    itemsLoaded: activeTrip !== null && itemsTripId === activeTrip.id,
+    onUpdated: (updated) => {
+      if (activeTrip) onItemsUpdated(activeTrip.id, updated);
+    },
+    onNotice: setNotice,
+  });
   const mobileSheetOpen = mobileSidebarOpen && narrowScreen;
-  // On a phone the Day list and Calendar week have their own floating add control; elsewhere the header + stays.
-  const dayFab = narrowScreen && activeTab === "calendar" && (calendarMode === "day" ? !dayMapOpen : true);
+  // On a phone the Plan list and Calendar week have their own floating add control; elsewhere the header + stays.
+  const dayFab = narrowScreen && (activeTab === "calendar" || (activeTab === "days" && !dayMapOpen));
 
   return (
     <main
@@ -469,14 +474,14 @@ export function AppShell() {
             <p className="px-4 pt-1 pb-2 text-xs text-muted">Views</p>
             <button
               type="button"
-              aria-current={activeTab === "calendar" && calendarMode !== "day" ? "page" : undefined}
+              aria-current={activeTab === "calendar" ? "page" : undefined}
               onClick={() => {
                 clearExpenseStart();
                 setActiveTab("calendar");
                 setCalendarMode("week");
                 closeMobileMenu();
               }}
-              className={`${menuItemClassName} ${activeTab === "calendar" && calendarMode !== "day" ? "font-medium" : ""}`}
+              className={`${menuItemClassName} ${activeTab === "calendar" ? "font-medium" : ""}`}
             >
               Calendar
             </button>
@@ -484,8 +489,7 @@ export function AppShell() {
               type="button"
               onClick={() => {
                 clearExpenseStart();
-                setActiveTab("calendar");
-                setCalendarMode("day");
+                setActiveTab("days");
                 setIdeasRequested(true);
                 closeMobileMenu();
               }}
@@ -493,7 +497,7 @@ export function AppShell() {
             >
               Ideas <span className="font-mono text-muted">{ideaCount}</span>
             </button>
-            {(["days", "kanban", "table"] as const).map((id) => (
+            {(["kanban", "table"] as const).map((id) => (
               <button
                 key={id}
                 type="button"
@@ -578,7 +582,7 @@ export function AppShell() {
           </button>
           {activeTrip && (
             <div className="flex shrink-0 items-center">
-              {activeTab === "calendar" && calendarMode === "day" && (
+              {activeTab === "days" && (
                 <button
                   type="button"
                   aria-label="Day map"
@@ -622,6 +626,23 @@ export function AppShell() {
               aria-label="Dismiss error"
               title="Dismiss"
               onClick={() => setError("")}
+              className="-my-2 grid size-11 shrink-0 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring sm:size-9"
+            >
+              <X className="size-4" strokeWidth={1.5} />
+            </button>
+          </div>
+        )}
+        {notice && (
+          <div
+            role="status"
+            className="mx-5 mt-4 flex items-start justify-between gap-3 border border-divider py-3 pr-2 pl-4 text-sm text-muted"
+          >
+            <span className="min-w-0 flex-1 break-words">{notice}</span>
+            <button
+              type="button"
+              aria-label="Dismiss notice"
+              title="Dismiss"
+              onClick={() => setNotice("")}
               className="-my-2 grid size-11 shrink-0 place-items-center outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring sm:size-9"
             >
               <X className="size-4" strokeWidth={1.5} />
@@ -702,9 +723,6 @@ export function AppShell() {
                 </div>
               ) : activeTab === "calendar" ? (
                 <CalendarView
-                  onCreateNote={createNote}
-                  onSaveNote={saveNote}
-                  onDeleteNote={deleteItem}
                   trip={activeTrip}
                   items={items}
                   typeColors={eventTypeColors}
@@ -718,13 +736,9 @@ export function AppShell() {
                   onUnschedule={unscheduleSelectedItems}
                   onFlexibleDrop={reorderItem}
                   onCreateItem={openCreateItem}
-                  ideasRequested={ideasRequested}
-                  onIdeasRequestHandled={() => setIdeasRequested(false)}
-                  dayMapOpen={dayMapOpen}
-                  onDayMapOpenChange={setDayMapOpen}
-                  onLogExpense={(item) => {
-                    setExpenseFor(item ? { itemId: item.id, description: item.title } : {});
-                    setActiveTab("expenses");
+                  onOpenDay={(date) => {
+                    setWorkingDay(activeTrip.id, date);
+                    setActiveTab("days");
                   }}
                 />
               ) : activeTab === "kanban" ? (
@@ -763,6 +777,17 @@ export function AppShell() {
                   }
                   onCreateIdea={() => void openCreateItem()}
                   onChangeItem={changeItem}
+                  onCreateNote={createNote}
+                  onSaveNote={saveNote}
+                  onDeleteNote={deleteItem}
+                  onLogExpense={(item) => {
+                    setExpenseFor(item ? { itemId: item.id, description: item.title } : {});
+                    setActiveTab("expenses");
+                  }}
+                  mapOpen={dayMapOpen}
+                  onMapOpenChange={setDayMapOpen}
+                  ideasRequested={ideasRequested}
+                  onIdeasRequestHandled={() => setIdeasRequested(false)}
                 />
               ) : activeTab === "table" ? (
                 <TableView
@@ -832,8 +857,7 @@ export function AppShell() {
                 icon: List,
                 onClick: () => {
                   clearExpenseStart();
-                  setActiveTab("calendar");
-                  setCalendarMode("day");
+                  setActiveTab("days");
                 },
               },
               {

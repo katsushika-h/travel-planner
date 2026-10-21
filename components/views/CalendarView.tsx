@@ -1,6 +1,6 @@
 "use client";
-import { eventItems, isNote } from "@/lib/note-domain";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { eventItems } from "@/lib/note-domain";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   closestCorners,
   DndContext,
@@ -15,14 +15,13 @@ import {
   type CollisionDetection,
 } from "@dnd-kit/core";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { DayJourneyView } from "@/components/views/DayJourneyView";
 import { dateParts, formatTripDate, monthGrid, shiftDate } from "@/lib/date-utils";
 import { useTravelStore } from "@/store/use-travel-store";
 import { api } from "@/lib/api-client";
-import { canDropInDayOrder, weekFlexibleDropOrder } from "@/lib/schedule-order";
+import { weekFlexibleDropOrder } from "@/lib/schedule-order";
 import { allDayDropStartDate, itemDateSpan } from "@/lib/schedule-domain";
 import type { TravelObject, Trip } from "@/types/travel";
-import { setWorkingDay, workingDay } from "@/lib/working-day";
+import { workingDay } from "@/lib/working-day";
 import { CalendarDragPreview } from "./calendar/calendar-shared";
 import { IdeasPanel } from "./calendar/IdeasPanel";
 import { MonthView } from "./calendar/MonthView";
@@ -30,7 +29,7 @@ import { PhoneWeek } from "./calendar/PhoneWeek";
 import { usePhone } from "./calendar/usePhone";
 import { WeekPlanner } from "./calendar/WeekPlanner";
 
-type Mode = "month" | "week" | "day";
+type Mode = "month" | "week";
 
 /** First day of the calendar month holding the most trip days; ties go to the earlier month. */
 function busiestMonthStart(start: string, end: string) {
@@ -66,9 +65,6 @@ function sundayOf(date: string) {
 }
 
 export function CalendarView({
-  onCreateNote,
-  onSaveNote,
-  onDeleteNote,
   trip,
   items,
   typeColors = {},
@@ -85,15 +81,8 @@ export function CalendarView({
     window.location.reload();
   },
   onCreateItem,
-  dayMapOpen = false,
-  onDayMapOpenChange = () => undefined,
-  onLogExpense,
-  ideasRequested = false,
-  onIdeasRequestHandled = () => undefined,
+  onOpenDay,
 }: {
-  onCreateNote: (date: string, order: number) => Promise<string | undefined>;
-  onSaveNote: (id: string, data: { title: string; noteBody: string }) => Promise<void>;
-  onDeleteNote: (id: string) => Promise<void>;
   trip: Trip;
   items: TravelObject[];
   typeColors?: Record<string, string>;
@@ -102,14 +91,8 @@ export function CalendarView({
   onSelect: (item: TravelObject, additive?: boolean, inspect?: boolean) => void;
   onInspect: (item: TravelObject) => void;
   onSelectForDrag: (item: TravelObject) => void;
-  /** Phone Day view: show the day map instead of the itinerary. Owned by the app header toggle. */
-  dayMapOpen?: boolean;
-  onDayMapOpenChange?: (open: boolean) => void;
-  /** Phone: the More sheet's Ideas row asks for the Day view with Ideas open; `onIdeasRequestHandled` clears it. */
-  ideasRequested?: boolean;
-  onIdeasRequestHandled?: () => void;
-  /** Phone Day view: the + menu's "Add expense". */
-  onLogExpense?: (item: TravelObject | null) => void;
+  /** Opens a day in the Plan view (a Month day, a Week column header, or Today). */
+  onOpenDay: (date: string) => void;
   onMove: (item: TravelObject, date: string, time?: string) => Promise<void>;
   onResize?: (item: TravelObject, edge: "start" | "end", time: string) => void;
   onUnschedule: (item: TravelObject) => Promise<void>;
@@ -125,13 +108,13 @@ export function CalendarView({
   const start = trip.startDate.slice(0, 10);
   const tripEnd = trip.endDate.slice(0, 10);
   const mode = useTravelStore((state) => state.calendarMode);
-  // Below 640px every mode but Day is the compact PhoneWeek (Month is not offered on phones).
+  // Below 640px the Calendar is the compact PhoneWeek (Month is not offered on phones).
   const phone = usePhone();
   const setMode = useTravelStore((state) => state.setCalendarMode);
   const selectedAtMount = primarySelectedId ? items.find((item) => item.id === primarySelectedId) : null;
   const selectedDateAtMount = selectedAtMount ? itemDateSpan(selectedAtMount).first : null;
   const inTrip = (date: string | null | undefined): date is string => !!date && date >= start && date <= tripEnd;
-  // The day last worked on in Plan or here, so switching between Plan and the Day view keeps the place.
+  // The day last worked on in Plan or here, so switching between Plan and the Calendar keeps the place.
   const remembered = workingDay(trip.id);
   const initialDate = inTrip(selectedDateAtMount) ? selectedDateAtMount : inTrip(remembered) ? remembered : start;
   // Month opens on the month holding most trip days, so a trip straddling two months is not a sliver in one grid.
@@ -139,18 +122,8 @@ export function CalendarView({
     !selectedDateAtMount && !inTrip(remembered) && mode === "month" ? busiestMonthStart(start, tripEnd) : initialDate,
   );
   const [expandedWeekDate, setExpandedWeekDate] = useState<string | null>(null);
-  const [dayScrollRequest, setDayScrollRequest] = useState({ date: initialDate, nonce: 0 });
   const [activeItem, setActiveItem] = useState<TravelObject | null>(null);
   const [ideasOpen, setIdeasOpen] = useState(false);
-  // Opened from the phone More sheet; the request is cleared once handled so a remount does not reopen Ideas.
-  const [handledIdeasRequest, setHandledIdeasRequest] = useState(false);
-  if (ideasRequested !== handledIdeasRequest) {
-    setHandledIdeasRequest(ideasRequested);
-    if (ideasRequested) setIdeasOpen(true);
-  }
-  useEffect(() => {
-    if (ideasRequested) onIdeasRequestHandled();
-  }, [ideasRequested, onIdeasRequestHandled]);
   const suppressClickRef = useRef(false);
   const previousModeRef = useRef<Mode>(mode);
   const today = dateParts(new Date(), trip.timezone).date;
@@ -165,17 +138,6 @@ export function CalendarView({
   const scheduledItems = items.filter((item) => item.date !== null);
   const weekStart = sundayOf(focusDate);
   const weekDates = Array.from({ length: 7 }, (_, index) => shiftDate(weekStart, index));
-  const requestDay = useCallback(
-    (date: string) => {
-      const bounded = date < start ? start : date > tripEnd ? tripEnd : date;
-      setFocusDate(bounded);
-      setDayScrollRequest((request) => ({ date: bounded, nonce: request.nonce + 1 }));
-    },
-    [start, tripEnd],
-  );
-  useEffect(() => {
-    if (mode === "day" && focusDate >= start && focusDate <= tripEnd) setWorkingDay(trip.id, focusDate);
-  }, [focusDate, mode, start, trip.id, tripEnd]);
   useEffect(() => {
     const changedMode = previousModeRef.current !== mode;
     previousModeRef.current = mode;
@@ -183,16 +145,13 @@ export function CalendarView({
     const selected = items.find((item) => item.id === primarySelectedId);
     const selectedDate = selected ? itemDateSpan(selected).first : null;
     if (!selectedDate) return;
-    const frame = requestAnimationFrame(() => {
-      if (mode === "day") requestDay(selectedDate);
-      else setFocusDate(selectedDate);
-    });
+    const frame = requestAnimationFrame(() => setFocusDate(selectedDate));
     return () => cancelAnimationFrame(frame);
-  }, [items, mode, primarySelectedId, requestDay]);
+  }, [items, mode, primarySelectedId]);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (
-        (phone && mode !== "day") ||
+        phone ||
         event.defaultPrevented ||
         event.altKey ||
         event.ctrlKey ||
@@ -219,12 +178,11 @@ export function CalendarView({
             : 0;
       if (!direction || mode === "month") return;
       event.preventDefault();
-      if (mode === "day") requestDay(shiftDate(focusDate, direction));
-      else setFocusDate((date) => shiftDate(date, direction));
+      setFocusDate((date) => shiftDate(date, direction));
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [focusDate, mode, phone, requestDay]);
+  }, [mode, phone]);
   function finishDrag() {
     setActiveItem(null);
     requestAnimationFrame(() => {
@@ -297,31 +255,17 @@ export function CalendarView({
         return;
       }
     }
-    if (target.startsWith("day-item:") || target.startsWith("day-list:") || target.startsWith("day-section:")) {
-      const [, date, rawOrder] = target.split(":");
-      if (date) {
-        const order = Number(rawOrder) || 0;
-        if (!isNote(item) && !canDropInDayOrder(scheduledItems, item, date, order)) return;
-        await onFlexibleDrop(item, date, order, false);
-        setFocusDate(date);
-      }
-      return;
-    }
     if (target.startsWith("day:")) await onMove(item, target.slice(4));
   }
   function selectFromClick(item: TravelObject, additive = false) {
     if (!suppressClickRef.current) onSelect(item, additive);
-  }
-  function selectDayItem(item: TravelObject, additive = false) {
-    if (!suppressClickRef.current) onSelect(item, additive, false);
   }
   function navigate(direction: number) {
     if (mode === "month") {
       const date = new Date(`${focusDate}T00:00:00Z`);
       date.setUTCMonth(date.getUTCMonth() + direction);
       setFocusDate(date.toISOString().slice(0, 10));
-    } else if (mode === "week") setFocusDate(shiftDate(focusDate, direction * 7));
-    else requestDay(shiftDate(focusDate, direction));
+    } else setFocusDate(shiftDate(focusDate, direction * 7));
   }
   function goToToday() {
     if (mode === "week") {
@@ -329,8 +273,7 @@ export function CalendarView({
       setExpandedWeekDate(null);
       return;
     }
-    setMode("day");
-    requestDay(today >= start && today <= tripEnd ? today : start);
+    onOpenDay(today >= start && today <= tripEnd ? today : start);
   }
   const activeDragItems = activeItem
     ? [activeItem, ...items.filter((item) => item.id !== activeItem.id && selectedIds.has(item.id))]
@@ -346,18 +289,12 @@ export function CalendarView({
   const title =
     mode === "month"
       ? new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(month)
-      : mode === "week"
-        ? rangeTitle(weekDates[0], weekDates[6])
-        : rangeTitle(start, tripEnd);
-  const modes: Mode[] = ["month", "week", "day"];
-  const modeShortcuts: Record<Mode, string> = { month: "Q", week: "W", day: "E" };
+      : rangeTitle(weekDates[0], weekDates[6]);
+  const modes: Mode[] = ["month", "week"];
+  const modeShortcuts: Record<Mode, string> = { month: "Q", week: "W" };
   const iconButton =
     "grid size-11 shrink-0 place-items-center text-foreground hover:bg-surface sm:size-9 [&_svg]:size-4";
-  function chooseMode(view: Mode) {
-    setMode(view);
-    if (view === "day") requestDay(focusDate);
-  }
-  if (phone && mode !== "day")
+  if (phone)
     return (
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
         <PhoneWeek
@@ -394,7 +331,7 @@ export function CalendarView({
           <button
             type="button"
             className="min-h-9 text-muted hover:text-foreground"
-            onClick={() => (mode === "day" ? requestDay(start) : setFocusDate(start))}
+            onClick={() => setFocusDate(start)}
           >
             Trip start
           </button>
@@ -421,9 +358,9 @@ export function CalendarView({
                 key={view}
                 type="button"
                 aria-pressed={mode === view}
-                title={`${view === "month" ? "Month" : view === "week" ? "Week" : "Day"} (${modeShortcuts[view]})`}
+                title={`${view === "month" ? "Month" : "Week"} (${modeShortcuts[view]})`}
                 className={`capitalize max-sm:min-w-11 ${textOptionClass(mode === view)}`}
-                onClick={() => chooseMode(view)}
+                onClick={() => setMode(view)}
               >
                 {view}
               </button>
@@ -431,58 +368,36 @@ export function CalendarView({
           </div>
         </div>
       </div>
-      <div
-        className={`shrink-0 border-b border-divider bg-background px-4 py-2 sm:hidden ${mode === "day" ? "max-sm:hidden" : ""}`}
-      >
+      <div className="shrink-0 border-b border-divider bg-background px-4 py-2 sm:hidden">
         <div className="flex min-h-11 items-center justify-between gap-2">
-          <strong className="min-w-0 truncate text-[15px] font-medium">
-            {mode === "day" ? "Day itinerary" : title}
-          </strong>
-          {mode === "day" ? (
-            <div className="flex gap-4 text-sm">
-              <button
-                type="button"
-                aria-pressed={ideasOpen}
-                className={`min-h-11 ${ideasOpen ? "text-foreground" : "text-muted"}`}
-                onClick={() => setIdeasOpen((open) => !open)}
-              >
-                Ideas <span className="font-mono">{ideas.length}</span>
-              </button>
-              <button type="button" className="min-h-11 text-muted" onClick={() => onCreateItem()}>
-                Add idea
-              </button>
-            </div>
-          ) : (
-            <div className="flex">
-              <button type="button" className={iconButton} onClick={() => navigate(-1)} aria-label="Previous period">
-                <ChevronLeft strokeWidth={1.5} />
-              </button>
-              <button type="button" className={iconButton} onClick={() => navigate(1)} aria-label="Next period">
-                <ChevronRight strokeWidth={1.5} />
-              </button>
-            </div>
-          )}
-        </div>
-        {mode !== "day" && (
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex gap-5">
-              {modes.map((view) => (
-                <button
-                  key={view}
-                  type="button"
-                  aria-pressed={mode === view}
-                  className={`capitalize max-sm:min-w-11 ${textOptionClass(mode === view)}`}
-                  onClick={() => chooseMode(view)}
-                >
-                  {view}
-                </button>
-              ))}
-            </div>
-            <button type="button" className="min-h-11 min-w-11 text-sm text-muted" onClick={goToToday}>
-              Today
+          <strong className="min-w-0 truncate text-[15px] font-medium">{title}</strong>
+          <div className="flex">
+            <button type="button" className={iconButton} onClick={() => navigate(-1)} aria-label="Previous period">
+              <ChevronLeft strokeWidth={1.5} />
+            </button>
+            <button type="button" className={iconButton} onClick={() => navigate(1)} aria-label="Next period">
+              <ChevronRight strokeWidth={1.5} />
             </button>
           </div>
-        )}
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex gap-5">
+            {modes.map((view) => (
+              <button
+                key={view}
+                type="button"
+                aria-pressed={mode === view}
+                className={`capitalize max-sm:min-w-11 ${textOptionClass(mode === view)}`}
+                onClick={() => setMode(view)}
+              >
+                {view}
+              </button>
+            ))}
+          </div>
+          <button type="button" className="min-h-11 min-w-11 text-sm text-muted" onClick={goToToday}>
+            Today
+          </button>
+        </div>
         {mode === "week" && <p className="pb-1 text-xs text-faint">Swipe sideways to see the rest of the week.</p>}
       </div>
       {mode === "month" ? (
@@ -508,10 +423,7 @@ export function CalendarView({
             onSelect={selectFromClick}
             onInspect={onInspect}
             onCreateItem={onCreateItem}
-            onOpenDay={(date) => {
-              setMode("day");
-              requestDay(date);
-            }}
+            onOpenDay={onOpenDay}
           />
           <DragOverlay dropAnimation={null}>
             {activeDragItems.length ? (
@@ -546,7 +458,7 @@ export function CalendarView({
                 typeColors={typeColors}
                 selectedIds={selectedIds}
                 primarySelectedId={primarySelectedId}
-                position={mode === "day" && !phone ? "beside-timeline" : "left"}
+                position="left"
                 onSelect={(item, additive) => {
                   if (!suppressClickRef.current) onSelect(item, additive, false);
                 }}
@@ -555,48 +467,21 @@ export function CalendarView({
                 onClose={() => setIdeasOpen(false)}
               />
             )}
-            {mode === "week" ? (
-              <WeekPlanner
-                dates={weekDates}
-                items={scheduledItems}
-                trip={trip}
-                typeColors={typeColors}
-                selectedIds={selectedIds}
-                primarySelectedId={primarySelectedId}
-                expandedDate={expandedWeekDate}
-                draggedItemId={activeItem?.id ?? null}
-                onExpandedChange={setExpandedWeekDate}
-                onSelectDay={(date) => {
-                  setFocusDate(date);
-                  setExpandedWeekDate(date);
-                }}
-                onSelect={selectFromClick}
-                onResize={onResize}
-                onCreateItem={(date, order, time) => onCreateItem(date, time, undefined, "(untitled event)", order)}
-              />
-            ) : (
-              <DayJourneyView
-                key={trip.id}
-                onCreateNote={onCreateNote}
-                onSaveNote={onSaveNote}
-                onDeleteNote={onDeleteNote}
-                trip={trip}
-                items={scheduledItems}
-                typeColors={typeColors}
-                selectedIds={selectedIds}
-                primarySelectedId={primarySelectedId}
-                scrollRequest={dayScrollRequest}
-                onActiveDate={setFocusDate}
-                onSelect={selectDayItem}
-                onInspect={onInspect}
-                onCreateItem={(date, order) => onCreateItem(date, undefined, undefined, "(untitled event)", order)}
-                onReorder={(item, date, order) => onFlexibleDrop(item, date, order, false)}
-                mapOpen={dayMapOpen}
-                onMapOpenChange={onDayMapOpenChange}
-                onLogExpense={onLogExpense}
-                previewItem={ideasOpen ? (ideas.find((idea) => idea.id === primarySelectedId) ?? null) : null}
-              />
-            )}
+            <WeekPlanner
+              dates={weekDates}
+              items={scheduledItems}
+              trip={trip}
+              typeColors={typeColors}
+              selectedIds={selectedIds}
+              primarySelectedId={primarySelectedId}
+              expandedDate={expandedWeekDate}
+              draggedItemId={activeItem?.id ?? null}
+              onExpandedChange={setExpandedWeekDate}
+              onOpenDay={onOpenDay}
+              onSelect={selectFromClick}
+              onResize={onResize}
+              onCreateItem={(date, order, time) => onCreateItem(date, time, undefined, "(untitled event)", order)}
+            />
           </div>
           <DragOverlay dropAnimation={null}>
             {activeDragItems.length ? (

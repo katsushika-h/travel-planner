@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { api } from "@/lib/api-client";
 import { decodePolyline } from "@/lib/polyline";
 import {
@@ -22,9 +22,26 @@ import type { TravelObject } from "@/types/travel";
 
 const NO_OVERRIDES: Record<string, TravelMode> = {};
 
+// Routed results by mode plus rounded coordinates, shared by every day section, the map and the Today mark,
+// so scrolling back or showing the same day twice never refetches. `version` tells subscribed hooks to re-read it.
+const routeCache = new Map<string, RouteSlot>();
+const inflight = new Set<string>();
+const listeners = new Set<() => void>();
+let cacheVersion = 0;
+function bumpCache() {
+  cacheVersion++;
+  listeners.forEach((listener) => listener());
+}
+function subscribeCache(listener: () => void) {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
+}
+const cacheSnapshot = () => cacheVersion;
+
 /**
  * Routes a day's legs. Walk mode routes walkable legs as before; Drive mode plans walk/drive segments
  * (with the car's position and saved parking) and routes every segment. Results are cached by mode and coordinates.
+ * Pass no stops to make no request (a section that is far from the viewport).
  */
 export function useDayRoutes(
   /** The day's route stops in order (see `dayRouteStops`): hotels at the ends, no notes or all-day items between. */
@@ -51,37 +68,47 @@ export function useDayRoutes(
   );
   const requestKeys = useMemo(() => requestLegs.map(legCacheKey), [requestLegs]);
   const requestSignature = `${mode}|${requestKeys.join("|")}`;
-  // Routed results by mode plus rounded coordinates, so switching days back and forth does not refetch.
-  const cacheRef = useRef(new Map<string, RouteSlot>());
-  const [routed, setRouted] = useState<Record<string, RouteSlot>>({});
+  const version = useSyncExternalStore(subscribeCache, cacheSnapshot, cacheSnapshot);
+  const routed = useMemo(() => {
+    const found: Record<string, RouteSlot> = {};
+    for (const key of requestKeys) {
+      const slot = routeCache.get(key);
+      if (slot) found[key] = slot;
+    }
+    return found;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `version` stands for the cache contents
+  }, [requestKeys, version]);
   const [failedSignature, setFailedSignature] = useState<string | null>(null);
 
   useEffect(() => {
-    const cache = cacheRef.current;
-    const missing = requestLegs.filter((leg) => !cache.has(legCacheKey(leg)));
+    // Legs another hook is already fetching arrive through the shared cache.
+    const missing = requestLegs.filter((leg) => !routeCache.has(legCacheKey(leg)) && !inflight.has(legCacheKey(leg)));
     if (!missing.length) return;
-    const controller = new AbortController();
+    let live = true;
     void (async () => {
       let failed = false;
       for (const chunk of chunkRequestLegs(missing)) {
+        chunk.forEach((leg) => inflight.add(legCacheKey(leg)));
         try {
-          const { legs: slots } = await api.routeLegs(chunk, controller.signal);
-          if (controller.signal.aborted) return;
+          const { legs: slots } = await api.routeLegs(chunk);
           chunk.forEach((leg, index) => {
             const slot = slots[index];
-            if (slot && !("error" in slot)) cache.set(legCacheKey(leg), slot);
+            if (slot && !("error" in slot)) routeCache.set(legCacheKey(leg), slot);
             else failed = true;
           });
-          setRouted(Object.fromEntries(cache));
         } catch {
-          if (controller.signal.aborted) return;
           failed = true;
+        } finally {
+          chunk.forEach((leg) => inflight.delete(legCacheKey(leg)));
+          bumpCache();
         }
       }
-      if (failed && !controller.signal.aborted) setFailedSignature(requestSignature);
+      if (failed && live) setFailedSignature(requestSignature);
     })();
-    // Aborting on cleanup drops stale responses after a day or mode switch.
-    return () => controller.abort();
+    // A response always fills the shared cache, even after this hook has gone; only the failure note is dropped.
+    return () => {
+      live = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the request signature, so a failure is not retried in a loop
   }, [requestSignature]);
 

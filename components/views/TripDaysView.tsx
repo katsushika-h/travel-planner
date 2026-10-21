@@ -12,24 +12,23 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { getEventCoordinates } from "@dnd-kit/utilities";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { dateParts, formatTripDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
-import { eventItems, isNote } from "@/lib/note-domain";
-import { allDayDropStartDate, flexibleDisplayTimes, occursOnItineraryDate } from "@/lib/schedule-domain";
+
+import { allDayDropStartDate, occursOnItineraryDate } from "@/lib/schedule-domain";
 import { compareScheduleOrder, isTimedItem, itineraryDropPosition } from "@/lib/schedule-order";
 import { displayTotals, drivePlanTotals, parkingSpots, type DisplayLeg, type TravelMode } from "@/lib/routed-legs";
-import { dayRouteStops, formatDuration } from "@/lib/travel-legs";
-import { typeColor } from "@/lib/type-color";
+import { formatDuration } from "@/lib/travel-legs";
 import { setWorkingDay, workingDay } from "@/lib/working-day";
 import { useTravelStore } from "@/store/use-travel-store";
 import type { TravelObject, Trip, UpdateTravelObjectInput } from "@/types/travel";
 import { IdeasPanel } from "./calendar/IdeasPanel";
+import { DayList, type ExpandedStop, type ScrollRequest } from "./plan/DayList";
 import { DayStrip } from "./plan/DayStrip";
 import { PlanMap } from "./plan/PlanMap";
-import { plannedTotals, stopMeta, stopNumbers, stopTimeLabel, tripDays } from "./plan/plan-domain";
-import { AddGap, EndSlot, NoteBlock, StopRow } from "./plan/StopRow";
-import { useDayRoutes } from "./plan/useDayRoutes";
+import { plannedTotals, stopMeta, stopTimeLabel, tripDays } from "./plan/plan-domain";
+import { useDayPlan } from "./plan/useDayPlan";
 
 function initialDate(trip: Trip, days: string[], items: TravelObject[], primaryId: string | null) {
   const primary = primaryId ? items.find((item) => item.id === primaryId) : null;
@@ -57,6 +56,14 @@ export function TripDaysView({
   onCreateItem,
   onCreateIdea,
   onChangeItem,
+  onCreateNote,
+  onSaveNote,
+  onDeleteNote,
+  onLogExpense,
+  mapOpen = false,
+  onMapOpenChange = () => undefined,
+  ideasRequested = false,
+  onIdeasRequestHandled = () => undefined,
 }: {
   trip: Trip;
   /** Dated items for the trip. Notes are shown inline when present. */
@@ -79,34 +86,65 @@ export function TripDaysView({
   onCreateIdea: () => void;
   /** Saves a patch to an item (used to store a stop's parking spot). */
   onChangeItem: (id: string, patch: UpdateTravelObjectInput, immediate?: boolean) => void;
+  onCreateNote: (date: string, order: number) => Promise<string | undefined>;
+  onSaveNote: (id: string, data: { title: string; noteBody: string }) => Promise<void>;
+  onDeleteNote: (id: string) => Promise<void>;
+  /** Phone: the + menu's "Add expense". */
+  onLogExpense?: (item: TravelObject | null) => void;
+  /** Phone: show the day map instead of the itinerary. Owned by the app header toggle. */
+  mapOpen?: boolean;
+  onMapOpenChange?: (open: boolean) => void;
+  /** Phone: the More sheet's Ideas row asks for Plan with Ideas open; `onIdeasRequestHandled` clears it. */
+  ideasRequested?: boolean;
+  onIdeasRequestHandled?: () => void;
 }) {
   const days = useMemo(() => tripDays(trip.startDate, trip.endDate), [trip.startDate, trip.endDate]);
   const today = dateParts(new Date(), trip.timezone).date;
+  // The day in view is reported by the list as it scrolls; picking a day (or a stop elsewhere) sends it a request.
   const [activeDate, setActiveDate] = useState(() => initialDate(trip, days, items, primarySelectedId));
-  const [expandedId, setExpandedId] = useState<string | null>(primarySelectedId);
+  const [scrollRequest, setScrollRequest] = useState<ScrollRequest>(() => ({ date: activeDate, nonce: 0 }));
+  const [expanded, setExpanded] = useState<ExpandedStop | null>(() => {
+    const primary = primarySelectedId ? items.find((item) => item.id === primarySelectedId) : null;
+    return primary ? { id: primary.id, date: primary.date?.slice(0, 10) ?? activeDate } : null;
+  });
   const [seenPrimaryId, setSeenPrimaryId] = useState(primarySelectedId);
+  // The stop just picked in the list, so its selection is not mistaken for one made elsewhere (and scrolled to).
+  const [listPickedId, setListPickedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<TravelObject | null>(null);
   const [mapMoved, setMapMoved] = useState(false);
   const [recenterToken, setRecenterToken] = useState(0);
-  const [mobileSurface, setMobileSurface] = useState<"list" | "map">("list");
   const [mapVisible, setMapVisible] = useState(false);
   const [ideasOpen, setIdeasOpen] = useState(false);
+  // Opened from the phone More sheet; the request is cleared once handled so a remount does not reopen Ideas.
+  const [handledIdeasRequest, setHandledIdeasRequest] = useState(false);
+  if (ideasRequested !== handledIdeasRequest) {
+    setHandledIdeasRequest(ideasRequested);
+    if (ideasRequested) setIdeasOpen(true);
+  }
+  useEffect(() => {
+    if (ideasRequested) onIdeasRequestHandled();
+  }, [ideasRequested, onIdeasRequestHandled]);
   const suppressClickRef = useRef(false);
   const date = days.includes(activeDate) ? activeDate : initialDate(trip, days, items, null);
 
-  // Selection that changes elsewhere (map pin, search, editor) expands that stop and shows its day.
+  // Selection that changes elsewhere (map pin, search, editor) expands that stop and scrolls to its day.
   if (seenPrimaryId !== primarySelectedId) {
     setSeenPrimaryId(primarySelectedId);
-    setExpandedId(primarySelectedId);
+    const fromList = listPickedId === primarySelectedId;
+    if (listPickedId) setListPickedId(null);
     // Clearing the selection brings the map back to the whole day after it flew to a stop.
-    if (!primarySelectedId) setRecenterToken((token) => token + 1);
-    const selected = primarySelectedId ? items.find((item) => item.id === primarySelectedId) : null;
-    const selectedDate = selected?.date?.slice(0, 10);
-    if (selected && selectedDate && days.includes(selectedDate) && !occursOnItineraryDate(selected, date)) {
-      setActiveDate(selectedDate);
-      setMapMoved(false);
+    if (!primarySelectedId) {
+      setExpanded(null);
       setRecenterToken((token) => token + 1);
+    } else if (!fromList) {
+      const selected = items.find((item) => item.id === primarySelectedId);
+      const selectedDate = selected?.date?.slice(0, 10);
+      const shownOnActiveDay = selected ? occursOnItineraryDate(selected, date) : false;
+      setExpanded({ id: primarySelectedId, date: shownOnActiveDay ? date : (selectedDate ?? date) });
+      if (selected && selectedDate && days.includes(selectedDate) && !shownOnActiveDay) {
+        setScrollRequest((request) => ({ date: selectedDate, itemId: selected.id, nonce: request.nonce + 1 }));
+      }
     }
   }
 
@@ -161,21 +199,14 @@ export function TripDaysView({
   const setTravelMode = useTravelStore((state) => state.setTravelMode);
   const overrides = useTravelStore((state) => state.legOverridesByTrip[trip.id]);
   const setLegOverride = useTravelStore((state) => state.setLegOverride);
-  // Last night's hotel is pinned to the start of the day and tonight's to the end; the route runs between them.
-  const { morning, evening, stops: routeStops } = useMemo(() => dayRouteStops(dayItems, date), [dayItems, date]);
-  const middleRows = useMemo(
-    () =>
-      dayItems
-        .map((item, order) => ({ item, order }))
-        .filter(({ item }) => item.id !== morning?.id && item.id !== evening?.id),
-    [dayItems, morning, evening],
+  // The active day feeds the summary and the map; each list section routes itself (they share one route cache).
+  const { legs, mapLegs, estimatedNote, events, numbers, flexTimes } = useDayPlan(
+    dayItems,
+    date,
+    mode,
+    overrides,
+    true,
   );
-  const { legs, mapLegs, planned, estimatedNote } = useDayRoutes(routeStops, mode, overrides);
-  const legByFromId = useMemo(() => new Map(legs.map((leg) => [leg.fromId, leg])), [legs]);
-  const nextTitles = useMemo(() => {
-    const titles = new Map(dayItems.map((item) => [item.id, item.title]));
-    return new Map(legs.map((leg) => [leg.fromId, titles.get(leg.toId) ?? ""]));
-  }, [legs, dayItems]);
   const travelTotal = useMemo(() => {
     if (mode === "drive") {
       const total = drivePlanTotals(legs);
@@ -191,16 +222,6 @@ export function TripDaysView({
     if (!total.counted) return "";
     return `${total.approximate ? "~" : ""}${formatDuration(total.seconds)} walking`;
   }, [legs, mode]);
-  // Stops a drive arrives at (and the day's first stop, where the car starts) can have a car park picked.
-  const parkingOfferIds = useMemo(() => {
-    const ids = new Set<string>();
-    if (mode !== "drive") return ids;
-    for (const leg of planned) {
-      if (leg.segments.some((segment) => segment.mode === "drive" && segment.role === "leg")) ids.add(leg.toId);
-    }
-    if (routeStops[0]) ids.add(routeStops[0].id);
-    return ids;
-  }, [mode, planned, routeStops]);
   const parkingMarkers = useMemo(
     () =>
       mode === "drive"
@@ -210,18 +231,6 @@ export function TripDaysView({
   );
   const setLegMode = (leg: DisplayLeg, next: TravelMode) =>
     setLegOverride(trip.id, `${leg.fromId}>${leg.toId}`, next === leg.defaultMode ? null : next);
-  const events = useMemo(() => eventItems(dayItems), [dayItems]);
-  // Map numbers follow the rows as shown: start hotel, the day's stops, then tonight's hotel (once if it is the same).
-  const numbers = useMemo(
-    () =>
-      stopNumbers([
-        ...(morning ? [morning] : []),
-        ...eventItems(middleRows.map(({ item }) => item)),
-        ...(evening && evening.id !== morning?.id ? [evening] : []),
-      ]),
-    [morning, evening, middleRows],
-  );
-  const flexTimes = useMemo(() => flexibleDisplayTimes(events), [events]);
   const mapped = useMemo(() => events.filter((item) => hasMapCoordinates(item.location)), [events]);
   // The idea selected in the open Ideas panel gets a temporary pin on the day map.
   const previewIdea = ideasOpen ? (ideas.find((idea) => idea.id === primarySelectedId) ?? null) : null;
@@ -238,12 +247,15 @@ export function TripDaysView({
     .filter(Boolean)
     .join(" · ");
 
-  function pickDay(next: string) {
-    if (next === date) return;
+  // The list reports the day in view; the map refits to it.
+  function onActiveDate(next: string) {
     setActiveDate(next);
-    setExpandedId(null);
     setMapMoved(false);
     setRecenterToken((token) => token + 1);
+  }
+
+  function pickDay(next: string) {
+    setScrollRequest((request) => ({ date: next, nonce: request.nonce + 1 }));
   }
 
   // From `md` the Ideas panel takes a column beside the map, so the narrower or wider map refits the day.
@@ -252,17 +264,18 @@ export function TripDaysView({
     if (!mapMoved) setRecenterToken((token) => token + 1);
   }
 
-  function pickStop(item: TravelObject, additive: boolean) {
+  function pickStop(item: TravelObject, additive: boolean, itemDate: string) {
     if (suppressClickRef.current) return;
+    setListPickedId(item.id);
     if (additive) {
       onSelect(item, true);
       return;
     }
-    if (expandedId === item.id && primarySelectedId === item.id) {
-      setExpandedId(null);
+    if (expanded?.id === item.id && expanded.date === itemDate && primarySelectedId === item.id) {
+      setExpanded(null);
       return;
     }
-    setExpandedId(item.id);
+    setExpanded({ id: item.id, date: itemDate });
     onSelect(item, false);
   }
 
@@ -271,12 +284,11 @@ export function TripDaysView({
   }
 
   function selectFromMap(item: TravelObject) {
-    setExpandedId(item.id);
+    setListPickedId(item.id);
+    setExpanded({ id: item.id, date });
     onSelect(item);
-    setMobileSurface("list");
-    requestAnimationFrame(() =>
-      document.getElementById(`plan-row-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" }),
-    );
+    onMapOpenChange(false);
+    setScrollRequest((request) => ({ date, itemId: item.id, nonce: request.nonce + 1 }));
   }
 
   const finishDrag = () => {
@@ -340,34 +352,6 @@ export function TripDaysView({
     void onReorder(item, targetDate, requestedOrder, false);
   };
 
-  const renderStop = (item: TravelObject, order: number, anchor?: "start" | "end") => (
-    <StopRow
-      key={anchor ? `${item.id}:${date}:${anchor}` : undefined}
-      item={item}
-      date={date}
-      order={order}
-      number={numbers.get(item.id) ?? null}
-      color={typeColor(item.type, typeColors)}
-      flexTime={flexTimes.get(item.id)}
-      // The end row is where the day finishes; its hotel's outgoing leg belongs to the start row.
-      leg={anchor === "end" ? undefined : legByFromId.get(item.id)}
-      nextTitle={nextTitles.get(item.id)}
-      selected={selectedIds.has(item.id)}
-      primary={primarySelectedId === item.id}
-      expanded={expandedId === item.id}
-      hovered={hoveredId === item.id}
-      driveMode={mode === "drive"}
-      canFindParking={parkingOfferIds.has(item.id)}
-      anchor={anchor}
-      showParking={!(anchor === "end" && item.id === morning?.id)}
-      onChangeItem={onChangeItem}
-      onSetLegMode={setLegMode}
-      onPick={pickStop}
-      onEdit={editStop}
-      onHover={setHoveredId}
-    />
-  );
-  const listLabel = formatTripDate(`${date}T12:00:00Z`, "UTC", { month: "long", day: "numeric" });
   return (
     <div className="relative flex min-h-0 flex-1 flex-col md:flex-row">
       <DndContext
@@ -402,12 +386,8 @@ export function TripDaysView({
             onClose={() => toggleIdeas(false)}
           />
         )}
-        <div
-          className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-4 pb-8 sm:px-12 ${ideasOpen ? "md:px-6 xl:px-12" : ""}`}
-        >
-          <div
-            className={`sticky top-0 z-20 -mx-4 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 bg-background px-4 pt-3 sm:-mx-12 sm:px-12 sm:pt-4 ${ideasOpen ? "md:-mx-6 md:px-6 xl:-mx-12 xl:px-12" : ""}`}
-          >
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="hidden shrink-0 flex-wrap items-end justify-between gap-x-4 gap-y-2 bg-background px-6 pt-4 pb-3 sm:flex lg:px-10">
             <DayStrip days={days} activeDate={date} today={today} onPick={pickDay} />
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
               <p>{summary}</p>
@@ -435,72 +415,64 @@ export function TripDaysView({
                 Ideas <span className="font-mono">{ideas.length}</span>
               </button>
             </div>
-            <div className="flex basis-full border-b border-divider md:hidden" role="group" aria-label="Plan surface">
-              {(["list", "map"] as const).map((surface) => (
-                <button
-                  key={surface}
-                  type="button"
-                  aria-pressed={mobileSurface === surface}
-                  onClick={() => setMobileSurface(surface)}
-                  className={`min-h-11 flex-1 text-sm ${mobileSurface === surface ? "font-medium text-foreground shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted"}`}
-                >
-                  {surface === "list" ? "Stops" : "Map"}
-                </button>
-              ))}
-            </div>
           </div>
-          {/* With Ideas beside them, the list keeps room for its stop rows and the map takes the rest. */}
-          <div className={`mt-4 flex flex-col gap-12 md:mt-6 md:flex-row ${ideasOpen ? "md:gap-8" : ""}`}>
-            <div
-              className={`min-w-0 md:block ${ideasOpen ? "md:flex-[1_1_380px] lg:flex-[1_0_380px]" : "md:flex-[1_1_520px]"} ${mobileSurface === "map" ? "hidden" : ""}`}
-            >
-              <ol aria-label={`Stops on ${listLabel}`} className="border-t border-foreground">
-                {morning && renderStop(morning, dayItems.indexOf(morning), "start")}
-                {middleRows.map(({ item, order }) => (
-                  <Fragment key={`${item.id}:${date}`}>
-                    <AddGap label={`Add stop at position ${order + 1}`} onAdd={() => onCreateItem(date, order)} />
-                    {isNote(item) ? <NoteBlock item={item} date={date} order={order} /> : renderStop(item, order)}
-                  </Fragment>
-                ))}
-                <EndSlot
-                  date={date}
-                  order={dayItems.length}
-                  empty={dayItems.length === 0}
-                  onAdd={() => onCreateItem(date, dayItems.length)}
-                />
-                {evening && renderStop(evening, dayItems.indexOf(evening), "end")}
-              </ol>
-            </div>
-            {(mapVisible || mobileSurface === "map") && (
+          <DayList
+            trip={trip}
+            items={items}
+            typeColors={typeColors}
+            selectedIds={selectedIds}
+            primarySelectedId={primarySelectedId}
+            expanded={expanded}
+            hoveredId={hoveredId}
+            mode={mode}
+            overrides={overrides}
+            scrollRequest={scrollRequest}
+            onActiveDate={onActiveDate}
+            onPick={pickStop}
+            onEdit={editStop}
+            onHover={setHoveredId}
+            onChangeItem={onChangeItem}
+            onSetLegMode={setLegMode}
+            onCreateItem={onCreateItem}
+            onCreateNote={onCreateNote}
+            onSaveNote={onSaveNote}
+            onDeleteNote={onDeleteNote}
+            onReorder={(item, itemDate, order) => onReorder(item, itemDate, order, false)}
+            onLogExpense={onLogExpense}
+            mapOpen={mapOpen}
+            onMapOpenChange={onMapOpenChange}
+            map={
               <div
-                className={`min-w-0 md:sticky md:top-28 md:block md:flex-[1_1_420px] md:self-start ${ideasOpen ? "md:min-w-60" : ""} ${mobileSurface === "list" ? "hidden" : ""}`}
+                className={`${mapOpen ? "flex" : "hidden"} min-h-0 min-w-0 flex-col border-l border-divider md:flex ${ideasOpen ? "md:min-w-60" : ""}`}
               >
-                <PlanMap
-                  trip={trip}
-                  date={date}
-                  mapped={mapped}
-                  unmappedCount={unmapped.length}
-                  typeColors={typeColors}
-                  markerNumbers={numbers}
-                  selectedItemId={primarySelectedId}
-                  hoveredItemId={hoveredId}
-                  recenterToken={recenterToken}
-                  mapMoved={mapMoved}
-                  onHover={setHoveredId}
-                  onSelect={selectFromMap}
-                  onUserMove={() => setMapMoved(true)}
-                  onRecenter={() => {
-                    setMapMoved(false);
-                    setRecenterToken((token) => token + 1);
-                  }}
-                  onAddLink={unmapped[0] ? () => editStop(unmapped[0]) : undefined}
-                  legs={mapLegs}
-                  parkingMarkers={parkingMarkers}
-                  previewItem={previewIdea}
-                />
+                {(mapVisible || mapOpen) && (
+                  <PlanMap
+                    trip={trip}
+                    date={date}
+                    mapped={mapped}
+                    unmappedCount={unmapped.length}
+                    typeColors={typeColors}
+                    markerNumbers={numbers}
+                    selectedItemId={primarySelectedId}
+                    hoveredItemId={hoveredId}
+                    recenterToken={recenterToken}
+                    mapMoved={mapMoved}
+                    onHover={setHoveredId}
+                    onSelect={selectFromMap}
+                    onUserMove={() => setMapMoved(true)}
+                    onRecenter={() => {
+                      setMapMoved(false);
+                      setRecenterToken((token) => token + 1);
+                    }}
+                    onAddLink={unmapped[0] ? () => editStop(unmapped[0]) : undefined}
+                    legs={mapLegs}
+                    parkingMarkers={parkingMarkers}
+                    previewItem={previewIdea}
+                  />
+                )}
               </div>
-            )}
-          </div>
+            }
+          />
         </div>
         <DragOverlay dropAnimation={null}>
           {activeItem && (

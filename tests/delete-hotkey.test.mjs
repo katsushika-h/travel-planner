@@ -43,7 +43,7 @@ function loadComponent(path) {
       if (name === "react-dom") return { createPortal: (tree) => tree };
       if (name === "@/components/ui/use-modal-focus") return { useModalFocus() {} };
       if (name === "@/lib/type-color") return { typeColor: () => "#000000" };
-      if (name === "@/lib/date-utils") return { dateParts };
+      if (name === "@/lib/date-utils") return { dateParts, formatTripDate: () => "" };
       if (name === "@/lib/schedule-domain") return { oneHourEnd, scheduleKind };
       return {};
     },
