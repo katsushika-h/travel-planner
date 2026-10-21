@@ -16,6 +16,7 @@ Potential features to implement after the POC. These are ideas, not commitments 
 - [x] **Ideas panel on a hotkey** — Space shows or hides the Ideas panel with its search box focused; ideas are dragged into the itinerary from it. Opening it on mouseover is not implemented.
 - [x] **Day notes** — notes attached to a day (ADR 0004, ADR 0005).
 - [x] **Calendar export** — export the trip as an `.ics` file.
+- [x] **PDF export** — a printable itinerary (`/trips/<id>/print`, Trip menu → Export PDF) saved through the browser's print dialog: each day's items with times, places, notes and planned costs, a Google Maps link per item, and a Google Maps route link per day.
 - [x] **Travel distance** — walking distance and time between consecutive stops, with parking suggestions for driving legs (`docs/work/travel-distance.md`).
 
 ## Open

@@ -26,6 +26,10 @@ export function markdownToPlainText(value: string) {
     .replace(/(^|[^\w*])[*_]([^*_\n]+)[*_](?![\w*])/g, "$1$2")
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\\([\\`*_{}[\]()#+\-.!>~=|])/g, "$1")
+    .replace(/&#(x[0-9a-f]+|\d+);/gi, (entity, code: string) => {
+      const point = code[0].toLowerCase() === "x" ? parseInt(code.slice(1), 16) : Number(code);
+      return point <= 0x10ffff ? String.fromCodePoint(point) : entity;
+    })
     .replace(/[ \t]+$/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();

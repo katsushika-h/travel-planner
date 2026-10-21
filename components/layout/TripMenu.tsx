@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
-import { Check, ChevronDown, Keyboard, Monitor, Moon, Sun } from "lucide-react";
+import { Check, ChevronDown, FileText, Keyboard, Monitor, Moon, Sun } from "lucide-react";
 import { CreateTripDialog } from "@/components/trip/CreateTripDialog";
 import { DeleteTripButton } from "@/components/trip/DeleteTripButton";
 import { EditTripDialog } from "@/components/trip/EditTripDialog";
@@ -205,6 +205,15 @@ export function TripMenuContents({
               onError={(message) => onError(activeTrip.id, message)}
             />
             {exportItems && <ExportIcsButton menuItem trip={activeTrip} items={exportItems} />}
+            <a
+              href={`/trips/${activeTrip.id}/print`}
+              target="_blank"
+              rel="noreferrer"
+              className={menuItemClassName}
+              onClick={onDone}
+            >
+              <FileText /> Export PDF
+            </a>
           </>
         )}
       </MenuSection>

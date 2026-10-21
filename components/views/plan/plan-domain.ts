@@ -75,6 +75,7 @@ export function stopMeta(
 export function safeMapsHref(location: LocationData | null | undefined) {
   const url = location?.googleMapsUrl;
   if (url?.startsWith("https://") || url?.startsWith("http://")) return url;
-  const query = location?.name || location?.address;
+  const query =
+    location?.name || location?.address || (hasMapCoordinates(location) ? `${location!.lat},${location!.lng}` : null);
   return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : null;
 }
