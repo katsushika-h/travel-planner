@@ -1,6 +1,6 @@
 # 3D map proof of concept
 
-Status: In progress (2026-10-22). Gate passed and W1 done on `feat/3d-map-poc` (uncommitted); W2 next.
+Status: In progress (2026-10-22). Gate, W1 (committed `c344ec7`), W2 and W3 done on `feat/3d-map-poc`; the measurements under Verification and the recommendation remain.
 
 Goal: Prove that the Map tab (`components/views/MapView.tsx`) can run on a WebGL map that shows OpenStreetMap buildings as extruded 3D blocks, without losing anything the current Leaflet map does, so the user can decide whether to replace it.
 
@@ -23,7 +23,7 @@ Out of scope: terrain/elevation, pitched roofs, legs and parking on the 3D map, 
 - **Library:** MapLibre GL JS with a `fill-extrusion` layer on the building layer of a keyless OpenFreeMap vector style. Heights come from the tile's `render_height` / `render_min_height` (OpenMapTiles schema; confirm in the style). three.js is not used in the PoC; if the user later wants custom geometry, MapLibre's custom layer can host three.js on the same map (stretch item S1).
 - **Switch:** `?map=3d` on the URL turns the PoC on for the Map tab; without it the tab is unchanged. No store or persisted preference.
 - **Fallback:** if WebGL is unavailable or the style fails to load, render `LeafletMap` instead.
-- **Camera:** pitch 45° when zoomed in to buildings (zoom ≥ 15), flat when fitting the whole trip; the user can tilt and rotate with the default MapLibre controls.
+- **Camera:** fits at city scale (zoom ≥ 12) tilt to 45°, and a whole-trip fit stays flat; the user can tilt and rotate with the MapLibre controls or Shift+arrow keys. Buildings appear from zoom 14, so a day spread across a city shows tilted streets until the user zooms in.
 - **Theme:** use a light and a dark OpenFreeMap style (or one style with paint overrides) chosen from `useResolvedTheme()`; extrusion colour from a token-derived value.
 
 ## Gate (passed 2026-10-22)
@@ -66,8 +66,8 @@ Run one at a time, model `sonnet`. Branch `feat/3d-map-poc` from the tip of `cla
 
 - [x] Gate: OpenFreeMap terms, attribution, limits and `maplibre-gl` version recorded
 - [x] W1 shared marker and popup helpers (`components/views/map-markers.ts`; `npm run check` passed, Map and Plan maps checked in the browser 2026-10-22)
-- [ ] W2 `MapLibreMap.tsx`
-- [ ] W3 `?map=3d` switch and WebGL fallback in `MapView`
+- [x] W2 `MapLibreMap.tsx` and MapLibre control, popup and attribution styles in `app/globals.css`
+- [x] W3 `?map=3d` switch and fallback in `MapView` (done with W2 so the map could be checked in the app)
 - [ ] Verification below, with screenshots
 - [ ] Findings and recommendation written here for the user's decision
 - [ ] S1 (only if requested)
@@ -79,10 +79,25 @@ Run one at a time, model `sonnet`. Branch `feat/3d-map-poc` from the tip of `cla
 - Without `?map=3d` the Map tab is unchanged; Plan's map is unchanged.
 - Record for the decision: JS bundle size added to the Map tab, first-render time, frame rate while panning a dense area (for example central Tokyo or Berlin), behaviour on a phone.
 
+### Results so far (2026-10-22, dev server, test trip in Kyoto and Tokyo)
+
+- Done: Light (Liberty, its own 3D buildings) and Dark (added extrusion layer) render buildings with OSM heights; switching theme swaps the style live. The whole-trip fit is flat (zoom 6.2); a single day tilts to 45° with every pin inside the frame. Day filters and dimming match Leaflet. A pin click opens the inspector, and, as on Leaflet, no popup stays open. Phone width (375px): map fills the width, pins and attribution visible, no horizontal scroll. Attribution is readable in both themes. Without `?map=3d` the Leaflet map is unchanged. `npm run check` passes.
+- Fallback: verified by accident. Before the worker fix the map failed to start, and the tab fell back to Leaflet as intended.
+- Webpack build (`npx next build --webpack`) passes and emits the worker as `/_next/static/media/maplibre-gl-worker.<hash>.mjs`. Size: the MapLibre chunk is 1.06 MB (288 KB gzipped) plus the worker at 510 KB (147 KB gzipped). Both load only when `?map=3d` renders the map, because of `next/dynamic`.
+- Still to measure: first-render time, frame rate while panning a dense area, a real phone, and the webpack build in the browser (only dev was checked in the browser).
+
+### Implementation notes
+
+- MapLibre 6 locates its worker (`maplibre-gl-worker.mjs`, ~0.5 MB, self-contained) next to its own module, which fails once bundled ("Worker failed to load"). `MapLibreMap.tsx` calls `setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).href)` so the bundler emits the file under `/_next/static/media/`. Verified in dev (Turbopack); the webpack build is the check that matters for Docker.
+- `maplibre-gl` 6 has no default export: `import * as maplibregl`.
+- `cameraForBounds` ignores pitch, and perspective spreads the near edge, so a tilted fit backs off 0.5 zoom from the flat fit.
+- Dark's extrusion uses `--faint` at 0.45 opacity; `--surface` was invisible against the near-black style.
+- MapLibre's own CSS outranks single-class selectors; the attribution rule needs `.maplibregl-ctrl.maplibregl-ctrl-attrib`.
+
 ## Decision for the user after the PoC
 
 Replace Leaflet on the Map tab (and later Plan), keep 3D as an optional toggle, or drop it. If replacing: write an ADR in `docs/decisions/`, move legs, parking and preview pins to MapLibre, and remove the switch.
 
 ## Next step
 
-Start W2: add `maplibre-gl@6.15.0` and build `MapLibreMap.tsx` on the W1 helpers.
+Record the measurements under Verification (bundle size from the webpack build, first render, panning a dense area, a real phone), then write the recommendation.
