@@ -5,7 +5,16 @@ import L, { type Map as LeafletMapInstance, type Marker } from "leaflet";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { useResolvedTheme } from "@/store/use-travel-store";
 import type { TravelObject, Trip } from "@/types/travel";
-import { markerColor, markerHtml, markerSize, overlayInsets, popupContent, type MarkerState } from "./map-markers";
+import {
+  PARKING_MARKER_SIZE,
+  markerColor,
+  markerHtml,
+  markerSize,
+  overlayInsets,
+  parkingHtml,
+  popupContent,
+  type MarkerState,
+} from "./map-markers";
 
 function markerIcon(color: string, number?: number, state: MarkerState = "default") {
   const size = markerSize(number != null, state);
@@ -23,9 +32,9 @@ export type MapParkingMarker = { id: string; lat: number; lng: number; name: str
 function parkingIcon() {
   return L.divIcon({
     className: "travel-map-marker",
-    html: '<span aria-hidden="true" style="display:grid;width:20px;height:20px;place-items:center;border:1px solid var(--ink);background:var(--surface);color:var(--ink);font:600 11px/1 var(--font-mono, monospace)">P</span>',
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
+    html: parkingHtml(),
+    iconSize: [PARKING_MARKER_SIZE, PARKING_MARKER_SIZE],
+    iconAnchor: [PARKING_MARKER_SIZE / 2, PARKING_MARKER_SIZE / 2],
   });
 }
 

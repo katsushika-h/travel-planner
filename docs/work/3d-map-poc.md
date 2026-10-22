@@ -1,6 +1,6 @@
 # 3D map proof of concept
 
-Status: PoC complete (2026-10-22) on `feat/3d-map-poc`. Phase 2 planned (W4–W7): port Plan's map features to MapLibre. Not started. Nearby suggestions (W8, E1) moved to a later recommendations feature (`docs/FEATURES.md`).
+Status: Phase 2 (W4–W7) implemented (2026-10-22) on `feat/3d-map-poc`: Plan's day map runs on MapLibre behind `?map=3d`. Not yet verified: idea preview pin, parking markers, phone width. Real-phone check skipped for now (user decision, 2026-10-22). Nearby suggestions (W8, E1) moved to a later recommendations feature (`docs/FEATURES.md`).
 
 Goal: Prove that the Map tab (`components/views/MapView.tsx`) can run on a WebGL map that shows OpenStreetMap buildings as extruded 3D blocks, without losing anything the current Leaflet map does, so the user can decide whether to replace it.
 
@@ -163,10 +163,10 @@ Recommendation:
 - [x] W3 `?map=3d` switch and fallback in `MapView` (done with W2 so the map could be checked in the app)
 - [x] Verification below (headless Chrome measurements; real phone not yet checked)
 - [x] Findings and recommendation written here for the user's decision
-- [ ] W4 selection, hover, preview and recenter in `MapLibreMap`
-- [ ] W5 route legs under the buildings
-- [ ] W6 parking markers
-- [ ] W7 Plan's day map on MapLibre behind `?map=3d`
+- [x] W4 selection, hover, preview and recenter in `MapLibreMap` (preview pin not yet seen: the test trip's idea has no coordinates)
+- [x] W5 route legs under the buildings
+- [x] W6 parking markers (not yet seen: the test trip has no saved car parks)
+- [x] W7 Plan's day map on MapLibre behind `?map=3d` (phone width not yet checked)
 - W8 and E1: moved to the recommendations feature (`docs/FEATURES.md`); radius decided as 500 m
 - [ ] S1 (only if requested)
 
@@ -192,6 +192,23 @@ Recommendation:
 
   The CPU slowdown does not slow the GPU, so the phone row overstates a real phone. Real-phone smoothness and battery use are still unknown.
 
+### Phase 2 results (2026-10-22, test trip in Kyoto, headless Chrome against the dev server)
+
+- Implemented by a subagent (W4–W7 in order, `npm run check` after each), then reviewed and verified here. A second subagent built the production image (linux/amd64, local only, not pushed) from `cbc4875`. The postinstall patch printed "2 patched" for both MapLibre bundles, and the built chunk contains only the patched shader expression (`gradient_height/150.0` absent).
+- Plan with `?map=3d` renders MapLibre in place of Leaflet. Without it, Plan is unchanged.
+- Routes: both route layers sit directly below `building-3d` (layers 84 and 85, buildings 86). At street level, buildings in front hide the route behind them. Walk mode shows dashed walking legs; Drive mode shows solid driving and dashed walking legs. The openrouteservice credit shows while routes exist.
+  - Fixed after review: width scales with zoom (3 px at z12 to 9 px at z17, exponential 1.5), and the walking dash is `[1, 1.5]`. A fixed 4 px line with `[0.5, 2]` dashes was barely visible between buildings.
+- Hovering each stop row highlights its numbered pin (1–4); a stop without a location highlights nothing; moving away clears it.
+- Clicking a pin flies to it (zoom 16, pitch ≥ 45). As on Plan's Leaflet map, its popup opens briefly and then closes once the selection re-renders the map (measured on Leaflet: open at 400 ms, closed by 3 s). Unchanged behaviour, not a regression.
+  - Fixed after review: selecting another stop closes the previous popup (one popup at a time, as on Leaflet).
+- Panning shows "Recenter day"; clicking it refits the day and hides the button. Opening Ideas refits the map to the narrower space.
+- Fixed after review: MapLibre's attribution wraps within 13rem (right-aligned), so it no longer overlaps Plan's "N stops without a location · add link" note, which leaves 13rem free.
+- Gestures (user feedback, 2026-10-22):
+  - Drag-rotation is 0.4° per pixel (was 0.8): a 120 px Ctrl+drag measured 48°.
+  - Pinch zoom stays anchored at the cursor. Chrome's Ctrl+wheel pinch (MapLibre's scroll zoom) measured 0 px drift. Safari's gesture-event pinch and twist now use `easeTo` with `around` the gesture start point (measured 0 px drift with simulated gesture events; real Safari not checked).
+- `npm run check` passes (251 tests, one existing lint warning). Console clean apart from the OpenFreeMap sprite warning.
+- Not verified: the idea preview pin, the parking "P" markers, phone width (375px), and real Safari or a real phone.
+
 ### Implementation notes
 
 - MapLibre 6 locates its worker (`maplibre-gl-worker.mjs`, ~0.5 MB, self-contained) next to its own module, which fails once bundled ("Worker failed to load"). `MapLibreMap.tsx` calls `setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).href)` so the bundler emits the file under `/_next/static/media/`. Verified in dev (Turbopack); the webpack build is the check that matters for Docker.
@@ -205,7 +222,7 @@ Recommendation:
   - Measured in dark with the Carto palette and the patched smooth gradient: map ready in 1.2 s, 60 fps, p95 frame 16.8 ms, no frames > 50 ms over Kyoto and Tokyo.
 - Gestures follow common map apps (`mapAppGestures` in `MapLibreMap.tsx`, capture-phase listeners; revised 2026-10-22 after user feedback):
   - Drag pans, double-click zooms, and touch pinch and twist work as MapLibre provides them.
-  - Cmd+drag, Ctrl+drag and right-drag rotate (sideways) and tilt (up and down), turning the same way as Google Maps. MapLibre's own drag-rotate turns the other way, so it is disabled.
+  - Cmd+drag, Ctrl+drag and right-drag rotate (sideways, 0.4° per pixel) and tilt (up and down), turning the same way as Google Maps. MapLibre's own drag-rotate turns the other way, so it is disabled.
   - On a Mac trackpad, two-finger scrolling pans, as in Apple Maps. Pinch (Ctrl+wheel) and a notched mouse wheel zoom. A trackpad is detected by `wheelDeltaY === -3 × deltaY` (Chrome, Safari) or any sideways delta; Firefox has no `wheelDeltaY`, so there a purely vertical two-finger scroll still zooms.
   - Twist to rotate works only in Safari, the one browser that reports trackpad rotation (`gesturechange.rotation`); Chrome and Firefox never pass it to the page. Safari's pinch scale also zooms through the same events unless Ctrl+wheel events arrive too.
   - Checked in headless Chrome with real input events: plain drag pans; Cmd, Ctrl and right drags all give bearing +96° and pitch 60° with the centre unchanged; a sideways two-finger scroll pans without zooming; Ctrl+wheel and a notched wheel zoom. Not checkable there: a vertical-only trackpad scroll (Chrome's synthetic wheel always looks like a mouse) and Safari twist. Both need a real Mac trackpad.
@@ -239,4 +256,4 @@ Options: replace Leaflet on the Map tab (and later Plan), keep 3D as an optional
 
 ## Next step
 
-Phase 2: start W4, then W5, W6 and W7 in order (all four edit `MapLibreMap.tsx`, so run them one at a time). The real-phone check from phase 1 still applies before replacing Leaflet.
+Verify the idea preview pin, parking markers and phone width with data that has them. Then the user decides on the recommendation (replace Leaflet, keep 3D opt-in, or drop it); the real-phone check is still open.

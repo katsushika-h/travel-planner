@@ -275,11 +275,15 @@
   color: var(--muted-ink);
   font-family: var(--font-sans);
 }
+/* Wraps within the 13rem that Plan's map notes leave free at the bottom right (PlanMap's max-w calc). */
 .travel-maplibre-map .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  max-width: 13rem;
   background: color-mix(in srgb, var(--background) 92%, transparent);
   color: var(--muted-ink);
   font-size: 11px;
+  line-height: 1.35;
   padding: 2px 8px;
+  text-align: right;
 }
 .travel-maplibre-map .maplibregl-ctrl-attrib a,
 .travel-maplibre-map .maplibregl-ctrl-attrib-inner {
