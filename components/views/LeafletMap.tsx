@@ -3,50 +3,19 @@
 import { useEffect, useRef } from "react";
 import L, { type Map as LeafletMapInstance, type Marker } from "leaflet";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
-import { itemScheduleLabel } from "@/lib/schedule-domain";
-import { defaultTypeColor, typeColor } from "@/lib/type-color";
 import { useResolvedTheme } from "@/store/use-travel-store";
-import { placeLabel } from "@/lib/place-label";
 import type { TravelObject, Trip } from "@/types/travel";
+import { markerColor, markerHtml, markerSize, overlayInsets, popupContent, type MarkerState } from "./map-markers";
 
-function markerColor(type: string, colors: Record<string, string>) {
-  const color = typeColor(type, colors);
-  return /^#[0-9a-f]{6}$/i.test(color) ? color : defaultTypeColor(type);
-}
-
-type MarkerState = "default" | "active" | "dimmed" | "preview";
-
-/** Numbered stops are outlined circles; unnumbered stops are small type-colour dots. Colours come from theme tokens. */
 function markerIcon(color: string, number?: number, state: MarkerState = "default") {
-  const numbered = number != null;
-  const size =
-    state === "active" || state === "preview" ? (numbered ? 36 : 22) : state === "dimmed" ? 10 : numbered ? 26 : 16;
+  const size = markerSize(number != null, state);
   return L.divIcon({
     className: "travel-map-marker",
-    html: `<span class="travel-map-pin" aria-hidden="true" data-numbered="${numbered}" data-active="${state === "active"}" data-dimmed="${state === "dimmed"}" data-preview="${state === "preview"}" style="--pin-type: ${color}">${numbered ? number : ""}</span>`,
+    html: markerHtml(color, number, state),
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -size / 2],
   });
-}
-
-function popupContent(item: TravelObject, number?: number) {
-  const content = document.createElement("div");
-  const title = document.createElement("strong");
-  title.textContent = `${number == null ? "" : `${number}. `}${item.title || "Untitled item"}`;
-  content.appendChild(title);
-  const details = document.createElement("div");
-  details.className = "travel-map-popup-meta";
-  const fixedTime = itemScheduleLabel(item);
-  details.textContent = [item.type, placeLabel(item), fixedTime].filter(Boolean).join(" · ");
-  content.appendChild(details);
-  const action = document.createElement("button");
-  action.type = "button";
-  action.textContent = "Open details";
-  action.className = "travel-map-popup-action";
-  action.dataset.openItem = item.id;
-  content.appendChild(action);
-  return content;
 }
 
 export type MapParkingMarker = { id: string; lat: number; lng: number; name: string | null };
@@ -58,23 +27,6 @@ function parkingIcon() {
     iconSize: [20, 20],
     iconAnchor: [10, 10],
   });
-}
-
-/**
- * How far floating panels marked `data-map-overlay` reach into the map from its left and right edges, so a fit can
- * keep pins out from under them. A panel covering most of the map (a phone) is ignored.
- */
-function overlayInsets(container: HTMLElement) {
-  const box = container.getBoundingClientRect();
-  let left = 0;
-  let right = 0;
-  for (const element of document.querySelectorAll("[data-map-overlay]")) {
-    const panel = element.getBoundingClientRect();
-    if (panel.bottom <= box.top || panel.top >= box.bottom) continue;
-    if (panel.left <= box.left && panel.right > box.left) left = Math.max(left, panel.right - box.left);
-    else if (panel.right >= box.right && panel.left < box.right) right = Math.max(right, box.right - panel.left);
-  }
-  return left + right > box.width - 160 ? { left: 0, right: 0 } : { left, right };
 }
 
 export type MapLeg = { id: string; positions: [number, number][]; mode: "walk" | "drive" };

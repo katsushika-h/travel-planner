@@ -26,6 +26,7 @@ Potential features to implement after the POC. These are ideas, not commitments 
 - [ ] **Suggested-time auto-planning** — optionally calculate suggested times for flexible ordered activities using the day start, estimated durations, travel times, and existing fixed-time bookings; keep suggestions distinct from confirmed times until the user accepts them.
 - [ ] **User accounts and trip ownership** — allow users to log in, create their own trips, and access only the trips they own instead of every trip in the database.
 - [ ] **Reservation import gaps** — the PDF rules listed as not implemented in section 9 of `docs/work/reservation-pdf-extraction-recipe.md`, and OCR for image-only scans.
+- [ ] **Recommendations** — suggest nearby places to add as ideas, around a stop or the map centre, within 500 m (about a 7-minute walk), and browse them by type (food, attractions, transport). Research and a measured comparison of map-tile POIs against Overpass are in W8 and E1 of `docs/work/3d-map-poc.md`; it needs the MapLibre map.
 - [ ] **Public transit routing** — travel legs currently support only walking and driving.
 - [ ] **Packing and to-do checklists** — per trip or per day.
 - [ ] **Read-only share link** — let travel companions view a trip; depends on some form of access control.
