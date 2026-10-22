@@ -1,6 +1,6 @@
 # 3D map proof of concept
 
-Status: Phase 2 (W4–W7) implemented (2026-10-22) on `feat/3d-map-poc`: Plan's day map runs on MapLibre behind `?map=3d`. Not yet verified: idea preview pin, parking markers, phone width. Real-phone check skipped for now (user decision, 2026-10-22). Nearby suggestions (W8, E1) moved to a later recommendations feature (`docs/FEATURES.md`).
+Status: Phase 2 (W4–W7) complete and verified (2026-10-22) on `feat/3d-map-poc`: Plan's day map runs on MapLibre behind `?map=3d`. Real-phone and real-Safari checks skipped for now (user decision, 2026-10-22). Nearby suggestions (W8, E1) moved to a later recommendations feature (`docs/FEATURES.md`).
 
 Goal: Prove that the Map tab (`components/views/MapView.tsx`) can run on a WebGL map that shows OpenStreetMap buildings as extruded 3D blocks, without losing anything the current Leaflet map does, so the user can decide whether to replace it.
 
@@ -163,10 +163,10 @@ Recommendation:
 - [x] W3 `?map=3d` switch and fallback in `MapView` (done with W2 so the map could be checked in the app)
 - [x] Verification below (headless Chrome measurements; real phone not yet checked)
 - [x] Findings and recommendation written here for the user's decision
-- [x] W4 selection, hover, preview and recenter in `MapLibreMap` (preview pin not yet seen: the test trip's idea has no coordinates)
+- [x] W4 selection, hover, preview and recenter in `MapLibreMap`
 - [x] W5 route legs under the buildings
-- [x] W6 parking markers (not yet seen: the test trip has no saved car parks)
-- [x] W7 Plan's day map on MapLibre behind `?map=3d` (phone width not yet checked)
+- [x] W6 parking markers
+- [x] W7 Plan's day map on MapLibre behind `?map=3d`
 - W8 and E1: moved to the recommendations feature (`docs/FEATURES.md`); radius decided as 500 m
 - [ ] S1 (only if requested)
 
@@ -207,7 +207,12 @@ Recommendation:
   - Drag-rotation is 0.4° per pixel (was 0.8): a 120 px Ctrl+drag measured 48°.
   - Pinch zoom stays anchored at the cursor. Chrome's Ctrl+wheel pinch (MapLibre's scroll zoom) measured 0 px drift. Safari's gesture-event pinch and twist now use `easeTo` with `around` the gesture start point (measured 0 px drift with simulated gesture events; real Safari not checked).
 - `npm run check` passes (251 tests, one existing lint warning). Console clean apart from the OpenFreeMap sprite warning.
-- Not verified: the idea preview pin, the parking "P" markers, phone width (375px), and real Safari or a real phone.
+- Checked afterwards on the "MacOS Test Trip" (Kyushu, Drive mode), reading the DOM only:
+  - Tue 1 Dec shows its two saved car parks as "P" markers, with solid driving legs and the routes credit.
+  - Selecting the idea "Beppu Ropeway" (which has coordinates) in Ideas adds its dashed preview pin and frames it with the day.
+  - Opening Ideas narrows the list, which can move Plan's active day: here from 1 Dec to 30 Nov, which has no saved parking. The map followed the active day correctly. This comes from Plan's scroll-based active day, not the map.
+  - At 375px, Plan's "Day map" opens the MapLibre map at full width (374 × 662), with the routes credit and no horizontal scroll.
+- Not verified: real Safari (pinch and twist were checked with simulated gesture events) and a real phone.
 
 ### Implementation notes
 
@@ -256,4 +261,4 @@ Options: replace Leaflet on the Map tab (and later Plan), keep 3D as an optional
 
 ## Next step
 
-Verify the idea preview pin, parking markers and phone width with data that has them. Then the user decides on the recommendation (replace Leaflet, keep 3D opt-in, or drop it); the real-phone check is still open.
+The user decides on the recommendation (replace Leaflet, keep 3D opt-in, or drop it). Before replacing Leaflet: the real-phone and real-Safari checks.
