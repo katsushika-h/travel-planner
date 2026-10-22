@@ -24,6 +24,13 @@ export function markerHtml(color: string, number?: number, state: MarkerState = 
   return `<span class="travel-map-pin" aria-hidden="true" data-numbered="${numbered}" data-active="${state === "active"}" data-dimmed="${state === "dimmed"}" data-preview="${state === "preview"}" style="--pin-type: ${color}">${numbered ? number : ""}</span>`;
 }
 
+export const PARKING_MARKER_SIZE = 20;
+
+/** The small "P" square that marks a saved car park. */
+export function parkingHtml() {
+  return '<span aria-hidden="true" style="display:grid;width:20px;height:20px;place-items:center;border:1px solid var(--ink);background:var(--surface);color:var(--ink);font:600 11px/1 var(--font-mono, monospace)">P</span>';
+}
+
 export function popupContent(item: TravelObject, number?: number) {
   const content = document.createElement("div");
   const title = document.createElement("strong");
