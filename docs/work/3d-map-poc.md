@@ -1,6 +1,6 @@
 # 3D map proof of concept
 
-Status: In progress (2026-10-22). Gate, W1 (committed `c344ec7`), W2 and W3 done on `feat/3d-map-poc`; the measurements under Verification and the recommendation remain.
+Status: PoC complete (2026-10-22) on `feat/3d-map-poc` (`c344ec7`, `2a762b1`). Waiting on the user: a check on a real phone, then the decision below.
 
 Goal: Prove that the Map tab (`components/views/MapView.tsx`) can run on a WebGL map that shows OpenStreetMap buildings as extruded 3D blocks, without losing anything the current Leaflet map does, so the user can decide whether to replace it.
 
@@ -68,8 +68,8 @@ Run one at a time, model `sonnet`. Branch `feat/3d-map-poc` from the tip of `cla
 - [x] W1 shared marker and popup helpers (`components/views/map-markers.ts`; `npm run check` passed, Map and Plan maps checked in the browser 2026-10-22)
 - [x] W2 `MapLibreMap.tsx` and MapLibre control, popup and attribution styles in `app/globals.css`
 - [x] W3 `?map=3d` switch and fallback in `MapView` (done with W2 so the map could be checked in the app)
-- [ ] Verification below, with screenshots
-- [ ] Findings and recommendation written here for the user's decision
+- [x] Verification below (headless Chrome measurements; real phone not yet checked)
+- [x] Findings and recommendation written here for the user's decision
 - [ ] S1 (only if requested)
 
 ## Verification
@@ -79,12 +79,20 @@ Run one at a time, model `sonnet`. Branch `feat/3d-map-poc` from the tip of `cla
 - Without `?map=3d` the Map tab is unchanged; Plan's map is unchanged.
 - Record for the decision: JS bundle size added to the Map tab, first-render time, frame rate while panning a dense area (for example central Tokyo or Berlin), behaviour on a phone.
 
-### Results so far (2026-10-22, dev server, test trip in Kyoto and Tokyo)
+### Results (2026-10-22, test trip in Kyoto and Tokyo)
 
 - Done: Light (Liberty, its own 3D buildings) and Dark (added extrusion layer) render buildings with OSM heights; switching theme swaps the style live. The whole-trip fit is flat (zoom 6.2); a single day tilts to 45° with every pin inside the frame. Day filters and dimming match Leaflet. A pin click opens the inspector, and, as on Leaflet, no popup stays open. Phone width (375px): map fills the width, pins and attribution visible, no horizontal scroll. Attribution is readable in both themes. Without `?map=3d` the Leaflet map is unchanged. `npm run check` passes.
 - Fallback: verified by accident. Before the worker fix the map failed to start, and the tab fell back to Leaflet as intended.
 - Webpack build (`npx next build --webpack`) passes and emits the worker as `/_next/static/media/maplibre-gl-worker.<hash>.mjs`. Size: the MapLibre chunk is 1.06 MB (288 KB gzipped) plus the worker at 510 KB (147 KB gzipped). Both load only when `?map=3d` renders the map, because of `next/dynamic`.
-- Still to measure: first-render time, frame rate while panning a dense area, a real phone, and the webpack build in the browser (only dev was checked in the browser).
+- Production build in the browser (`next start`, headless Chrome): the map, 8 pins, tiles and attribution render, with no errors. The one console warning, `Image "circle-11" could not be loaded`, comes from the OpenFreeMap style's own sprite, not from the app.
+- Timings and frame rate (headless Chrome 155 on an Apple M2 GPU, dev server, cold cache, scripts kept outside the repo). "Ready" runs from tapping the Map tab to the first rendered frame with all tiles loaded:
+
+  | Run | Map ready | Tilted day fit settles | Flying 6 s over dense blocks at pitch 60 (Kyoto Shijo, Tokyo Marunouchi) |
+  | --- | --- | --- | --- |
+  | Desktop 1280×800 @2x | 1.85 s | 1.4 s | 60 fps, p95 frame 16.7 ms, no frames > 50 ms (147 and 180 buildings) |
+  | Phone 390×844 @3x, CPU slowed 4× | 1.4 s | 1.3 s | 60 fps, p95 16.7 ms, no frames > 50 ms (118 and 92 buildings) |
+
+  The CPU slowdown does not slow the GPU, so the phone row overstates a real phone. Real-phone smoothness and battery use are still unknown.
 
 ### Implementation notes
 
@@ -96,8 +104,30 @@ Run one at a time, model `sonnet`. Branch `feat/3d-map-poc` from the tip of `cla
 
 ## Decision for the user after the PoC
 
-Replace Leaflet on the Map tab (and later Plan), keep 3D as an optional toggle, or drop it. If replacing: write an ADR in `docs/decisions/`, move legs, parking and preview pins to MapLibre, and remove the switch.
+Options: replace Leaflet on the Map tab (and later Plan), keep 3D as an optional toggle, or drop it.
+
+### Recommendation: replace Leaflet with MapLibre, once a real phone confirms it
+
+- **It does the job.** Buildings, theme, day fits, filters, phone layout and fallback all work. The map was smooth in every measured run, and it is ready in under 2 s.
+- **One map library, not two.** A permanent toggle means keeping Leaflet and MapLibre side by side, with pins, fits and theming in both. MapLibre also draws a flat 2D map (pitch 0), so a 2D/3D tilt button covers the toggle's purpose with one library.
+- **Better than today in ways unrelated to 3D.**
+  - The current map pulls raster tiles from `tile.openstreetmap.org`, whose usage policy is strict. It also builds dark mode with a CSS colour inversion.
+  - OpenFreeMap allows app use and commercial use, needs no key, and has a real Dark style.
+  - Vector tiles stay sharp at every zoom.
+- **Costs to accept:**
+  - About 435 KB gzipped of JS and worker. Today this loads only when the map is opened; after replacement it would load only with the Map or Plan view.
+  - OpenFreeMap has no SLA. Mitigate with a second style URL (or self-hosted tiles) as the fallback, in place of Leaflet.
+  - Porting Plan's map: legs, parking and preview pins.
+- **Do not build S1 (three.js).** MapLibre's built-in extrusion already gives the 3D blocks. A three.js layer only makes sense for custom geometry (pitched roofs, landmarks), which is outside this goal.
+
+### If the user agrees
+
+1. Check on a real phone: open `http://<this Mac's LAN IP>:3000/?map=3d` with `npm run dev`. WebGL works over plain HTTP, so no NAS deploy is needed. Look for smoothness while panning and tilting, readable pins, and battery heat after a few minutes.
+2. Write an ADR in `docs/decisions/` (map library and tile provider).
+3. Make MapLibre the Map tab default, add a 2D/3D tilt button, and remove `?map=3d`.
+4. Port Plan's map (`PlanMap.tsx`): legs as line layers (dashed for walking), parking and preview pins.
+5. Remove Leaflet once nothing uses it, and update the OSM attribution notes in `AGENTS.md`.
 
 ## Next step
 
-Record the measurements under Verification (bundle size from the webpack build, first render, panning a dense area, a real phone), then write the recommendation.
+The user tries `?map=3d` on a real phone and decides; if they agree to replace Leaflet, start with step 2 of "If the user agrees".
