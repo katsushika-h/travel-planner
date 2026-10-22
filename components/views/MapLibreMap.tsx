@@ -24,8 +24,9 @@ const TILT_MIN_ZOOM = 12;
  * Liberty recoloured with the OSM Carto palette, so the map reads like the Leaflet maps' openstreetmap.org tiles. Dark
  * mode runs those colours through the same `--map-tile-filter` token the Leaflet tiles use, so both maps share one
  * dark palette, while the canvas itself stays unfiltered and buildings keep normal lighting: roofs lit more than
- * walls, and walls darkening toward the base through MapLibre's `fill-extrusion-vertical-gradient` (at the default
- * light, up to 16% at the base). Buildings are opaque so that base shading is not washed out by the ground.
+ * walls, and walls darkening smoothly by up to 25% toward the base relative to each building's own height (MapLibre's
+ * vertical gradient, re-formulated by `scripts/patch-maplibre-shader.mjs`). Buildings are opaque so that base shading
+ * is not washed out by the ground.
  * `diff: false` rebuilds the style on a theme switch.
  */
 function applyStyle(map: MapLibreInstance) {

@@ -27,7 +27,7 @@ Out of scope: terrain/elevation, pitched roofs, legs and parking on the 3D map, 
 - **Theme and palette** (user decisions, 2026-10-22):
   - Liberty is recoloured with the OSM Carto palette (`lib/osm-carto-style.ts`) in both themes, so the 3D map reads like the Leaflet maps' openstreetmap.org tiles. Roads take Carto's fill and casing colours by class; Liberty layers that draw several classes get a per-feature `match` on `class`. Water, parks, woods, grass, residential, cemetery and buildings are recoloured too. Rails, paths, labels and icons keep Liberty's look.
   - Dark mode runs every paint colour through the same `--map-tile-filter` token as the Leaflet tiles, using the Filter Effects formulas (`lib/css-filter-style.ts`, read when the style loads). The shaded-relief raster gets matching raster paint, and sprite pattern fills are faded. The canvas itself is not filtered, so buildings keep normal lighting.
-  - Buildings are opaque and keep MapLibre's `fill-extrusion-vertical-gradient`: roofs are lit more than walls and walls darken toward the base (up to 16% at the default light, spread over 150 m of height, so clearest on tall buildings). A stronger light (0.8) deepened the base shading but made walls facing away from the light near black; the user chose the default 0.5.
+  - Buildings are opaque and shade by ambient occlusion relative to their own height (user decision, 2026-10-22): with the base at t = 0 and the top at t = 1, the wall colour is × (1 − 0.25 × (1 − t)), a smooth gradient from 25% darker at the ground to the original at the roof; roofs are also lit more than walls by MapLibre's default light (0.5). MapLibre's own vertical gradient is fixed to a 150 m reference height and cannot be configured, so `scripts/patch-maplibre-shader.mjs` rewrites that one shader expression in `node_modules/maplibre-gl/dist/maplibre-gl{,-dev}.mjs` (2 copies each). It runs on `postinstall` (the Dockerfile copies it into the dependencies stage before `npm ci`), is idempotent, and fails the install if a MapLibre upgrade changes the expression; re-check it on every MapLibre upgrade. A stronger light (0.8) and 8 stacked extrusion bands were tried and dropped (near-black shaded walls; visible steps).
 
 ## Gate (passed 2026-10-22)
 
@@ -107,8 +107,7 @@ Run one at a time, model `sonnet`. Branch `feat/3d-map-poc` from the tip of `cla
   2. Recolouring Liberty per paint property kept hues but did not match Plan.
   3. Filtering the canvas with `--map-tile-filter` matched Plan's palette, but inverted the 3D shading (walls lighter than roofs, bases lighter than tops).
   4. Final: the same filter applied to the style's colours (see Theme and palette). Sprites (road shields, POI icons) cannot be recoloured, so they keep their light-mode look in dark.
-  - Stepped extrusion bands that faked ambient occlusion on short buildings were tried and dropped in favour of MapLibre's gradient (user decision).
-  - Measured in dark with the Carto palette and the heavier banded version (four extrusion layers): 60 fps, p95 frame 16.8 ms, no frames > 50 ms over Kyoto and Tokyo.
+  - Measured in dark with the Carto palette and the patched smooth gradient: map ready in 1.2 s, 60 fps, p95 frame 16.8 ms, no frames > 50 ms over Kyoto and Tokyo.
 - Gestures follow common map apps (`mapAppGestures` in `MapLibreMap.tsx`, capture-phase listeners; revised 2026-10-22 after user feedback):
   - Drag pans, double-click zooms, and touch pinch and twist work as MapLibre provides them.
   - Cmd+drag, Ctrl+drag and right-drag rotate (sideways) and tilt (up and down), turning the same way as Google Maps. MapLibre's own drag-rotate turns the other way, so it is disabled.

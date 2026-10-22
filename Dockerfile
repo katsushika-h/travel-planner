@@ -9,6 +9,8 @@ RUN apt-get update \
 
 FROM base AS dependencies
 COPY package.json package-lock.json ./
+# postinstall patches MapLibre's extrusion shader (scripts/patch-maplibre-shader.mjs).
+COPY scripts/patch-maplibre-shader.mjs ./scripts/
 RUN npm ci
 
 FROM base AS builder
