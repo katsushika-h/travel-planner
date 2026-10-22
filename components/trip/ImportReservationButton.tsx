@@ -2,18 +2,12 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { LoaderCircle, Ticket, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { menuItemClassName } from "@/components/ui/menu-item";
 import { useModalFocus } from "@/components/ui/use-modal-focus";
 import { api } from "@/lib/api-client";
 import { attachmentExtension } from "@/lib/attachment-types";
-import {
-  parseReservationFile,
-  reservationFileAccept,
-  type ReservationDraft,
-  type ReviewField,
-} from "@/lib/reservation-import";
+import { parseReservationFile, type ReservationDraft, type ReviewField } from "@/lib/reservation-import";
 import type { TravelObject, Trip } from "@/types/travel";
 
 type ReviewDraft = ReservationDraft & { include: boolean };
@@ -42,59 +36,65 @@ async function readDrafts(file: File, trip: Trip): Promise<ReservationDraft[]> {
   return [extractPdfReservation(await readPdfText(await file.arrayBuffer()), trip)];
 }
 
-export function ImportReservationButton({
+/** Review dialog for one chosen reservation file; the parent mounts it with the file and unmounts it on close. */
+export function ImportReservationDialog({
+  file,
   trip,
   eventTypes,
   onAddType,
   onImported,
   onError,
   onDone,
+  onClose,
 }: {
+  file: File;
   trip: Trip;
   eventTypes: string[];
   onAddType: (type: string) => void;
   onImported: (items: TravelObject[]) => void;
   onError: (message: string) => void;
   onDone: () => void;
+  onClose: () => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const [file, setFile] = useState<File | null>(null);
   const [drafts, setDrafts] = useState<ReviewDraft[]>([]);
-  const [reading, setReading] = useState(false);
+  const [reading, setReading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const open = file !== null;
-  useModalFocus(open, dialogRef);
+  useModalFocus(true, dialogRef);
 
   useEffect(() => {
-    if (!open || saving) return;
+    if (saving) return;
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
-      setFile(null);
+      onClose();
     }
     window.addEventListener("keydown", closeOnEscape, true);
     return () => window.removeEventListener("keydown", closeOnEscape, true);
-  }, [open, saving]);
+  }, [saving, onClose]);
 
-  async function readFile(chosen: File | undefined) {
-    if (inputRef.current) inputRef.current.value = "";
-    if (!chosen) return;
-    onError("");
-    setReading(true);
-    try {
-      const parsed = await readDrafts(chosen, trip);
-      setDrafts(parsed.map((draft) => ({ ...draft, include: true })));
-      setError("");
-      setFile(chosen);
-    } catch (cause) {
-      onError(cause instanceof Error ? cause.message : "Could not read the reservation file.");
-    } finally {
-      setReading(false);
-    }
-  }
+  useEffect(() => {
+    let current = true;
+    readDrafts(file, trip)
+      .then((parsed) => {
+        if (current) setDrafts(parsed.map((draft) => ({ ...draft, include: true })));
+      })
+      .catch((cause: unknown) => {
+        if (!current) return;
+        onError(cause instanceof Error ? cause.message : "Could not read the reservation file.");
+        onClose();
+      })
+      .finally(() => {
+        if (current) setReading(false);
+      });
+    return () => {
+      current = false;
+    };
+    // Callbacks come from the parent's render; the file and trip decide what is read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file, trip]);
 
   function update(index: number, change: Partial<ReviewDraft>) {
     setDrafts((current) => current.map((draft, at) => (at === index ? { ...draft, ...change } : draft)));
@@ -107,7 +107,6 @@ export function ImportReservationButton({
   }
 
   async function create() {
-    if (!file) return;
     const chosen = drafts.flatMap((draft, index) => (draft.include ? [index] : []));
     if (chosen.some((index) => !drafts[index].title.trim())) return setError("Every included item needs a title.");
     if (chosen.some((index) => Boolean(drafts[index].startTime) !== Boolean(drafts[index].endTime)))
@@ -143,7 +142,7 @@ export function ImportReservationButton({
       onImported(created);
       if (attachFailures) onError(`Created ${created.length} items, but the reservation file could not be attached.`);
       else if (!attach) onError(`Created ${created.length} items. Saved web pages are not stored as attachments.`);
-      setFile(null);
+      onClose();
       onDone();
     } catch (cause) {
       if (created.length) onImported(created);
@@ -179,222 +178,205 @@ export function ImportReservationButton({
 
   return (
     <>
-      <input
-        ref={inputRef}
-        type="file"
-        accept={reservationFileAccept}
-        className="sr-only"
-        onChange={(event) => void readFile(event.target.files?.[0])}
-      />
-      <button type="button" className={menuItemClassName} disabled={reading} onClick={() => inputRef.current?.click()}>
-        {reading ? <LoaderCircle className="animate-spin" /> : <Ticket />}
-        {reading ? "Reading reservation…" : "Import reservation"}
-      </button>
-      {open &&
-        createPortal(
-          <div
-            ref={dialogRef}
-            className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-scrim p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="import-reservation-title"
+      {createPortal(
+        <div
+          ref={dialogRef}
+          className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-scrim p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="import-reservation-title"
+        >
+          <form
+            action={create}
+            className="my-auto max-h-[calc(100dvh_-_2rem)] w-full max-w-lg overflow-y-auto border-t border-foreground bg-panel p-6 text-foreground shadow-[0_24px_48px_rgb(0_0_0/0.18)]"
           >
-            <form
-              action={create}
-              className="my-auto max-h-[calc(100dvh_-_2rem)] w-full max-w-lg overflow-y-auto border-t border-foreground bg-panel p-6 text-foreground shadow-[0_24px_48px_rgb(0_0_0/0.18)]"
-            >
-              <div className="mb-5 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 id="import-reservation-title" className="text-lg font-medium tracking-tight">
-                    Review reservation
-                  </h2>
-                  <p className="truncate text-sm text-muted">
-                    From {file.name}. Times are shown in {trip.timezone}.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-11 sm:size-7"
-                  onClick={() => setFile(null)}
-                  disabled={saving}
-                  aria-label="Close"
-                >
-                  <X />
-                </Button>
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 id="import-reservation-title" className="text-lg font-medium tracking-tight">
+                  Review reservation
+                </h2>
+                <p className="truncate text-sm text-muted">
+                  From {file.name}. Times are shown in {trip.timezone}.
+                </p>
               </div>
-              <ul className="space-y-5">
-                {drafts.map((draft, index) => (
-                  <li key={index} className="border-b border-divider pb-4 last:border-b-0">
-                    {drafts.length > 1 && (
-                      <label className="mb-2 flex items-center gap-2 text-sm">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-11 sm:size-7"
+                onClick={onClose}
+                disabled={saving}
+                aria-label="Close"
+              >
+                <X />
+              </Button>
+            </div>
+            {reading && <p className="text-sm text-muted">Reading the file…</p>}
+            <ul className="space-y-5">
+              {drafts.map((draft, index) => (
+                <li key={index} className="border-b border-divider pb-4 last:border-b-0">
+                  {drafts.length > 1 && (
+                    <label className="mb-2 flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={draft.include}
+                        onChange={(event) => update(index, { include: event.target.checked })}
+                      />
+                      Create this item
+                    </label>
+                  )}
+                  <fieldset disabled={!draft.include} className="space-y-4 disabled:opacity-50">
+                    <div className="grid grid-cols-[1fr_8rem] gap-3">
+                      <label className="text-xs font-normal text-muted">
+                        Title
                         <input
-                          type="checkbox"
-                          checked={draft.include}
-                          onChange={(event) => update(index, { include: event.target.checked })}
-                        />
-                        Create this item
-                      </label>
-                    )}
-                    <fieldset disabled={!draft.include} className="space-y-4 disabled:opacity-50">
-                      <div className="grid grid-cols-[1fr_8rem] gap-3">
-                        <label className="text-xs font-normal text-muted">
-                          Title
-                          <input
-                            value={draft.title}
-                            maxLength={100}
-                            required={draft.include}
-                            onChange={(event) => update(index, { title: event.target.value })}
-                            className={fieldClassName}
-                          />
-                          {hint(evidence(draft, "title", !draft.title))}
-                        </label>
-                        <label className="text-xs font-normal text-muted">
-                          Type
-                          <select
-                            value={draft.type}
-                            onChange={(event) => update(index, { type: event.target.value })}
-                            className={`${fieldClassName} capitalize`}
-                          >
-                            {typeOptions(draft.type).map((type) => (
-                              <option key={type} value={type}>
-                                {type}
-                              </option>
-                            ))}
-                          </select>
-                          {hint(evidence(draft, "type", false))}
-                        </label>
-                      </div>
-                      <div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <label className="text-xs font-normal text-muted">
-                            Start date
-                            <input
-                              type="date"
-                              value={draft.date ?? ""}
-                              onChange={(event) => updateSchedule(index, { date: event.target.value || null })}
-                              className={fieldClassName}
-                            />
-                          </label>
-                          <label className="text-xs font-normal text-muted">
-                            End date
-                            <input
-                              type="date"
-                              value={draft.endDate ?? ""}
-                              min={draft.date ?? undefined}
-                              disabled={!draft.date}
-                              onChange={(event) => updateSchedule(index, { endDate: event.target.value || null })}
-                              className={fieldClassName}
-                            />
-                          </label>
-                          <label className="text-xs font-normal text-muted">
-                            Start time
-                            <input
-                              type="time"
-                              value={draft.startTime ?? ""}
-                              disabled={!draft.date}
-                              onChange={(event) => updateSchedule(index, { startTime: event.target.value || null })}
-                              className={fieldClassName}
-                            />
-                          </label>
-                          <label className="text-xs font-normal text-muted">
-                            End time
-                            <input
-                              type="time"
-                              value={draft.endTime ?? ""}
-                              disabled={!draft.date}
-                              onChange={(event) => updateSchedule(index, { endTime: event.target.value || null })}
-                              className={fieldClassName}
-                            />
-                          </label>
-                        </div>
-                        {hint(evidence(draft, "dates", !draft.date))}
-                        {draft.startTime && hint(evidence(draft, "times", false))}
-                      </div>
-                      <label className="block text-xs font-normal text-muted">
-                        Place
-                        <input
-                          value={draft.location?.name ?? ""}
-                          maxLength={300}
-                          onChange={(event) =>
-                            update(index, { location: { ...draft.location, name: event.target.value } })
-                          }
+                          value={draft.title}
+                          maxLength={100}
+                          required={draft.include}
+                          onChange={(event) => update(index, { title: event.target.value })}
                           className={fieldClassName}
                         />
-                        {hint(evidence(draft, "location", !draft.location?.name))}
+                        {hint(evidence(draft, "title", !draft.title))}
                       </label>
-                      <div>
-                        <div className="grid grid-cols-[1fr_5rem] gap-3">
-                          <label className="text-xs font-normal text-muted">
-                            Planned cost
-                            <input
-                              type="number"
-                              min="0"
-                              step="any"
-                              value={draft.cost?.amount ?? ""}
-                              onChange={(event) =>
-                                update(index, {
-                                  cost:
-                                    event.target.value === ""
-                                      ? null
-                                      : {
-                                          amount: Number(event.target.value),
-                                          currency: draft.cost?.currency ?? trip.defaultCurrency ?? "SGD",
-                                        },
-                                })
-                              }
-                              className={`${fieldClassName} font-mono`}
-                            />
-                          </label>
-                          <label className="text-xs font-normal text-muted">
-                            Currency
-                            <input
-                              value={draft.cost?.currency ?? ""}
-                              maxLength={3}
-                              pattern="[A-Za-z]{3}"
-                              disabled={!draft.cost}
-                              onChange={(event) =>
-                                draft.cost &&
-                                update(index, {
-                                  cost: { ...draft.cost, currency: event.target.value.toUpperCase() },
-                                })
-                              }
-                              className={`${fieldClassName} font-mono uppercase`}
-                            />
-                          </label>
-                        </div>
-                        {hint(evidence(draft, "cost", !draft.cost))}
+                      <label className="text-xs font-normal text-muted">
+                        Type
+                        <select
+                          value={draft.type}
+                          onChange={(event) => update(index, { type: event.target.value })}
+                          className={`${fieldClassName} capitalize`}
+                        >
+                          {typeOptions(draft.type).map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                        {hint(evidence(draft, "type", false))}
+                      </label>
+                    </div>
+                    <div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label className="text-xs font-normal text-muted">
+                          Start date
+                          <input
+                            type="date"
+                            value={draft.date ?? ""}
+                            onChange={(event) => updateSchedule(index, { date: event.target.value || null })}
+                            className={fieldClassName}
+                          />
+                        </label>
+                        <label className="text-xs font-normal text-muted">
+                          End date
+                          <input
+                            type="date"
+                            value={draft.endDate ?? ""}
+                            min={draft.date ?? undefined}
+                            disabled={!draft.date}
+                            onChange={(event) => updateSchedule(index, { endDate: event.target.value || null })}
+                            className={fieldClassName}
+                          />
+                        </label>
+                        <label className="text-xs font-normal text-muted">
+                          Start time
+                          <input
+                            type="time"
+                            value={draft.startTime ?? ""}
+                            disabled={!draft.date}
+                            onChange={(event) => updateSchedule(index, { startTime: event.target.value || null })}
+                            className={fieldClassName}
+                          />
+                        </label>
+                        <label className="text-xs font-normal text-muted">
+                          End time
+                          <input
+                            type="time"
+                            value={draft.endTime ?? ""}
+                            disabled={!draft.date}
+                            onChange={(event) => updateSchedule(index, { endTime: event.target.value || null })}
+                            className={fieldClassName}
+                          />
+                        </label>
                       </div>
-                      {draft.notes && (
-                        <p className="line-clamp-4 whitespace-pre-line break-words text-xs text-muted">{draft.notes}</p>
-                      )}
-                    </fieldset>
-                  </li>
-                ))}
-              </ul>
-              {attachmentExtension(file.name) && (
-                <p className="mt-4 text-xs text-muted">The original file is attached to each new item.</p>
-              )}
-              {error && <p className="mt-3 text-sm text-danger">{error}</p>}
-              <div className="mt-6 flex justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="min-h-11 sm:min-h-0"
-                  onClick={() => setFile(null)}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" className="min-h-11 sm:min-h-0" disabled={saving || !count}>
-                  {saving ? "Creating…" : count === 1 ? "Create item" : `Create ${count} items`}
-                </Button>
-              </div>
-            </form>
-          </div>,
-          document.body,
-        )}
+                      {hint(evidence(draft, "dates", !draft.date))}
+                      {draft.startTime && hint(evidence(draft, "times", false))}
+                    </div>
+                    <label className="block text-xs font-normal text-muted">
+                      Place
+                      <input
+                        value={draft.location?.name ?? ""}
+                        maxLength={300}
+                        onChange={(event) =>
+                          update(index, { location: { ...draft.location, name: event.target.value } })
+                        }
+                        className={fieldClassName}
+                      />
+                      {hint(evidence(draft, "location", !draft.location?.name))}
+                    </label>
+                    <div>
+                      <div className="grid grid-cols-[1fr_5rem] gap-3">
+                        <label className="text-xs font-normal text-muted">
+                          Planned cost
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={draft.cost?.amount ?? ""}
+                            onChange={(event) =>
+                              update(index, {
+                                cost:
+                                  event.target.value === ""
+                                    ? null
+                                    : {
+                                        amount: Number(event.target.value),
+                                        currency: draft.cost?.currency ?? trip.defaultCurrency ?? "SGD",
+                                      },
+                              })
+                            }
+                            className={`${fieldClassName} font-mono`}
+                          />
+                        </label>
+                        <label className="text-xs font-normal text-muted">
+                          Currency
+                          <input
+                            value={draft.cost?.currency ?? ""}
+                            maxLength={3}
+                            pattern="[A-Za-z]{3}"
+                            disabled={!draft.cost}
+                            onChange={(event) =>
+                              draft.cost &&
+                              update(index, {
+                                cost: { ...draft.cost, currency: event.target.value.toUpperCase() },
+                              })
+                            }
+                            className={`${fieldClassName} font-mono uppercase`}
+                          />
+                        </label>
+                      </div>
+                      {hint(evidence(draft, "cost", !draft.cost))}
+                    </div>
+                    {draft.notes && (
+                      <p className="line-clamp-4 whitespace-pre-line break-words text-xs text-muted">{draft.notes}</p>
+                    )}
+                  </fieldset>
+                </li>
+              ))}
+            </ul>
+            {attachmentExtension(file.name) && (
+              <p className="mt-4 text-xs text-muted">The original file is attached to each new item.</p>
+            )}
+            {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+            <div className="mt-6 flex justify-end gap-3">
+              <Button type="button" variant="ghost" className="min-h-11 sm:min-h-0" onClick={onClose} disabled={saving}>
+                Cancel
+              </Button>
+              <Button type="submit" className="min-h-11 sm:min-h-0" disabled={saving || !count}>
+                {saving ? "Creating…" : count === 1 ? "Create item" : `Create ${count} items`}
+              </Button>
+            </div>
+          </form>
+        </div>,
+        document.body,
+      )}
     </>
   );
 }

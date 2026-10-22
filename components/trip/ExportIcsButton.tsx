@@ -1,22 +1,11 @@
 "use client";
 
 import { Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { menuItemClassName } from "@/components/ui/menu-item";
 import { createTripIcs } from "@/lib/ics-export";
 import type { TravelObject, Trip } from "@/types/travel";
 
-export function ExportIcsButton({
-  trip,
-  items,
-  compact = false,
-  menuItem = false,
-}: {
-  trip: Trip;
-  items: TravelObject[];
-  compact?: boolean;
-  menuItem?: boolean;
-}) {
+export function ExportIcsButton({ trip, items }: { trip: Trip; items: TravelObject[] }) {
   function download() {
     const calendar = createTripIcs(trip, items);
     const url = URL.createObjectURL(new Blob([calendar], { type: "text/calendar;charset=utf-8" }));
@@ -34,24 +23,9 @@ export function ExportIcsButton({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  if (menuItem)
-    return (
-      <button type="button" className={menuItemClassName} onClick={download}>
-        <Download /> Export calendar (.ics)
-      </button>
-    );
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size={compact ? "icon" : "sm"}
-      className={compact ? "mx-auto size-11 sm:size-8" : "min-h-11 w-full justify-start sm:min-h-0"}
-      aria-label="Export calendar (.ics)"
-      title={compact ? "Export calendar (.ics)" : undefined}
-      onClick={download}
-    >
-      <Download />
-      {!compact && "Export calendar (.ics)"}
-    </Button>
+    <button type="button" className={menuItemClassName} onClick={download}>
+      <Download /> Calendar (.ics)
+    </button>
   );
 }

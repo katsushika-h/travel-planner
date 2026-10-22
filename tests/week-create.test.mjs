@@ -58,7 +58,7 @@ function renderWeek(items) {
       onExpandedChange() {},
       onSelect() {},
       onResize() {},
-      onSelectDay() {},
+      onOpenDay() {},
       onCreateItem: (...args) => calls.push(args),
     }),
   );
@@ -189,7 +189,7 @@ test("Week draws a multi-day stay as one bar over its nights and anchors card ti
       onExpandedChange() {},
       onSelect() {},
       onResize() {},
-      onSelectDay() {},
+      onOpenDay() {},
       onCreateItem() {},
     }),
   );

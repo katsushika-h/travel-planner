@@ -4,11 +4,11 @@ Potential features to implement after the POC. These are ideas, not commitments 
 
 ## Completed recently
 
-- [x] **Reservation import** — create items from a PDF confirmation, an `.ics` invite, or schema.org JSON-LD in an `.eml` email or saved `.html` page. Review and edit every field, with each PDF value's source shown, before creating; the original PDF, `.ics` or `.eml` file is attached. PDFs are read locally with label rules; image-only scans are not read (no OCR).
+- [x] **Reservation import** — create items from a PDF confirmation, an `.ics` invite, or schema.org JSON-LD in an `.eml` email or saved `.html` page, chosen through the Trip menu's Import… entry. Review and edit every field, with each PDF value's source shown, before creating; the original PDF, `.ics` or `.eml` file is attached. PDFs are read locally with label rules; image-only scans are not read (no OCR).
 - [x] **Expense management** — record and edit actual trip spending, optionally link it to itinerary items, and view totals by currency and category alongside separate planned item costs.
 - [x] **Unscheduled ideas** — create an item without a date, keep it in the Ideas panel, drag it onto a date, and remove its date to return it to Ideas.
 - [x] **Travel document attachments** — upload, list, preview/download, and delete files on itinerary items. Current implementation stores file bytes in PostgreSQL and limits uploads to 20 MB.
-- [x] **Google Maps saved-list import** — import Google Takeout CSV files, preserve place metadata and Maps links, and map CSV categories to event types.
+- [x] **Google Maps saved-list import** — import Google Takeout CSV files through the Trip menu's Import… entry, preserve place metadata and Maps links, and map CSV categories to event types.
 - [x] **Map view** — show items with extracted coordinates on a Leaflet/OpenStreetMap map with colored markers and day filters.
 - [x] **Calendar schedule modes** — month, week, and day views with fixed-time items, flexible placement, drag/drop, resizing, and itinerary ordering. `dayOrder` still needs verification.
 - [x] **CSV categorizing** — read the types categories from a CSV file and apply them to imported travel objects. Unmatched categories create new categories automatically.
@@ -16,7 +16,7 @@ Potential features to implement after the POC. These are ideas, not commitments 
 - [x] **Ideas panel on a hotkey** — Space shows or hides the Ideas panel with its search box focused; ideas are dragged into the itinerary from it. Opening it on mouseover is not implemented.
 - [x] **Day notes** — notes attached to a day (ADR 0004, ADR 0005).
 - [x] **Calendar export** — export the trip as an `.ics` file.
-- [x] **PDF export** — a printable itinerary (`/trips/<id>/print`, Trip menu → Export PDF) saved through the browser's print dialog: each day's items with times, places, notes and planned costs, a Google Maps link per item, and a Google Maps route link per day.
+- [x] **PDF export** — a printable itinerary (`/trips/<id>/print`, Trip menu → Export… → Printable PDF) saved through the browser's print dialog: each day's items with times, places, notes and planned costs, a Google Maps link per item, and a Google Maps route link per day.
 - [x] **Travel distance** — walking distance and time between consecutive stops, with parking suggestions for driving legs (`docs/work/travel-distance.md`).
 
 ## Open

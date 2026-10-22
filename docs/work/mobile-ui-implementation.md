@@ -21,16 +21,16 @@
 
 ## Screen and navigation contract
 
-Bottom navigation since Pass 6 (2026-10-21): Trip, Places, Spend, More.
+Bottom navigation since Pass 6 (2026-10-21): Trip, Places, Spend, More. Since ADR 0010 (2026-10-22) Trip is the Plan view and Calendar has no Day mode; the rows below name `DayJourneyView`, now `components/views/plan/DayList.tsx` and `PhoneJourneyRow.tsx`.
 
 | Mobile destination | Existing state or view | Expected behavior |
 | --- | --- | --- |
-| Trip | `activeTab: "calendar"`, `calendarMode: "day"` | Continuous compact itinerary with day pills; the header map icon switches to the Day map. During the trip it opens on today and marks now/next with leave-by. Floating + adds an event, note, or expense; long-press a row for insert/move/open. |
+| Trip | `activeTab: "days"` (Plan, see ADR 0010) | Continuous compact itinerary with day pills; the header map icon switches to the Day map. During the trip it opens on today and marks now/next with leave-by. Floating + adds an event, note, or expense; long-press a row for insert/move/open. |
 | Places | `activeTab: "map"` | Whole-trip map filling the screen, compact day filters, and a "without location" chip. Distinct from the Day map. |
 | Spend | `activeTab: "expenses"` | Existing actual-expense view. |
 | More → Calendar | `activeTab: "calendar"`, `calendarMode: "week"` (Month renders as week on phones) | `PhoneWeek`: compressed Monday-start week with all-day lane, fitted hour grid, and "Add on <date>". |
-| More → Ideas | `activeTab: "calendar"`, `calendarMode: "day"` with the Ideas panel open | Unscheduled ideas with search and Create idea. |
-| More | `days`, `kanban`, `table`, plus trip actions | Opens a mobile menu. A selected workspace remains indicated when the menu closes. |
+| More → Ideas | `activeTab: "days"` with the Ideas panel open | Unscheduled ideas with search and Create idea. |
+| More | Views: Calendar, Ideas, Board (`kanban`), Table; plus trip actions | Opens a mobile menu. A selected workspace remains indicated when the menu closes. |
 
 The trip header opens the existing trip switch/create/edit actions. More also exposes import, ICS export, theme, and delete through their existing components. Do not duplicate trip or item business logic. Use the current `activeTab` and `calendarMode` store fields; derive mobile navigation selection from them. Keep desktop keyboard shortcuts and sidebar behavior.
 

@@ -6,7 +6,7 @@ import { persist } from "zustand/middleware";
 import type { TravelMode } from "../lib/routed-legs.ts";
 
 export type PlannerTab = "calendar" | "kanban" | "days" | "table" | "map" | "expenses";
-export type CalendarMode = "month" | "week" | "day";
+export type CalendarMode = "month" | "week";
 /** What the user chose; "system" follows the OS colour scheme. */
 export type ThemePreference = "system" | "light" | "dark";
 
@@ -38,7 +38,7 @@ type TravelStore = {
   /** Persisted from the old sidebar layout; no longer read by the header layout. Kept so stored state stays valid. */
   sidebarCollapsed: boolean;
   theme: ThemePreference;
-  /** Denser rows in Plan, Day, Board and Table. */
+  /** Denser rows in Plan, Board and Table. */
   compact: boolean;
   /** Walk or drive for the Plan view legs; a missing entry means walk. */
   travelModeByTrip: Record<string, TravelMode>;
@@ -120,11 +120,16 @@ export const useTravelStore = create<TravelStore>()(
     }),
     {
       name: "travel-planner-ui",
-      version: 1,
+      version: 2,
       // v0 persisted "light" as the default, so it rarely reflects a choice; move it to "system". Keep "dark".
+      // v1 had a Calendar Day mode; it is now the Plan view, so Calendar-on-Day opens Plan and Calendar is left on Week.
       migrate: (persisted, version) => {
         const state = persisted as Partial<TravelStore>;
         if (version < 1 && state.theme === "light") state.theme = "system";
+        if (version < 2 && (state.calendarMode as string | undefined) === "day") {
+          if (!state.activeTab || state.activeTab === "calendar") state.activeTab = "days";
+          state.calendarMode = "week";
+        }
         return state as TravelStore;
       },
     },

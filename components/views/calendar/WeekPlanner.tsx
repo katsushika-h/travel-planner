@@ -618,12 +618,13 @@ function WeekDayColumn({
   );
 }
 
-function WeekDayHeader({ date, trip, onSelectDay }: { date: string; trip: Trip; onSelectDay: () => void }) {
+function WeekDayHeader({ date, trip, onOpenDay }: { date: string; trip: Trip; onOpenDay: () => void }) {
   const dayNumber = tripDayNumber(trip, date);
   return (
     <button
       type="button"
-      onClick={onSelectDay}
+      onClick={onOpenDay}
+      title="Open this day in Plan"
       className="flex min-w-0 items-baseline gap-1.5 px-1.5 pb-3 pt-3.5 text-left hover:bg-surface sm:gap-2 sm:px-2.5"
     >
       <span className="font-mono text-xl font-light sm:text-2xl">{date.slice(8, 10)}</span>
@@ -647,7 +648,7 @@ export function WeekPlanner({
   onExpandedChange,
   onSelect,
   onResize,
-  onSelectDay,
+  onOpenDay,
   onCreateItem,
 }: {
   dates: string[];
@@ -661,7 +662,8 @@ export function WeekPlanner({
   onExpandedChange: (key: string | null) => void;
   onSelect: (item: TravelObject, additive?: boolean) => void;
   onResize: (item: TravelObject, edge: "start" | "end", time: string) => void;
-  onSelectDay: (date: string) => void;
+  /** Opens the day in the Plan view. */
+  onOpenDay: (date: string) => void;
   onCreateItem: (date: string, order?: number, time?: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -691,7 +693,7 @@ export function WeekPlanner({
           <div className={weekGridColumns}>
             <div />
             {dates.map((date) => (
-              <WeekDayHeader key={date} date={date} trip={trip} onSelectDay={() => onSelectDay(date)} />
+              <WeekDayHeader key={date} date={date} trip={trip} onOpenDay={() => onOpenDay(date)} />
             ))}
           </div>
           {laneCount > 0 && (

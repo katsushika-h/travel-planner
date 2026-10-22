@@ -39,10 +39,9 @@ export const shortcutGroups: ShortcutGroup[] = [
     shortcuts: [
       { keys: ["Q"], description: "Month view" },
       { keys: ["W"], description: "Week view" },
-      { keys: ["E"], description: "Day view" },
-      { keys: ["←"], description: "Previous week or day" },
-      { keys: ["→"], description: "Next week or day" },
-      { keys: ["Space"], description: "Show or hide Ideas (week and day views)" },
+      { keys: ["←"], description: "Previous week" },
+      { keys: ["→"], description: "Next week" },
+      { keys: ["Space"], description: "Show or hide Ideas (week view)" },
     ],
   },
   {

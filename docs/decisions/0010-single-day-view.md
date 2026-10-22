@@ -1,0 +1,9 @@
+# ADR 0010: One continuous day view
+
+**Status:** Accepted (2026-10-22). Amends ADR 0006 ("Plan shows one day").
+
+**Context:** Two views showed a trip's days. Plan (`TripDaysView`) showed one day at a time with routed walk/drive legs, parking, Ideas and day totals. Calendar → Day (`DayJourneyView`, the phone Trip tab) scrolled through every day with the today mark, compact phone rows, long-press sheets, inline notes and log-expense. Features landed in one and not the other, and the two had separate drag-and-drop id schemes.
+
+**Decision:** Plan (`activeTab: "days"`) is the only day view, on desktop and phone: one scrolling list with a section per date, and a map that follows the day in view (`components/views/plan/DayList.tsx`, hosted by `TripDaysView.tsx`). Desktop rows are `StopRow`s with legs, parking and expand; phone rows are the compact `PhoneJourneyRow`. A section routes its day (`useDayRoutes`) only once it is near the viewport, and all routing hooks share one module-level route cache. All drop targets use Plan's `trip-row:` / `trip-day:` / `unscheduled` ids inside Plan's single `DndContext`. Calendar keeps only Month and Week; opening a day from either goes to Plan at that date through the working day (`lib/working-day.ts`).
+
+**Consequences:** `CalendarMode` is `"month" | "week"`; the persisted store is version 2 and migrates a stored `calendarMode: "day"` to `activeTab: "days"`, `calendarMode: "week"`. The Calendar Day shortcut (E) and the More → Plan row are gone; Trip, Plan and More → Ideas open Plan. The list order is Plan's saved order (`compareScheduleOrder`), so `dayOrder` drop behaviour is the tested Plan behaviour on every day. Hidden sections cost no routing requests; a section that has been near the viewport keeps its legs so scrolling back does not reflow.

@@ -16,8 +16,8 @@ Travel Planner is a single-user itinerary app built with Next.js 16, React 19, T
 - `app/`: pages and API route handlers.
 - `components/layout/AppShell.tsx`: active trip, items, selection, editing, and workspace view coordination.
 - `components/layout/useItemActions.ts`: item create, move, reorder, type, and delete actions used by the shell.
-- `components/views/`, `components/inspector/`, `components/trip/`: workspace views, item editing, and trip/item actions. `components/views/calendar/` holds the Month, Week, and Ideas parts of `CalendarView`.
-- `components/views/plan/`: Plan view parts (day strip, stop rows, day map; `TripDaysView.tsx` is the Plan view). `components/layout/TripMenu.tsx` and `ItemSearch.tsx`: header trip menu and search.
+- `components/views/`, `components/inspector/`, `components/trip/`: workspace views, item editing, and trip/item actions. `components/views/calendar/` holds the Month, Week, and Ideas parts of `CalendarView` (Month and Week only; a day opens in Plan).
+- `components/views/plan/`: Plan view parts (`TripDaysView.tsx` is the Plan view and owns drag and drop, Ideas and the day map; `DayList.tsx` is its continuous day-by-day list with `StopRow` desktop rows and `PhoneJourneyRow` phone rows; also day strip, `useDayPlan`/`useDayRoutes`, `PlanMap`). `components/layout/TripMenu.tsx` and `ItemSearch.tsx`: header trip menu and search.
 - `app/globals.css`: Minimal UI light/dark tokens (`--background`, `--surface`, `--ink`, `--accent`, `--scrim`, …) mapped into Tailwind; `lib/type-color.ts`: item type colours. Use tokens, not hard-coded colours (see ADR 0006).
 - `lib/api-client.ts`, `lib/api-validation.ts`, `lib/date-utils.ts`, `lib/schedule-domain.ts`, `lib/schedule-order.ts`, `lib/travel-object-serialization.ts`: request flow and schedule logic.
 - `store/use-travel-store.ts`: persisted client UI preferences; `types/travel.ts`: shared browser types.
