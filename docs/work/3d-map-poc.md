@@ -23,15 +23,18 @@ Out of scope: terrain/elevation, pitched roofs, legs and parking on the 3D map, 
 - **Library:** MapLibre GL JS with a `fill-extrusion` layer on the building layer of a keyless OpenFreeMap vector style. Heights come from the tile's `render_height` / `render_min_height` (OpenMapTiles schema; confirm in the style). three.js is not used in the PoC; if the user later wants custom geometry, MapLibre's custom layer can host three.js on the same map (stretch item S1).
 - **Switch:** `?map=3d` on the URL turns the PoC on for the Map tab; without it the tab is unchanged. No store or persisted preference.
 - **Fallback:** if WebGL is unavailable or the style fails to load, render `LeafletMap` instead.
-- **Camera:** fits at city scale (zoom ≥ 12) tilt to 45°, and a whole-trip fit stays flat; the user can tilt and rotate with the MapLibre controls or Shift+arrow keys. Buildings appear from zoom 14, so a day spread across a city shows tilted streets until the user zooms in.
-- **Theme:** use a light and a dark OpenFreeMap style (or one style with paint overrides) chosen from `useResolvedTheme()`; extrusion colour from a token-derived value.
+- **Camera:** fits at city scale (zoom ≥ 12) tilt to 45°, and a whole-trip fit stays flat; the user can rotate and tilt with Cmd+drag, Ctrl+drag or right-drag, a trackpad twist in Safari, two fingers on touch, the MapLibre controls or Shift+arrow keys. Buildings appear from zoom 14, so a day spread across a city shows tilted streets until the user zooms in.
+- **Theme and palette** (user decisions, 2026-10-22):
+  - Liberty is recoloured with the OSM Carto palette (`lib/osm-carto-style.ts`) in both themes, so the 3D map reads like the Leaflet maps' openstreetmap.org tiles. Roads take Carto's fill and casing colours by class; Liberty layers that draw several classes get a per-feature `match` on `class`. Water, parks, woods, grass, residential, cemetery and buildings are recoloured too. Rails, paths, labels and icons keep Liberty's look.
+  - Dark mode runs every paint colour through the same `--map-tile-filter` token as the Leaflet tiles, using the Filter Effects formulas (`lib/css-filter-style.ts`, read when the style loads). The shaded-relief raster gets matching raster paint, and sprite pattern fills are faded. The canvas itself is not filtered, so buildings keep normal lighting.
+  - Buildings are opaque and keep MapLibre's `fill-extrusion-vertical-gradient`: roofs are lit more than walls and walls darken toward the base (up to 16% at the default light, spread over 150 m of height, so clearest on tall buildings). A stronger light (0.8) deepened the base shading but made walls facing away from the light near black; the user chose the default 0.5.
 
 ## Gate (passed 2026-10-22)
 
 - OpenFreeMap (<https://openfreemap.org/>, ToS last updated 2026-10-14): free public instance, no key, registration or cookies, no stated request limits, commercial use allowed. Provided as-is with no SLA; it "may discontinue it at any time without notice", so keep the Leaflet fallback. Automated data collection is forbidden except offline downloads of at most 3,000 tiles or 50 MB per download with ≤ 4 parallel requests and an identifying User-Agent (out of scope here).
 - Attribution (required; MapLibre shows it from the style): "OpenFreeMap © OpenMapTiles Data from OpenStreetMap", linking to openfreemap.org, openmaptiles.org and openstreetmap.org/copyright. Printed output that shows a map must carry it too.
 - Styles (all returned 200): `https://tiles.openfreemap.org/styles/{liberty,bright,positron,dark,fiord}`. Tiles are unmodified OpenMapTiles from `https://tiles.openfreemap.org/planet`.
-- Buildings: Liberty already has a `building-3d` `fill-extrusion` layer (source-layer `building`, `minzoom` 14, height `render_height`, base `render_min_height`). Dark has only a flat `building` fill, so W2 adds an extrusion layer to Dark with the same expressions and a token-derived colour. Use Liberty for light and Dark for dark.
+- Buildings: Liberty already has a `building-3d` `fill-extrusion` layer (source-layer `building`, `minzoom` 14, height `render_height`, base `render_min_height`). OpenFreeMap's Dark style has only a flat `building` fill and a greyscale palette; it is no longer used (see Theme).
 - Library: `maplibre-gl` pinned at `6.15.0` (latest, released 2026-10-18).
 
 ## Workstreams
@@ -81,7 +84,7 @@ Run one at a time, model `sonnet`. Branch `feat/3d-map-poc` from the tip of `cla
 
 ### Results (2026-10-22, test trip in Kyoto and Tokyo)
 
-- Done: Light (Liberty, its own 3D buildings) and Dark (added extrusion layer) render buildings with OSM heights; switching theme swaps the style live. The whole-trip fit is flat (zoom 6.2); a single day tilts to 45° with every pin inside the frame. Day filters and dimming match Leaflet. A pin click opens the inspector, and, as on Leaflet, no popup stays open. Phone width (375px): map fills the width, pins and attribution visible, no horizontal scroll. Attribution is readable in both themes. Without `?map=3d` the Leaflet map is unchanged. `npm run check` passes.
+- Done: Liberty's 3D buildings render with OSM heights in both themes; switching theme only changes the canvas filter, with no style reload. The whole-trip fit is flat (zoom 6.2); a single day tilts to 45° with every pin inside the frame. Day filters and dimming match Leaflet. A pin click opens the inspector, and, as on Leaflet, no popup stays open. Phone width (375px): map fills the width, pins and attribution visible, no horizontal scroll. Attribution is readable in both themes. Without `?map=3d` the Leaflet map is unchanged. `npm run check` passes.
 - Fallback: verified by accident. Before the worker fix the map failed to start, and the tab fell back to Leaflet as intended.
 - Webpack build (`npx next build --webpack`) passes and emits the worker as `/_next/static/media/maplibre-gl-worker.<hash>.mjs`. Size: the MapLibre chunk is 1.06 MB (288 KB gzipped) plus the worker at 510 KB (147 KB gzipped). Both load only when `?map=3d` renders the map, because of `next/dynamic`.
 - Production build in the browser (`next start`, headless Chrome): the map, 8 pins, tiles and attribution render, with no errors. The one console warning, `Image "circle-11" could not be loaded`, comes from the OpenFreeMap style's own sprite, not from the app.
@@ -99,7 +102,19 @@ Run one at a time, model `sonnet`. Branch `feat/3d-map-poc` from the tip of `cla
 - MapLibre 6 locates its worker (`maplibre-gl-worker.mjs`, ~0.5 MB, self-contained) next to its own module, which fails once bundled ("Worker failed to load"). `MapLibreMap.tsx` calls `setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).href)` so the bundler emits the file under `/_next/static/media/`. Verified in dev (Turbopack); the webpack build is the check that matters for Docker.
 - `maplibre-gl` 6 has no default export: `import * as maplibregl`.
 - `cameraForBounds` ignores pitch, and perspective spreads the near edge, so a tilted fit backs off 0.5 zoom from the flat fit.
-- Dark's extrusion uses `--faint` at 0.45 opacity; `--surface` was invisible against the near-black style.
+- Dark mode history (2026-10-22, user feedback):
+  1. OpenFreeMap's Dark style with an added extrusion drew buildings under the roads and was greyscale.
+  2. Recolouring Liberty per paint property kept hues but did not match Plan.
+  3. Filtering the canvas with `--map-tile-filter` matched Plan's palette, but inverted the 3D shading (walls lighter than roofs, bases lighter than tops).
+  4. Final: the same filter applied to the style's colours (see Theme and palette). Sprites (road shields, POI icons) cannot be recoloured, so they keep their light-mode look in dark.
+  - Stepped extrusion bands that faked ambient occlusion on short buildings were tried and dropped in favour of MapLibre's gradient (user decision).
+  - Measured in dark with the Carto palette and the heavier banded version (four extrusion layers): 60 fps, p95 frame 16.8 ms, no frames > 50 ms over Kyoto and Tokyo.
+- Gestures follow common map apps (`mapAppGestures` in `MapLibreMap.tsx`, capture-phase listeners; revised 2026-10-22 after user feedback):
+  - Drag pans, double-click zooms, and touch pinch and twist work as MapLibre provides them.
+  - Cmd+drag, Ctrl+drag and right-drag rotate (sideways) and tilt (up and down), turning the same way as Google Maps. MapLibre's own drag-rotate turns the other way, so it is disabled.
+  - On a Mac trackpad, two-finger scrolling pans, as in Apple Maps. Pinch (Ctrl+wheel) and a notched mouse wheel zoom. A trackpad is detected by `wheelDeltaY === -3 × deltaY` (Chrome, Safari) or any sideways delta; Firefox has no `wheelDeltaY`, so there a purely vertical two-finger scroll still zooms.
+  - Twist to rotate works only in Safari, the one browser that reports trackpad rotation (`gesturechange.rotation`); Chrome and Firefox never pass it to the page. Safari's pinch scale also zooms through the same events unless Ctrl+wheel events arrive too.
+  - Checked in headless Chrome with real input events: plain drag pans; Cmd, Ctrl and right drags all give bearing +96° and pitch 60° with the centre unchanged; a sideways two-finger scroll pans without zooming; Ctrl+wheel and a notched wheel zoom. Not checkable there: a vertical-only trackpad scroll (Chrome's synthetic wheel always looks like a mouse) and Safari twist. Both need a real Mac trackpad.
 - MapLibre's own CSS outranks single-class selectors; the attribution rule needs `.maplibregl-ctrl.maplibregl-ctrl-attrib`.
 
 ## Decision for the user after the PoC

@@ -4,49 +4,149 @@ import { useEffect, useRef } from "react";
 import * as maplibregl from "maplibre-gl";
 import type { Map as MapLibreInstance, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { filterStyle } from "@/lib/css-filter-style";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
+import { applyCartoPalette } from "@/lib/osm-carto-style";
 import { useResolvedTheme } from "@/store/use-travel-store";
 import type { TravelObject, Trip } from "@/types/travel";
 import { markerColor, markerHtml, markerSize, overlayInsets, popupContent, type MarkerState } from "./map-markers";
 
-/** Keyless OpenFreeMap styles (see docs/work/3d-map-poc.md); MapLibre shows their attribution. */
-const STYLE_URLS = {
-  light: "https://tiles.openfreemap.org/styles/liberty",
-  dark: "https://tiles.openfreemap.org/styles/dark",
-} as const;
+/** Keyless OpenFreeMap style (see docs/work/3d-map-poc.md); MapLibre shows its attribution. */
+const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 
 // MapLibre 6 finds its worker next to its own module, which a bundled chunk is not; let the bundler emit the file.
 maplibregl.setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).href);
 
-const BUILDINGS_LAYER = "building-3d";
-/** Buildings extrude from this zoom (as in the Liberty style). */
-const BUILDINGS_MIN_ZOOM = 14;
 /** Fits at city scale or closer tilt the camera; a whole-country trip stays flat. */
 const TILT_MIN_ZOOM = 12;
 
-/** Adds the extruded buildings layer when a style lacks one (Dark has only flat outlines), coloured from tokens. */
-function ensureBuildings(map: MapLibreInstance) {
-  if (map.getLayer(BUILDINGS_LAYER)) return;
-  const tokens = getComputedStyle(document.documentElement);
-  // `--surface` disappears into the near-black Dark style; the faint ink tone reads as grey blocks at this opacity.
-  const color = tokens.getPropertyValue("--faint").trim() || "#8a8a88";
-  const firstSymbol = map.getStyle().layers.find((layer) => layer.type === "symbol")?.id;
-  map.addLayer(
-    {
-      id: BUILDINGS_LAYER,
-      type: "fill-extrusion",
-      source: "openmaptiles",
-      "source-layer": "building",
-      minzoom: BUILDINGS_MIN_ZOOM,
-      paint: {
-        "fill-extrusion-color": color,
-        "fill-extrusion-height": ["get", "render_height"],
-        "fill-extrusion-base": ["get", "render_min_height"],
-        "fill-extrusion-opacity": 0.45,
-      },
+/**
+ * Liberty recoloured with the OSM Carto palette, so the map reads like the Leaflet maps' openstreetmap.org tiles. Dark
+ * mode runs those colours through the same `--map-tile-filter` token the Leaflet tiles use, so both maps share one
+ * dark palette, while the canvas itself stays unfiltered and buildings keep normal lighting: roofs lit more than
+ * walls, and walls darkening toward the base through MapLibre's `fill-extrusion-vertical-gradient` (at the default
+ * light, up to 16% at the base). Buildings are opaque so that base shading is not washed out by the ground.
+ * `diff: false` rebuilds the style on a theme switch.
+ */
+function applyStyle(map: MapLibreInstance) {
+  map.setStyle(STYLE_URL, {
+    diff: false,
+    transformStyle: (_previous, next) => {
+      const carto = applyCartoPalette(next);
+      for (const layer of carto.layers)
+        if (layer.type === "fill-extrusion")
+          layer.paint = { ...layer.paint, "fill-extrusion-opacity": 1, "fill-extrusion-vertical-gradient": true };
+      // Read when the style arrives, after the theme class has been applied to the page.
+      const filter = getComputedStyle(document.documentElement).getPropertyValue("--map-tile-filter").trim();
+      return filterStyle(carto, filter || "none");
     },
-    firstSymbol,
-  );
+  });
+}
+
+type SafariGestureEvent = Event & { rotation: number; scale: number };
+
+/**
+ * Map-app gestures on top of MapLibre's defaults (drag to pan, double-click to zoom, touch pinch and twist):
+ * - Cmd+drag, Ctrl+drag or right-drag rotates (sideways) and tilts (up and down), turning the same way as Google Maps.
+ *   MapLibre's own Ctrl/right-drag turns the other way, so its drag-rotate is switched off.
+ * - On a trackpad, two-finger scrolling pans, as in Apple Maps; pinch (a Ctrl+wheel event) and a mouse wheel zoom.
+ * - Safari reports a trackpad twist (and pinch) as gesture events, which rotate (and zoom) the map. Other browsers
+ *   never pass a trackpad twist to the page.
+ * Listeners run in the capture phase so MapLibre's handlers never see what these take over.
+ */
+function mapAppGestures(map: MapLibreInstance) {
+  const container = map.getCanvasContainer();
+  map.dragRotate.disable();
+
+  let last: { x: number; y: number } | null = null;
+  const move = (event: MouseEvent) => {
+    if (!last) return;
+    const pitch = map.getPitch() - (event.clientY - last.y) * 0.5;
+    map.jumpTo({
+      bearing: map.getBearing() + (event.clientX - last.x) * 0.8,
+      pitch: Math.min(map.getMaxPitch(), Math.max(map.getMinPitch(), pitch)),
+    });
+    last = { x: event.clientX, y: event.clientY };
+  };
+  const end = () => {
+    last = null;
+    container.style.removeProperty("cursor");
+    window.removeEventListener("mousemove", move);
+    window.removeEventListener("mouseup", end);
+  };
+  const start = (event: MouseEvent) => {
+    const rotating = event.button === 2 || (event.button === 0 && (event.metaKey || event.ctrlKey));
+    if (!rotating) return;
+    event.stopPropagation();
+    if (event.type !== "mousedown" || last) return;
+    event.preventDefault();
+    last = { x: event.clientX, y: event.clientY };
+    container.style.cursor = "grabbing";
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", end);
+  };
+  const noMenu = (event: MouseEvent) => event.preventDefault();
+
+  // Chrome and Safari report a trackpad's wheelDeltaY as -3 × deltaY and a mouse wheel in notches of 120. Firefox
+  // has no wheelDeltaY, so there only sideways scrolling is known to be a trackpad.
+  let pinchAt = -Infinity;
+  const wheel = (event: WheelEvent) => {
+    if (event.ctrlKey) {
+      pinchAt = event.timeStamp;
+      return;
+    }
+    const legacy = (event as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY;
+    const trackpad =
+      event.deltaMode === WheelEvent.DOM_DELTA_PIXEL &&
+      (event.deltaX !== 0 || (legacy !== undefined && legacy !== 0 && legacy === -3 * event.deltaY));
+    if (!trackpad) return;
+    event.stopPropagation();
+    event.preventDefault();
+    map.panBy([event.deltaX, event.deltaY], { animate: false });
+  };
+
+  // iOS Safari sends gesture events alongside touches, which MapLibre already handles; only a trackpad needs these.
+  let touching = false;
+  const touch = (event: TouchEvent) => {
+    touching = event.touches.length > 0;
+  };
+  let gesture: { bearing: number; zoom: number } | null = null;
+  const gestureStart = (event: Event) => {
+    if (touching) return;
+    event.preventDefault();
+    gesture = { bearing: map.getBearing(), zoom: map.getZoom() };
+  };
+  const gestureChange = (event: Event) => {
+    if (!gesture || touching) return;
+    event.preventDefault();
+    const { rotation, scale } = event as SafariGestureEvent;
+    map.jumpTo({
+      bearing: gesture.bearing - rotation,
+      // Skip the scale while the same pinch also arrives as Ctrl+wheel events, which already zoom.
+      ...(event.timeStamp - pinchAt > 200 ? { zoom: gesture.zoom + Math.log2(scale) } : {}),
+    });
+  };
+  const gestureEnd = () => {
+    gesture = null;
+  };
+
+  const listeners: [string, EventListener, AddEventListenerOptions][] = [
+    ["pointerdown", start as EventListener, { capture: true }],
+    ["mousedown", start as EventListener, { capture: true }],
+    ["contextmenu", noMenu as EventListener, { capture: true }],
+    ["wheel", wheel as EventListener, { capture: true, passive: false }],
+    ["touchstart", touch as EventListener, { capture: true, passive: true }],
+    ["touchend", touch as EventListener, { capture: true, passive: true }],
+    ["touchcancel", touch as EventListener, { capture: true, passive: true }],
+    ["gesturestart", gestureStart, { capture: true }],
+    ["gesturechange", gestureChange, { capture: true }],
+    ["gestureend", gestureEnd, { capture: true }],
+  ];
+  for (const [type, listener, options] of listeners) container.addEventListener(type, listener, options);
+  return () => {
+    end();
+    for (const [type, listener, options] of listeners) container.removeEventListener(type, listener, options);
+  };
 }
 
 function setMarkerState(marker: Marker, color: string, number: number | undefined, state: MarkerState) {
@@ -86,16 +186,23 @@ export function MapLibreMap({
   className = "min-h-[360px] flex-1",
 }: MapLibreMapProps) {
   const theme = useResolvedTheme();
+  const themeRef = useRef(theme);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreInstance | null>(null);
   const markersRef = useRef(new Map<string, Marker>());
   const callbacksRef = useRef({ onSelect, onFailure });
-  const themeRef = useRef(theme);
   const lastFitRef = useRef("");
 
   useEffect(() => {
     callbacksRef.current = { onSelect, onFailure };
   }, [onFailure, onSelect]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || themeRef.current === theme) return;
+    themeRef.current = theme;
+    applyStyle(map);
+  }, [theme]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -104,7 +211,6 @@ export function MapLibreMap({
     try {
       map = new maplibregl.Map({
         container,
-        style: STYLE_URLS[themeRef.current],
         center: [0, 20],
         zoom: 1,
         attributionControl: { compact: false },
@@ -114,35 +220,30 @@ export function MapLibreMap({
       return;
     }
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-left");
+    const stopGestures = mapAppGestures(map);
     let styleLoaded = false;
     map.on("style.load", () => {
       styleLoaded = true;
-      ensureBuildings(map);
     });
     map.on("error", (event) => {
       // Only a style that never loaded is fatal; a missing tile or glyph is not.
       if (!styleLoaded) callbacksRef.current.onFailure?.();
       console.warn("Map error", event.error);
     });
+    applyStyle(map);
     mapRef.current = map;
     const markers = markersRef.current;
     const resizeObserver = new ResizeObserver(() => map.resize());
     resizeObserver.observe(container);
     return () => {
       resizeObserver.disconnect();
+      stopGestures();
       map.remove();
       mapRef.current = null;
       markers.clear();
       lastFitRef.current = "";
     };
   }, []);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || themeRef.current === theme) return;
-    themeRef.current = theme;
-    map.setStyle(STYLE_URLS[theme]);
-  }, [theme]);
 
   useEffect(() => {
     const map = mapRef.current;
