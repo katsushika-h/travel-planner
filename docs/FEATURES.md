@@ -9,7 +9,8 @@ Potential features to implement after the POC. These are ideas, not commitments 
 - [x] **Unscheduled ideas** — create an item without a date, keep it in the Ideas panel, drag it onto a date, and remove its date to return it to Ideas.
 - [x] **Travel document attachments** — upload, list, preview/download, and delete files on itinerary items. Current implementation stores file bytes in PostgreSQL and limits uploads to 20 MB.
 - [x] **Google Maps saved-list import** — import Google Takeout CSV files through the Trip menu's Import… entry, preserve place metadata and Maps links, and map CSV categories to event types.
-- [x] **Map view** — show items with extracted coordinates on a Leaflet/OpenStreetMap map with colored markers and day filters.
+- [x] **Map view** — show items with extracted coordinates on an OpenStreetMap map with colored markers and day filters.
+- [x] **3D map** — MapLibre map with extruded buildings, the OSM Carto palette in both themes, a 2D/3D toggle, and map-app gestures, on the Map tab and Plan's day map (ADR 0011, `docs/work/3d-map-poc.md`).
 - [x] **Calendar schedule modes** — month, week, and day views with fixed-time items, flexible placement, drag/drop, resizing, and itinerary ordering. `dayOrder` still needs verification.
 - [x] **CSV categorizing** — read the types categories from a CSV file and apply them to imported travel objects. Unmatched categories create new categories automatically.
 - [x] **Undo** — reverse recently made changes (`lib/undo-stack.ts`, `components/layout/useUndo.ts`).

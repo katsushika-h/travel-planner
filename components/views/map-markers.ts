@@ -3,12 +3,16 @@ import { defaultTypeColor, typeColor } from "@/lib/type-color";
 import { placeLabel } from "@/lib/place-label";
 import type { TravelObject } from "@/types/travel";
 
-/** Marker and popup DOM shared by the Leaflet and MapLibre maps, so both draw identical pins. */
+/** Marker and popup DOM for the map's pins and popups. */
 
 export function markerColor(type: string, colors: Record<string, string>) {
   const color = typeColor(type, colors);
   return /^#[0-9a-f]{6}$/i.test(color) ? color : defaultTypeColor(type);
 }
+
+export type MapLeg = { id: string; positions: [number, number][]; mode: "walk" | "drive" };
+
+export type MapParkingMarker = { id: string; lat: number; lng: number; name: string | null };
 
 export type MarkerState = "default" | "active" | "dimmed" | "preview";
 

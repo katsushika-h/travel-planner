@@ -6,14 +6,7 @@ import { dayIndexForDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { sortDayDisplayItems } from "@/lib/schedule-order";
 import type { TravelObject, Trip } from "@/types/travel";
-import { useRequested3dMap } from "./useRequested3dMap";
 
-const LeafletMap = dynamic(() => import("./LeafletMap").then((module) => module.LeafletMap), {
-  ssr: false,
-  loading: () => <div className="grid flex-1 place-items-center text-sm text-muted">Loading map…</div>,
-});
-
-/** 3D map proof of concept (docs/work/3d-map-poc.md), shown only with `?map=3d` in the URL. */
 const MapLibreMap = dynamic(() => import("./MapLibreMap").then((module) => module.MapLibreMap), {
   ssr: false,
   loading: () => <div className="grid flex-1 place-items-center text-sm text-muted">Loading map…</div>,
@@ -47,8 +40,6 @@ export function MapView({
   onSelect: (item: TravelObject) => void;
 }) {
   const [selectedDates, setSelectedDates] = useState<Set<string>>(() => new Set());
-  const requested3d = useRequested3dMap();
-  const [map3dFailed, setMap3dFailed] = useState(false);
   const mappedItems = useMemo(() => items.filter((item) => hasMapCoordinates(item.location)), [items]);
   const days = useMemo(() => {
     const counts = new Map<string, number>();
@@ -203,32 +194,17 @@ export function MapView({
         )}
       </nav>
       <div className="flex min-h-[320px] min-w-0 flex-1 flex-col bg-surface sm:min-h-0">
-        {requested3d && !map3dFailed ? (
-          <MapLibreMap
-            key={trip.id}
-            trip={trip}
-            items={mappedItems}
-            typeColors={typeColors}
-            onSelect={onSelect}
-            markerNumbers={markerNumbers}
-            dimmedItemIds={dimmedItemIds}
-            fitKey={[...activeDates].sort().join(",") || "all"}
-            onFailure={() => setMap3dFailed(true)}
-            className="min-h-[360px] flex-1 max-sm:min-h-0"
-          />
-        ) : (
-          <LeafletMap
-            key={trip.id}
-            trip={trip}
-            items={mappedItems}
-            typeColors={typeColors}
-            onSelect={onSelect}
-            markerNumbers={markerNumbers}
-            dimmedItemIds={dimmedItemIds}
-            fitKey={[...activeDates].sort().join(",") || "all"}
-            className="min-h-[360px] flex-1 max-sm:min-h-0"
-          />
-        )}
+        <MapLibreMap
+          key={trip.id}
+          trip={trip}
+          items={mappedItems}
+          typeColors={typeColors}
+          onSelect={onSelect}
+          markerNumbers={markerNumbers}
+          dimmedItemIds={dimmedItemIds}
+          fitKey={[...activeDates].sort().join(",") || "all"}
+          className="min-h-[360px] flex-1 max-sm:min-h-0"
+        />
       </div>
     </section>
   );

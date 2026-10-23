@@ -1,6 +1,6 @@
 # 3D map proof of concept
 
-Status: Phase 2 (W4–W7) complete and verified (2026-10-22) on `feat/3d-map-poc`: Plan's day map runs on MapLibre behind `?map=3d`. Real-phone and real-Safari checks skipped for now (user decision, 2026-10-22). Nearby suggestions (W8, E1) moved to a later recommendations feature (`docs/FEATURES.md`).
+Status: Phase 3 implemented and verified (2026-10-23) on `feat/3d-map-poc`: Leaflet is replaced; both maps always use MapLibre (ADR 0011). Real-phone and real-Safari checks still open before shipping (skipped for now, user decision). Nearby suggestions (W8, E1) moved to a later recommendations feature (`docs/FEATURES.md`).
 
 Goal: Prove that the Map tab (`components/views/MapView.tsx`) can run on a WebGL map that shows OpenStreetMap buildings as extruded 3D blocks, without losing anything the current Leaflet map does, so the user can decide whether to replace it.
 
@@ -96,6 +96,47 @@ Run one at a time, model `sonnet`. Branch `feat/3d-map-poc` from the tip of `cla
   - Opening Ideas and selecting an idea shows its dashed preview pin and reframes the day.
   - Drive mode shows solid driving legs, dashed walking legs and "P" markers.
   - Without `?map=3d`, Plan is unchanged.
+
+### Phase 3 (user decision, 2026-10-22): replace Leaflet
+
+- **R1 (ADR, done):** `docs/decisions/0011-maplibre-map.md` records the map library, the tile provider and the colour approach.
+- **R2 (MapLibre by default, done):**
+  - Map and Plan always use `MapLibreMap`. The `?map=3d` switch and `useRequested3dMap.ts` go.
+  - A 2D/3D button on the map (a MapLibre control under the zoom buttons) switches between tilted fits with extruded buildings and a flat map (`setMaxPitch(0)`). The choice is a per-device preference in `store/use-travel-store.ts`, defaulting to 3D.
+- **R3 (fallbacks without Leaflet, done):**
+  - If the OpenFreeMap style fails to load, the map switches to a flat raster style of `tile.openstreetmap.org` tiles inside MapLibre, run through the same colour steps so dark mode still works. Pins, routes and parking keep working; there are no buildings. The OSM attribution shows.
+  - If WebGL is unavailable, the map area shows a short message instead of a map.
+- **R4 (remove Leaflet, done):**
+  - Delete `LeafletMap.tsx`, the `leaflet` and `@types/leaflet` packages, the CSS import in `app/layout.tsx`, and the `.travel-leaflet-map` rules in `app/globals.css`.
+  - Move `MapLeg` and `MapParkingMarker` into `map-markers.ts`.
+  - Reword comments that compare with Leaflet. Keep `--map-tile-filter`, which MapLibre's dark mode uses.
+- **R5 (docs, done):** update `docs/architecture.md` and `docs/FEATURES.md` (the Map view entry). Historical work notes keep their Leaflet mentions.
+- **Verification:**
+  - `npm run check` and `npx next build --webpack`.
+  - Headless Chrome: Map and Plan in both themes and at 375px, the 2D/3D toggle, the raster fallback (style URL forced to fail), routes, parking and preview.
+- **Still open before shipping:** the real-phone and real-Safari checks.
+
+#### Phase 3 results (2026-10-23, headless Chrome against the dev server)
+
+- R2–R4 implemented by a subagent; R1 and R5 written here; reviewed and verified here.
+  - The subagent's `npm run check` passed, and `npx next build --webpack` succeeded (it restored `next-env.d.ts` afterwards).
+  - `leaflet` and `@types/leaflet` are uninstalled; `grep -rni leaflet components lib app package.json` is empty.
+- Map tab and Plan load MapLibre with no URL switch, and no Leaflet container remains.
+  - On the Map tab, a single-day fit tilts to 45° with buildings.
+  - On Plan, the day fits at zoom 13.8 with routes and the routes credit.
+- The 2D/3D button:
+  - 2D flattens at once (pitch 0, max pitch 0) and shows "2D" with `aria-pressed="false"`.
+  - The preference is stored (`map3d: false`), survives a reload, and applies on Plan too.
+  - Back to 3D, the map tilts to 45° again (max pitch 60).
+  - Checked in both themes.
+- Fixed after review: Plan opened at the world view (zoom 1) and never fitted the day. The fit marked itself done before its 140 ms timer ran, and the stops settling just after mount cancelled the timer, so the retry was skipped. It now records the fit only when the fit runs. Phase 2 hid this because the map mounted one render later behind `?map=3d`.
+- Fallback, with `tiles.openfreemap.org/styles/*` blocked:
+  - Both maps switch to the `tile.openstreetmap.org` raster style, with dark colours through the same filter.
+  - All pins, routes and the routes credit keep working, with "© OpenStreetMap contributors" shown and no buildings.
+  - Fits still tilt at city scale, which works on raster.
+- With WebGL disabled (`--disable-webgl --disable-3d-apis`), both maps show "The map needs WebGL, which this browser has turned off."
+- No console errors in any run. `npm run check` passes after the fixes (251 tests).
+- Not checked: `next build --webpack` after the fit fix (a three-line change in an effect), the Map tab's 2D/3D button at 375px, real Safari, and a real phone.
 
 ### W8 (moved to the recommendations feature) Nearby suggestions from the tiles' POI layer
 
@@ -261,4 +302,4 @@ Options: replace Leaflet on the Map tab (and later Plan), keep 3D as an optional
 
 ## Next step
 
-The user decides on the recommendation (replace Leaflet, keep 3D opt-in, or drop it). Before replacing Leaflet: the real-phone and real-Safari checks.
+Phase 3 is done. Before shipping: the real-phone and real-Safari checks, then a PR from `feat/3d-map-poc` to `main`. The deployment needs the app image rebuilt (no migration change, so the migrator image is unchanged).

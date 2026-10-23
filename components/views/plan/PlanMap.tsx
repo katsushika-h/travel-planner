@@ -1,17 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
-import type { LeafletMapProps } from "../LeafletMap";
 import type { TravelObject, Trip } from "@/types/travel";
-import { useRequested3dMap } from "../useRequested3dMap";
+import type { MapLeg, MapParkingMarker } from "../map-markers";
 
-const LeafletMap = dynamic(() => import("../LeafletMap").then((module) => module.LeafletMap), {
-  ssr: false,
-  loading: () => <div className="grid flex-1 place-items-center text-sm text-muted">Loading map…</div>,
-});
-
-/** 3D map proof of concept (docs/work/3d-map-poc.md), shown only with `?map=3d` in the URL. */
 const MapLibreMap = dynamic(() => import("../MapLibreMap").then((module) => module.MapLibreMap), {
   ssr: false,
   loading: () => <div className="grid flex-1 place-items-center text-sm text-muted">Loading map…</div>,
@@ -54,14 +46,12 @@ export function PlanMap({
   onRecenter: () => void;
   onAddLink?: () => void;
   /** Routed leg lines to draw. */
-  legs?: LeafletMapProps["legs"];
+  legs?: MapLeg[];
   /** Saved car parks to mark with a "P". */
-  parkingMarkers?: LeafletMapProps["parkingMarkers"];
+  parkingMarkers?: MapParkingMarker[];
   /** A selected idea shown as a temporary pin. */
   previewItem?: TravelObject | null;
 }) {
-  const requested3d = useRequested3dMap();
-  const [map3dFailed, setMap3dFailed] = useState(false);
   const note = "bg-background/90 px-2 py-1 text-xs text-muted";
   const mapProps = {
     trip,
@@ -85,11 +75,7 @@ export function PlanMap({
       aria-label={`Map of ${date}`}
       className="relative flex h-full min-h-72 w-full flex-col overflow-hidden bg-surface"
     >
-      {requested3d && !map3dFailed ? (
-        <MapLibreMap {...mapProps} onFailure={() => setMap3dFailed(true)} />
-      ) : (
-        <LeafletMap {...mapProps} />
-      )}
+      <MapLibreMap {...mapProps} />
       {(unmappedCount > 0 || mapMoved) && (
         <div className="pointer-events-none absolute bottom-3 left-3 z-[500] flex max-w-[calc(100%-13rem)] flex-wrap gap-2">
           {unmappedCount > 0 && (
