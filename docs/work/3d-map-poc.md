@@ -136,7 +136,11 @@ Run one at a time, model `sonnet`. Branch `feat/3d-map-poc` from the tip of `cla
   - Fits still tilt at city scale, which works on raster.
 - With WebGL disabled (`--disable-webgl --disable-3d-apis`), both maps show "The map needs WebGL, which this browser has turned off."
 - No console errors in any run. `npm run check` passes after the fixes (251 tests).
-- Not checked: `next build --webpack` after the fit fix (a three-line change in an effect), the Map tab's 2D/3D button at 375px, real Safari, and a real phone.
+- Follow-up checks (2026-10-23):
+  - `npx next build --webpack` succeeds with the fit fix.
+  - At 375px, the 2D/3D button shows on Places and on Plan's day map, a tap switches 3D to 2D, nothing overlaps, and there is no horizontal scroll.
+  - Fixed: MapLibre's control buttons (zoom, compass, 2D/3D) were 29 px. On touch screens (`pointer: coarse`) they are now the app's 44 px targets.
+- Not checked: real Safari and a real phone.
 
 ### W8 (moved to the recommendations feature) Nearby suggestions from the tiles' POI layer
 

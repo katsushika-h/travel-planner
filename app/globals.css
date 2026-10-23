@@ -260,6 +260,13 @@
   font-size: 11px;
   font-weight: 500;
 }
+/* Touch screens get the app's 44px targets; MapLibre's buttons are 29px. */
+@media (pointer: coarse) {
+  .travel-maplibre-map .maplibregl-ctrl-group button {
+    width: 44px;
+    height: 44px;
+  }
+}
 .dark .travel-maplibre-map .maplibregl-ctrl-icon {
   filter: invert(1);
 }
