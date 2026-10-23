@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
-import type { GeoJSONSource, Map as MapLibreInstance, Marker } from "maplibre-gl";
+import type { GeoJSONSource, IControl, Map as MapLibreInstance, Marker, StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { filterStyle } from "@/lib/css-filter-style";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { applyCartoPalette } from "@/lib/osm-carto-style";
-import { useResolvedTheme } from "@/store/use-travel-store";
+import { useResolvedTheme, useTravelStore } from "@/store/use-travel-store";
 import type { TravelObject, Trip } from "@/types/travel";
-import type { MapLeg, MapParkingMarker } from "./LeafletMap";
 import {
   PARKING_MARKER_SIZE,
   markerColor,
@@ -18,11 +17,35 @@ import {
   overlayInsets,
   parkingHtml,
   popupContent,
+  type MapLeg,
+  type MapParkingMarker,
   type MarkerState,
 } from "./map-markers";
 
 /** Keyless OpenFreeMap style (see docs/work/3d-map-poc.md); MapLibre shows its attribution. */
 const STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+
+/** Flat openstreetmap.org raster tiles, used once if the OpenFreeMap style cannot be fetched; there are no buildings. */
+const FALLBACK_STYLE: StyleSpecification = {
+  version: 8,
+  sources: {
+    osm: {
+      type: "raster",
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    },
+  },
+  layers: [{ id: "osm", type: "raster", source: "osm" }],
+};
+
+/** Only a style that has not loaded yet is worth replacing, and only once; a missing tile or glyph is not. */
+const shouldUseFallbackStyle = (styleLoaded: boolean, usingFallback: boolean) => !styleLoaded && !usingFallback;
+
+/** The `--map-tile-filter` token for the current theme; read when a style is applied, after the theme class is set. */
+const tileFilter = () =>
+  getComputedStyle(document.documentElement).getPropertyValue("--map-tile-filter").trim() || "none";
 
 // MapLibre 6 finds its worker next to its own module, which a bundled chunk is not; let the bundler emit the file.
 maplibregl.setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).href);
@@ -31,15 +54,19 @@ maplibregl.setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", impor
 const TILT_MIN_ZOOM = 12;
 
 /**
- * Liberty recoloured with the OSM Carto palette, so the map reads like the Leaflet maps' openstreetmap.org tiles. Dark
- * mode runs those colours through the same `--map-tile-filter` token the Leaflet tiles use, so both maps share one
- * dark palette, while the canvas itself stays unfiltered and buildings keep normal lighting: roofs lit more than
- * walls, and walls darkening smoothly by up to 25% toward the base relative to each building's own height (MapLibre's
- * vertical gradient, re-formulated by `scripts/patch-maplibre-shader.mjs`). Buildings are opaque so that base shading
- * is not washed out by the ground.
- * `diff: false` rebuilds the style on a theme switch.
+ * Liberty recoloured with the OSM Carto palette, so the map reads like the openstreetmap.org tiles. Dark mode runs
+ * those colours through the `--map-tile-filter` token, while the canvas itself stays unfiltered and buildings keep
+ * normal lighting: roofs lit more than walls, and walls darkening smoothly by up to 25% toward the base relative to
+ * each building's own height (MapLibre's vertical gradient, re-formulated by `scripts/patch-maplibre-shader.mjs`).
+ * Buildings are opaque so that base shading is not washed out by the ground. `diff: false` rebuilds the style on a
+ * theme switch. The raster fallback goes through the same filter, applied
+ * directly: `transformStyle` would wait for a style that failed to load, which never comes.
  */
-function applyStyle(map: MapLibreInstance) {
+function applyStyle(map: MapLibreInstance, fallback: boolean) {
+  if (fallback) {
+    map.setStyle(filterStyle(FALLBACK_STYLE, tileFilter()), { diff: false });
+    return;
+  }
   map.setStyle(STYLE_URL, {
     diff: false,
     transformStyle: (_previous, next) => {
@@ -47,9 +74,7 @@ function applyStyle(map: MapLibreInstance) {
       for (const layer of carto.layers)
         if (layer.type === "fill-extrusion")
           layer.paint = { ...layer.paint, "fill-extrusion-opacity": 1, "fill-extrusion-vertical-gradient": true };
-      // Read when the style arrives, after the theme class has been applied to the page.
-      const filter = getComputedStyle(document.documentElement).getPropertyValue("--map-tile-filter").trim();
-      return filterStyle(carto, filter || "none");
+      return filterStyle(carto, tileFilter());
     },
   });
 }
@@ -108,6 +133,40 @@ function drawLegs(map: MapLibreInstance, legs: MapLeg[] | undefined) {
       },
       beforeId,
     );
+}
+
+/** A "3D"/"2D" button under the zoom buttons that shows and sets the shared `map3d` preference. */
+class Map3dControl implements IControl {
+  private container = document.createElement("div");
+  private button = document.createElement("button");
+
+  constructor(
+    private on: boolean,
+    private onToggle: (on: boolean) => void,
+  ) {
+    this.container.className = "maplibregl-ctrl maplibregl-ctrl-group";
+    this.button.type = "button";
+    this.button.className = "travel-map-3d-toggle";
+    this.button.addEventListener("click", () => this.onToggle(!this.on));
+    this.container.append(this.button);
+    this.set(on);
+  }
+
+  set(on: boolean) {
+    this.on = on;
+    this.button.textContent = on ? "3D" : "2D";
+    this.button.title = on ? "Switch to a flat 2D map" : "Switch to a tilted 3D map";
+    this.button.setAttribute("aria-label", this.button.title);
+    this.button.setAttribute("aria-pressed", String(on));
+  }
+
+  onAdd() {
+    return this.container;
+  }
+
+  onRemove() {
+    this.container.remove();
+  }
 }
 
 type SafariGestureEvent = Event & { rotation: number; scale: number; clientX: number; clientY: number };
@@ -266,12 +325,10 @@ export interface MapLibreMapProps {
   parkingMarkers?: MapParkingMarker[];
   /** An item outside `items` (a selected idea) shown as a temporary dashed pin; the map frames it with the day. */
   previewItem?: TravelObject | null;
-  /** Called when the map cannot start or its style fails, so the caller can fall back to Leaflet. */
-  onFailure?: () => void;
   className?: string;
 }
 
-/** Proof-of-concept WebGL map with extruded OpenStreetMap buildings, matching the Map tab's use of `LeafletMap`. */
+/** WebGL map with extruded OpenStreetMap buildings (flat when the 2D preference is on) for the Map and Plan views. */
 export function MapLibreMap({
   trip,
   items,
@@ -288,30 +345,34 @@ export function MapLibreMap({
   legs,
   parkingMarkers,
   previewItem = null,
-  onFailure,
   className = "min-h-[360px] flex-1",
 }: MapLibreMapProps) {
   const theme = useResolvedTheme();
   const themeRef = useRef(theme);
+  const map3d = useTravelStore((state) => state.map3d);
+  const map3dRef = useRef(map3d);
+  const toggleRef = useRef<Map3dControl | null>(null);
+  const fallbackRef = useRef(false);
+  const [unsupported, setUnsupported] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreInstance | null>(null);
   const markersRef = useRef(new Map<string, Marker>());
-  const callbacksRef = useRef({ onSelect, onHover, onUserMove, onFailure });
+  const callbacksRef = useRef({ onSelect, onHover, onUserMove });
   const legsRef = useRef(legs);
   const styleReadyRef = useRef(false);
   const lastFitRef = useRef("");
   const lastSelectedItemRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
-    callbacksRef.current = { onSelect, onHover, onUserMove, onFailure };
-  }, [onFailure, onHover, onSelect, onUserMove]);
+    callbacksRef.current = { onSelect, onHover, onUserMove };
+  }, [onHover, onSelect, onUserMove]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || themeRef.current === theme) return;
     themeRef.current = theme;
     styleReadyRef.current = false;
-    applyStyle(map);
+    applyStyle(map, fallbackRef.current);
   }, [theme]);
 
   useEffect(() => {
@@ -326,10 +387,16 @@ export function MapLibreMap({
         attributionControl: { compact: false },
       });
     } catch {
-      callbacksRef.current.onFailure?.();
+      // The constructor throws without WebGL; this runs once, to swap the map for a note.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUnsupported(true);
       return;
     }
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-left");
+    const toggle = new Map3dControl(map3dRef.current, (on) => useTravelStore.getState().setMap3d(on));
+    map.addControl(toggle, "top-left");
+    toggleRef.current = toggle;
+    if (!map3dRef.current) map.setMaxPitch(0);
     const stopGestures = mapAppGestures(map);
     // Only camera changes that carry the user's pointer, wheel or touch event count; fits and flights have none.
     map.on("movestart", (event) => {
@@ -342,11 +409,13 @@ export function MapLibreMap({
       drawLegs(map, legsRef.current);
     });
     map.on("error", (event) => {
-      // Only a style that never loaded is fatal; a missing tile or glyph is not.
-      if (!styleLoaded) callbacksRef.current.onFailure?.();
+      if (shouldUseFallbackStyle(styleLoaded, fallbackRef.current)) {
+        fallbackRef.current = true;
+        applyStyle(map, true);
+      }
       console.warn("Map error", event.error);
     });
-    applyStyle(map);
+    applyStyle(map, fallbackRef.current);
     mapRef.current = map;
     const markers = markersRef.current;
     const resizeObserver = new ResizeObserver(() => map.resize());
@@ -356,12 +425,24 @@ export function MapLibreMap({
       stopGestures();
       map.remove();
       mapRef.current = null;
+      toggleRef.current = null;
       markers.clear();
       styleReadyRef.current = false;
       lastFitRef.current = "";
       lastSelectedItemRef.current = undefined;
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const wasOn = map3dRef.current;
+    map3dRef.current = map3d;
+    toggleRef.current?.set(map3d);
+    if (!map) return;
+    // Flattens immediately when off; back on, a city-scale view tilts again, as a fit would.
+    map.setMaxPitch(map3d ? null : 0);
+    if (map3d && !wasOn && map.getZoom() >= TILT_MIN_ZOOM) map.easeTo({ pitch: 45, duration: 400 });
+  }, [map3d]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -462,12 +543,12 @@ export function MapLibreMap({
     const target = {
       center: [selected.location!.lng!, selected.location!.lat!] as [number, number],
       zoom: Math.max(map.getZoom(), 16),
-      pitch: Math.max(map.getPitch(), 45),
+      pitch: map3dRef.current ? Math.max(map.getPitch(), 45) : 0,
     };
     const container = map.getContainer();
     if (container.clientWidth > 0 && container.clientHeight > 0) map.flyTo({ ...target, duration: 550 });
     else map.jumpTo(target);
-    // One popup at a time, as on Leaflet: close the previous stop's before opening this one's.
+    // One popup at a time: close the previous stop's before opening this one's.
     for (const [id, other] of markersRef.current)
       if (id !== selectedItemId && other.getPopup()?.isOpen()) other.togglePopup();
     const marker = markersRef.current.get(selectedItemId);
@@ -484,10 +565,12 @@ export function MapLibreMap({
     // Showing or clearing a preview pin reframes the day so the pin is seen in relation to its stops.
     const nextFit = `${fitKey ?? "items"}:${recenterToken}:${preview?.id ?? ""}`;
     if (!map || lastFitRef.current === nextFit) return;
-    lastFitRef.current = nextFit;
     const timer = window.setTimeout(() => {
       map.resize();
       if (!points.length) return;
+      // Marked only once the fit runs: a re-render that cancels this timer (Plan's stops settle just after mount)
+      // must not leave the day unfitted.
+      lastFitRef.current = nextFit;
       const bounds = points.reduce(
         (box, point) => box.extend(point),
         new maplibregl.LngLatBounds(points[0], points[0]),
@@ -500,7 +583,7 @@ export function MapLibreMap({
       if (!camera?.zoom) return;
       // City-scale fits tilt; a whole-country trip stays flat. The fit ignores pitch, and perspective spreads the
       // near edge, so a tilted fit backs off half a zoom level to keep edge pins in frame.
-      const tilted = camera.zoom >= TILT_MIN_ZOOM;
+      const tilted = map3dRef.current && camera.zoom >= TILT_MIN_ZOOM;
       map.easeTo({
         ...camera,
         zoom: tilted ? camera.zoom - 0.5 : camera.zoom,
@@ -512,5 +595,11 @@ export function MapLibreMap({
     return () => window.clearTimeout(timer);
   }, [dimmedItemIds, fitKey, items, preview, recenterToken]);
 
+  if (unsupported)
+    return (
+      <div className={`grid place-items-center bg-surface px-6 text-center text-sm text-muted ${className}`}>
+        The map needs WebGL, which this browser has turned off.
+      </div>
+    );
   return <div ref={containerRef} className={`travel-maplibre-map relative z-0 isolate text-sm ${className}`} />;
 }

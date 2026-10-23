@@ -1,7 +1,7 @@
 /**
- * Applies a CSS `filter` (the `--map-tile-filter` theme token the Leaflet maps put on their tiles) to the colours of a
- * MapLibre style, using the Filter Effects formulas, so a vector map gets exactly the tiles' dark palette while the
- * canvas stays unfiltered and 3D buildings keep normal lighting (lit roofs, walls darkening toward the base).
+ * Applies a CSS `filter` (the `--map-tile-filter` theme token) to the colours of a MapLibre style, using the Filter
+ * Effects formulas, so a vector map gets the dark palette of a filtered raster map while the canvas stays unfiltered
+ * and 3D buildings keep normal lighting (lit roofs, walls darkening toward the base).
  */
 
 type Rgba = [r: number, g: number, b: number, a: number];

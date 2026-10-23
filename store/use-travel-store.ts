@@ -40,6 +40,9 @@ type TravelStore = {
   theme: ThemePreference;
   /** Denser rows in Plan, Board and Table. */
   compact: boolean;
+  /** Map and Plan show tilted fits with extruded buildings; off keeps the map flat. */
+  map3d: boolean;
+  setMap3d: (map3d: boolean) => void;
   /** Walk or drive for the Plan view legs; a missing entry means walk. */
   travelModeByTrip: Record<string, TravelMode>;
   setTravelMode: (tripId: string, mode: TravelMode) => void;
@@ -71,6 +74,8 @@ export const useTravelStore = create<TravelStore>()(
       sidebarCollapsed: false,
       theme: "system",
       compact: false,
+      map3d: true,
+      setMap3d: (map3d) => set({ map3d }),
       travelModeByTrip: {},
       setTravelMode: (tripId, mode) =>
         set((state) => ({ travelModeByTrip: { ...state.travelModeByTrip, [tripId]: mode } })),

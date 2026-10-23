@@ -1,7 +1,7 @@
 /**
- * Recolours OpenFreeMap's Liberty style with the OpenStreetMap Carto palette (the openstreetmap.org tiles the Leaflet
- * maps use), so the 3D map reads like Plan's map in both themes: pink motorways, salmon trunks, orange primaries,
- * yellow secondaries, white minor roads, grey-cyan water and Carto greens. Layout and widths stay Liberty's.
+ * Recolours OpenFreeMap's Liberty style with the OpenStreetMap Carto palette (the openstreetmap.org tiles), so the
+ * map reads like them in both themes: pink motorways, salmon trunks, orange primaries, yellow secondaries, white minor
+ * roads, grey-cyan water and Carto greens. Layout and widths stay Liberty's.
  */
 
 type StyleLayer = { id: string; type: string; paint?: Record<string, unknown> };

@@ -221,55 +221,7 @@
   border-left-color: #fafafa !important;
 }
 
-/* Leaflet theming: filter only the tile pane so markers, popups and attribution stay unfiltered. */
-.travel-leaflet-map {
-  background: var(--surface);
-  color: var(--muted-ink);
-  font-family: var(--font-sans);
-}
-.travel-leaflet-map .leaflet-tile-pane {
-  filter: var(--map-tile-filter);
-}
-.travel-leaflet-map .leaflet-control-attribution {
-  background: color-mix(in srgb, var(--background) 92%, transparent);
-  color: var(--muted-ink);
-  font-size: 11px;
-  padding: 2px 8px;
-}
-.travel-leaflet-map .leaflet-control-attribution a {
-  color: var(--ink);
-}
-.travel-leaflet-map .leaflet-bar {
-  border: 1px solid var(--ink);
-  border-radius: 0;
-  box-shadow: none;
-}
-.travel-leaflet-map .leaflet-bar a {
-  background: var(--background);
-  color: var(--ink);
-  border-bottom-color: var(--divider);
-  border-radius: 0 !important;
-}
-.travel-leaflet-map .leaflet-bar a:hover,
-.travel-leaflet-map .leaflet-bar a:focus-visible {
-  background: var(--surface);
-}
-.travel-leaflet-map .leaflet-popup-content-wrapper,
-.travel-leaflet-map .leaflet-popup-tip {
-  background: var(--panel);
-  color: var(--ink);
-  border-radius: 0;
-  box-shadow: 0 0 0 1px var(--divider);
-}
-.travel-leaflet-map .leaflet-popup-content {
-  font-family: var(--font-sans);
-  font-size: 13px;
-}
-.travel-leaflet-map .leaflet-container a.leaflet-popup-close-button,
-.travel-leaflet-map a.leaflet-popup-close-button {
-  color: var(--muted-ink);
-}
-/* MapLibre (3D map PoC): same control, popup and attribution look as Leaflet. */
+/* MapLibre map: Minimal UI controls, popup and attribution. */
 .travel-maplibre-map {
   background: var(--surface);
   color: var(--muted-ink);
@@ -301,6 +253,12 @@
 .travel-maplibre-map .maplibregl-ctrl-group button:hover,
 .travel-maplibre-map .maplibregl-ctrl-group button:focus-visible {
   background: var(--surface);
+}
+.travel-maplibre-map .travel-map-3d-toggle {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
 }
 .dark .travel-maplibre-map .maplibregl-ctrl-icon {
   filter: invert(1);
