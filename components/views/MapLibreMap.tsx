@@ -135,6 +135,87 @@ function drawLegs(map: MapLibreInstance, legs: MapLeg[] | undefined) {
     );
 }
 
+export type MapSuggestion = { id: string; name: string; lat: number; lng: number; type: string };
+
+export type NearbyFeatureLike = {
+  id?: unknown;
+  properties?: Record<string, unknown> | null;
+  geometry: { type: string; coordinates: unknown };
+};
+
+export type NearbyLayer = {
+  anchor: { lat: number; lng: number };
+  radiusMeters: number;
+  /** False leaves the camera alone (the anchor follows the map centre); default true fits the circle. */
+  fit?: boolean;
+  suggestions: MapSuggestion[];
+  hoveredSuggestionId?: string | null;
+  onHoverSuggestion?: (id: string | null) => void;
+  onSelectSuggestion?: (id: string) => void;
+};
+
+const RING_SOURCE = "nearby-ring";
+const RING_FILL = "nearby-ring-fill";
+const RING_LINE = "nearby-ring-line";
+const NEARBY_MIN_ZOOM = 14;
+const NEARBY_MAX_ZOOM = 17;
+
+/** A circle of `radiusMeters` around the anchor as a closed 64-segment polygon (flat-earth approximation). */
+function circlePolygon(anchor: { lat: number; lng: number }, radiusMeters: number): GeoJSON.Feature<GeoJSON.Polygon> {
+  const dLat = radiusMeters / 111320;
+  const dLng = radiusMeters / (111320 * Math.max(Math.cos((anchor.lat * Math.PI) / 180), 0.01));
+  const ring: [number, number][] = [];
+  for (let i = 0; i < 64; i++) {
+    const angle = (i / 64) * 2 * Math.PI;
+    ring.push([anchor.lng + dLng * Math.cos(angle), anchor.lat + dLat * Math.sin(angle)]);
+  }
+  ring.push(ring[0]);
+  return { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [ring] } };
+}
+
+function circleBounds(anchor: { lat: number; lng: number }, radiusMeters: number) {
+  const ring = circlePolygon(anchor, radiusMeters).geometry.coordinates[0];
+  return ring.reduce(
+    (box, point) => box.extend(point as [number, number]),
+    new maplibregl.LngLatBounds(ring[0] as [number, number], ring[0] as [number, number]),
+  );
+}
+
+/**
+ * Draws the nearby radius as a GeoJSON polygon with a light accent fill and a dashed accent outline, below the
+ * buildings. Called on every `style.load` (a theme switch or the raster fallback rebuilds the style, which is also
+ * when `--accent` is re-read) and whenever the anchor or radius changes.
+ */
+function drawRing(map: MapLibreInstance, nearby: Pick<NearbyLayer, "anchor" | "radiusMeters"> | undefined) {
+  const source = map.getSource(RING_SOURCE) as GeoJSONSource | undefined;
+  if (!nearby) {
+    for (const id of [RING_FILL, RING_LINE]) if (map.getLayer(id)) map.removeLayer(id);
+    if (source) map.removeSource(RING_SOURCE);
+    return;
+  }
+  const data = circlePolygon(nearby.anchor, nearby.radiusMeters);
+  if (source) {
+    source.setData(data);
+    return;
+  }
+  map.addSource(RING_SOURCE, { type: "geojson", data });
+  const color = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#d9381e";
+  const beforeId = map.getLayer("building-3d") ? "building-3d" : undefined;
+  map.addLayer(
+    { id: RING_FILL, type: "fill", source: RING_SOURCE, paint: { "fill-color": color, "fill-opacity": 0.08 } },
+    beforeId,
+  );
+  map.addLayer(
+    {
+      id: RING_LINE,
+      type: "line",
+      source: RING_SOURCE,
+      paint: { "line-color": color, "line-width": 2, "line-opacity": 0.85, "line-dasharray": [2, 2] },
+    },
+    beforeId,
+  );
+}
+
 /** A "3D"/"2D" button under the zoom buttons that shows and sets the shared `map3d` preference. */
 class Map3dControl implements IControl {
   private container = document.createElement("div");
@@ -325,6 +406,13 @@ export interface MapLibreMapProps {
   parkingMarkers?: MapParkingMarker[];
   /** An item outside `items` (a selected idea) shown as a temporary dashed pin; the map frames it with the day. */
   previewItem?: TravelObject | null;
+  /** Nearby mode: a radius ring, suggestion dots and a circle fit that takes precedence over `fitKey`. */
+  nearby?: NearbyLayer;
+  /** Reports the vector tiles' POI features on each map `idle`, with the zoom and whether the circle is in view. */
+  onPoiFeatures?: (
+    features: NearbyFeatureLike[],
+    state: { zoom: number; circleInView: boolean; center: { lat: number; lng: number } },
+  ) => void;
   className?: string;
 }
 
@@ -345,6 +433,8 @@ export function MapLibreMap({
   legs,
   parkingMarkers,
   previewItem = null,
+  nearby,
+  onPoiFeatures,
   className = "min-h-[360px] flex-1",
 }: MapLibreMapProps) {
   const theme = useResolvedTheme();
@@ -362,6 +452,12 @@ export function MapLibreMap({
   const styleReadyRef = useRef(false);
   const lastFitRef = useRef("");
   const lastSelectedItemRef = useRef<string | null | undefined>(undefined);
+  const nearbyRef = useRef<Pick<NearbyLayer, "anchor" | "radiusMeters"> | undefined>(undefined);
+  const poiRef = useRef(onPoiFeatures);
+
+  useEffect(() => {
+    poiRef.current = onPoiFeatures;
+  }, [onPoiFeatures]);
 
   useEffect(() => {
     callbacksRef.current = { onSelect, onHover, onUserMove };
@@ -407,6 +503,25 @@ export function MapLibreMap({
       styleLoaded = true;
       styleReadyRef.current = true;
       drawLegs(map, legsRef.current);
+      drawRing(map, nearbyRef.current);
+    });
+    // Reported only once the map settles, never per frame; the raster fallback has no POI source, so it reports [].
+    map.on("idle", () => {
+      const report = poiRef.current;
+      const circle = nearbyRef.current;
+      if (!report || !styleReadyRef.current) return;
+      const features = map.getSource("openmaptiles")
+        ? (map.querySourceFeatures("openmaptiles", { sourceLayer: "poi" }) as unknown as NearbyFeatureLike[])
+        : [];
+      const circleInView = circle
+        ? (() => {
+            const view = map.getBounds();
+            const box = circleBounds(circle.anchor, circle.radiusMeters);
+            return view.contains(box.getSouthWest()) && view.contains(box.getNorthEast());
+          })()
+        : false;
+      const { lat, lng } = map.getCenter();
+      report(features, { zoom: map.getZoom(), circleInView, center: { lat, lng } });
     });
     map.on("error", (event) => {
       if (shouldUseFallbackStyle(styleLoaded, fallbackRef.current)) {
@@ -495,6 +610,89 @@ export function MapLibreMap({
     };
   }, [parkingMarkers]);
 
+  const nearbyLat = nearby?.anchor.lat;
+  const nearbyLng = nearby?.anchor.lng;
+  const nearbyRadius = nearby?.radiusMeters;
+  const hasNearby = nearby != null;
+  const nearbyFit = nearby?.fit ?? true;
+
+  useEffect(() => {
+    nearbyRef.current =
+      nearbyLat != null && nearbyLng != null && nearbyRadius != null
+        ? { anchor: { lat: nearbyLat, lng: nearbyLng }, radiusMeters: nearbyRadius }
+        : undefined;
+    const map = mapRef.current;
+    // Before the style loads (or while a theme switch rebuilds it), `style.load` draws the latest ring.
+    if (map && styleReadyRef.current) drawRing(map, nearbyRef.current);
+  }, [nearbyLat, nearbyLng, nearbyRadius]);
+
+  // Fits the circle, clamped to zoom 14-17 (places only exist in zoom-14 tiles), then reports once the map settles.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !nearbyFit || nearbyLat == null || nearbyLng == null || nearbyRadius == null) return;
+    const timer = window.setTimeout(() => {
+      map.resize();
+      const inset = overlayInsets(map.getContainer());
+      const camera = map.cameraForBounds(circleBounds({ lat: nearbyLat, lng: nearbyLng }, nearbyRadius), {
+        padding: { top: 32, bottom: 32, left: 32 + inset.left, right: 32 + inset.right },
+        maxZoom: NEARBY_MAX_ZOOM,
+      });
+      if (!camera?.center) return;
+      map.easeTo({
+        ...camera,
+        zoom: Math.min(NEARBY_MAX_ZOOM, Math.max(NEARBY_MIN_ZOOM, camera.zoom ?? NEARBY_MIN_ZOOM)),
+        pitch: 0,
+        bearing: 0,
+        duration: 800,
+      });
+      map.triggerRepaint();
+    }, 140);
+    return () => window.clearTimeout(timer);
+  }, [nearbyFit, nearbyLat, nearbyLng, nearbyRadius]);
+
+  const nearbyCallbacksRef = useRef<Pick<NearbyLayer, "onHoverSuggestion" | "onSelectSuggestion">>(undefined);
+  useEffect(() => {
+    nearbyCallbacksRef.current = nearby
+      ? { onHoverSuggestion: nearby.onHoverSuggestion, onSelectSuggestion: nearby.onSelectSuggestion }
+      : undefined;
+  }, [nearby]);
+
+  const suggestions = nearby?.suggestions;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !suggestions?.length) return;
+    const markers = suggestions.map((place) => {
+      const element = document.createElement("div");
+      element.className = "travel-map-suggestion";
+      element.title = place.name;
+      element.setAttribute("role", "button");
+      element.setAttribute("aria-label", place.name);
+      const dot = document.createElement("span");
+      dot.className = "travel-map-suggestion-dot";
+      dot.style.background = markerColor(place.type, typeColors);
+      element.append(dot);
+      element.dataset.suggestionId = place.id;
+      element.addEventListener("mouseenter", () => nearbyCallbacksRef.current?.onHoverSuggestion?.(place.id));
+      element.addEventListener("mouseleave", () => nearbyCallbacksRef.current?.onHoverSuggestion?.(null));
+      element.addEventListener("click", (event) => {
+        event.stopPropagation();
+        nearbyCallbacksRef.current?.onSelectSuggestion?.(place.id);
+      });
+      return new maplibregl.Marker({ element, anchor: "center" }).setLngLat([place.lng, place.lat]).addTo(map);
+    });
+    return () => {
+      for (const marker of markers) marker.remove();
+    };
+  }, [suggestions, typeColors]);
+
+  const hoveredSuggestionId = nearby?.hoveredSuggestionId ?? null;
+  useEffect(() => {
+    const container = mapRef.current?.getContainer();
+    if (!container) return;
+    for (const element of container.querySelectorAll<HTMLElement>("[data-suggestion-id]"))
+      element.classList.toggle("is-hovered", element.dataset.suggestionId === hoveredSuggestionId);
+  }, [hoveredSuggestionId, suggestions, typeColors]);
+
   const preview = previewItem && hasMapCoordinates(previewItem.location) ? previewItem : null;
   useEffect(() => {
     const map = mapRef.current;
@@ -564,7 +762,8 @@ export function MapLibreMap({
     );
     // Showing or clearing a preview pin reframes the day so the pin is seen in relation to its stops.
     const nextFit = `${fitKey ?? "items"}:${recenterToken}:${preview?.id ?? ""}`;
-    if (!map || lastFitRef.current === nextFit) return;
+    // The nearby circle owns the camera; lastFitRef stays stale so leaving nearby mode refits the items.
+    if (!map || hasNearby || lastFitRef.current === nextFit) return;
     const timer = window.setTimeout(() => {
       map.resize();
       if (!points.length) return;
@@ -593,7 +792,7 @@ export function MapLibreMap({
       });
     }, 140);
     return () => window.clearTimeout(timer);
-  }, [dimmedItemIds, fitKey, items, preview, recenterToken]);
+  }, [dimmedItemIds, fitKey, hasNearby, items, preview, recenterToken]);
 
   if (unsupported)
     return (

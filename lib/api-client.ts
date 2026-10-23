@@ -1,3 +1,4 @@
+import type { OsmElementType, PlaceDetails } from "@/lib/place-details";
 import type { RouteRequestLeg, RouteSlot } from "@/lib/routed-legs";
 import type {
   CreateExpenseInput,
@@ -105,6 +106,9 @@ export const api = {
         source: string;
       }[];
     }>(`/api/parking?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`, { signal }),
+  /** OpenStreetMap, Wikidata and Wikipedia details for one place; call only on a user click. */
+  placeDetails: (osmType: OsmElementType, osmId: number, signal?: AbortSignal) =>
+    request<PlaceDetails>(`/api/place-details?type=${osmType}&id=${osmId}`, { signal }),
   resolveMapsUrl: (url: string) =>
     request<{
       expandedUrl: string;

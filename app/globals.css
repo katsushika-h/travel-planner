@@ -267,6 +267,38 @@
     height: 44px;
   }
 }
+/* Nearby suggestion dots: smaller than stop pins, with a larger invisible hit area on touch screens. */
+.travel-map-suggestion {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+.travel-map-suggestion-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  border: 2px solid var(--surface, #fff);
+  box-shadow: 0 0 0 1px var(--ink, #000);
+  box-sizing: border-box;
+  transition:
+    width 120ms,
+    height 120ms;
+}
+.travel-map-suggestion.is-hovered {
+  z-index: 3;
+}
+.travel-map-suggestion.is-hovered .travel-map-suggestion-dot {
+  width: 18px;
+  height: 18px;
+}
+@media (pointer: coarse) {
+  .travel-map-suggestion {
+    width: 44px;
+    height: 44px;
+  }
+}
 .dark .travel-maplibre-map .maplibregl-ctrl-icon {
   filter: invert(1);
 }

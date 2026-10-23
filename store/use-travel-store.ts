@@ -16,7 +16,7 @@ export const plannerTabLabels: Record<PlannerTab, string> = {
   calendar: "Calendar",
   kanban: "Board",
   table: "Table",
-  map: "Map",
+  map: "Nearby",
   expenses: "Spend",
 };
 
