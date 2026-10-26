@@ -32,6 +32,7 @@ import { KanbanView } from "@/components/views/KanbanView";
 import { TripDaysView } from "@/components/views/TripDaysView";
 import { TableView } from "@/components/views/TableView";
 import { MapView } from "@/components/views/MapView";
+import { mapsSearchUrl } from "@/lib/nearby-places";
 import { ExpensesView } from "@/components/views/ExpensesView";
 import { useTripData } from "@/components/layout/useTripData";
 import { useItemActions } from "@/components/layout/useItemActions";
@@ -817,6 +818,14 @@ export function AppShell() {
                   items={events}
                   typeColors={eventTypeColors}
                   onSelect={inspectItem}
+                  onAddIdea={(place) =>
+                    void openCreateItem(undefined, undefined, place.type, place.name.slice(0, 100), undefined, {
+                      name: place.name.slice(0, 300),
+                      lat: place.lat,
+                      lng: place.lng,
+                      googleMapsUrl: mapsSearchUrl(place.lat, place.lng),
+                    })
+                  }
                 />
               )}
             </div>
@@ -862,7 +871,7 @@ export function AppShell() {
               },
               {
                 id: "places",
-                label: "Places",
+                label: "Nearby",
                 icon: MapIcon,
                 onClick: () => {
                   clearExpenseStart();

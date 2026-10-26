@@ -221,65 +221,21 @@
   border-left-color: #fafafa !important;
 }
 
-/* Leaflet theming: filter only the tile pane so markers, popups and attribution stay unfiltered. */
-.travel-leaflet-map {
-  background: var(--surface);
-  color: var(--muted-ink);
-  font-family: var(--font-sans);
-}
-.travel-leaflet-map .leaflet-tile-pane {
-  filter: var(--map-tile-filter);
-}
-.travel-leaflet-map .leaflet-control-attribution {
-  background: color-mix(in srgb, var(--background) 92%, transparent);
-  color: var(--muted-ink);
-  font-size: 11px;
-  padding: 2px 8px;
-}
-.travel-leaflet-map .leaflet-control-attribution a {
-  color: var(--ink);
-}
-.travel-leaflet-map .leaflet-bar {
-  border: 1px solid var(--ink);
-  border-radius: 0;
-  box-shadow: none;
-}
-.travel-leaflet-map .leaflet-bar a {
-  background: var(--background);
-  color: var(--ink);
-  border-bottom-color: var(--divider);
-  border-radius: 0 !important;
-}
-.travel-leaflet-map .leaflet-bar a:hover,
-.travel-leaflet-map .leaflet-bar a:focus-visible {
-  background: var(--surface);
-}
-.travel-leaflet-map .leaflet-popup-content-wrapper,
-.travel-leaflet-map .leaflet-popup-tip {
-  background: var(--panel);
-  color: var(--ink);
-  border-radius: 0;
-  box-shadow: 0 0 0 1px var(--divider);
-}
-.travel-leaflet-map .leaflet-popup-content {
-  font-family: var(--font-sans);
-  font-size: 13px;
-}
-.travel-leaflet-map .leaflet-container a.leaflet-popup-close-button,
-.travel-leaflet-map a.leaflet-popup-close-button {
-  color: var(--muted-ink);
-}
-/* MapLibre (3D map PoC): same control, popup and attribution look as Leaflet. */
+/* MapLibre map: Minimal UI controls, popup and attribution. */
 .travel-maplibre-map {
   background: var(--surface);
   color: var(--muted-ink);
   font-family: var(--font-sans);
 }
+/* Wraps within the 13rem that Plan's map notes leave free at the bottom right (PlanMap's max-w calc). */
 .travel-maplibre-map .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  max-width: 13rem;
   background: color-mix(in srgb, var(--background) 92%, transparent);
   color: var(--muted-ink);
   font-size: 11px;
+  line-height: 1.35;
   padding: 2px 8px;
+  text-align: right;
 }
 .travel-maplibre-map .maplibregl-ctrl-attrib a,
 .travel-maplibre-map .maplibregl-ctrl-attrib-inner {
@@ -297,6 +253,51 @@
 .travel-maplibre-map .maplibregl-ctrl-group button:hover,
 .travel-maplibre-map .maplibregl-ctrl-group button:focus-visible {
   background: var(--surface);
+}
+.travel-maplibre-map .travel-map-3d-toggle {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+/* Touch screens get the app's 44px targets; MapLibre's buttons are 29px. */
+@media (pointer: coarse) {
+  .travel-maplibre-map .maplibregl-ctrl-group button {
+    width: 44px;
+    height: 44px;
+  }
+}
+/* Nearby suggestion dots: smaller than stop pins, with a larger invisible hit area on touch screens. */
+.travel-map-suggestion {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+.travel-map-suggestion-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  border: 2px solid var(--surface, #fff);
+  box-shadow: 0 0 0 1px var(--ink, #000);
+  box-sizing: border-box;
+  transition:
+    width 120ms,
+    height 120ms;
+}
+.travel-map-suggestion.is-hovered {
+  z-index: 3;
+}
+.travel-map-suggestion.is-hovered .travel-map-suggestion-dot {
+  width: 18px;
+  height: 18px;
+}
+@media (pointer: coarse) {
+  .travel-map-suggestion {
+    width: 44px;
+    height: 44px;
+  }
 }
 .dark .travel-maplibre-map .maplibregl-ctrl-icon {
   filter: invert(1);

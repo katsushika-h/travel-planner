@@ -1,10 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { LeafletMapProps } from "../LeafletMap";
 import type { TravelObject, Trip } from "@/types/travel";
+import type { MapLeg, MapParkingMarker } from "../map-markers";
 
-const LeafletMap = dynamic(() => import("../LeafletMap").then((module) => module.LeafletMap), {
+const MapLibreMap = dynamic(() => import("../MapLibreMap").then((module) => module.MapLibreMap), {
   ssr: false,
   loading: () => <div className="grid flex-1 place-items-center text-sm text-muted">Loading map…</div>,
 });
@@ -46,35 +46,36 @@ export function PlanMap({
   onRecenter: () => void;
   onAddLink?: () => void;
   /** Routed leg lines to draw. */
-  legs?: LeafletMapProps["legs"];
+  legs?: MapLeg[];
   /** Saved car parks to mark with a "P". */
-  parkingMarkers?: LeafletMapProps["parkingMarkers"];
+  parkingMarkers?: MapParkingMarker[];
   /** A selected idea shown as a temporary pin. */
   previewItem?: TravelObject | null;
 }) {
   const note = "bg-background/90 px-2 py-1 text-xs text-muted";
+  const mapProps = {
+    trip,
+    items: mapped,
+    typeColors,
+    markerNumbers,
+    selectedItemId,
+    hoveredItemId,
+    onHover,
+    onSelect,
+    legs,
+    parkingMarkers,
+    previewItem,
+    fitKey: date,
+    recenterToken,
+    onUserMove,
+    className: "min-h-0 flex-1",
+  };
   return (
     <section
       aria-label={`Map of ${date}`}
       className="relative flex h-full min-h-72 w-full flex-col overflow-hidden bg-surface"
     >
-      <LeafletMap
-        trip={trip}
-        items={mapped}
-        typeColors={typeColors}
-        markerNumbers={markerNumbers}
-        selectedItemId={selectedItemId}
-        hoveredItemId={hoveredItemId}
-        onHover={onHover}
-        onSelect={onSelect}
-        legs={legs}
-        parkingMarkers={parkingMarkers}
-        previewItem={previewItem}
-        fitKey={date}
-        recenterToken={recenterToken}
-        onUserMove={onUserMove}
-        className="min-h-0 flex-1"
-      />
+      <MapLibreMap {...mapProps} />
       {(unmappedCount > 0 || mapMoved) && (
         <div className="pointer-events-none absolute bottom-3 left-3 z-[500] flex max-w-[calc(100%-13rem)] flex-wrap gap-2">
           {unmappedCount > 0 && (
