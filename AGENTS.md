@@ -8,7 +8,7 @@ Travel Planner is a single-user itinerary app built with Next.js 16, React 19, T
 
 - Inspect `git status` and preserve unrelated changes. Never reset or discard them without an explicit request.
 - Read this file, then search only relevant implementation, tests, and documentation. Check applicable records in `docs/decisions/` and overlapping work in `docs/work/` before substantial changes.
-- Read `docs/architecture.md` only when architectural context is needed. Read `docs/FEATURES.md` for backlog work, `docs/README.md` for original product intent, and `docs/HANDOFF_REPORT.md` for historical context only when relevant.
+- Read `docs/architecture.md` only when architectural context is needed. Read `docs/api.md` for HTTP endpoints and request rules, `docs/FEATURES.md` for backlog work, `docs/README.md` for original product intent, and `docs/HANDOFF_REPORT.md` for historical context only when relevant.
 - Prefer the smallest coherent change. Preserve behavior unless the task changes it; reuse existing patterns, avoid unrelated edits and one-use abstractions, and avoid unnecessary API, schema, or persisted-format changes. Add or update behavioral tests when behavior changes and a practical test seam exists.
 
 ## Code map
