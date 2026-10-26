@@ -1,6 +1,6 @@
 # 3D map proof of concept
 
-Status: Phase 3 implemented and verified (2026-10-23) on `feat/3d-map-poc`: Leaflet is replaced; both maps always use MapLibre (ADR 0011). Real-phone and real-Safari checks still open before shipping (skipped for now, user decision). Nearby suggestions (W8, E1) moved to a later recommendations feature (`docs/FEATURES.md`).
+Status: Complete (2026-10-23) on `feat/3d-map-poc`, ready for a PR to `main`. Leaflet is replaced; both maps always use MapLibre (ADR 0011). Real Safari confirmed by the user; the real-phone check was skipped (user decision). Nearby suggestions (W8, E1) moved to a later recommendations feature (`docs/FEATURES.md`).
 
 Goal: Prove that the Map tab (`components/views/MapView.tsx`) can run on a WebGL map that shows OpenStreetMap buildings as extruded 3D blocks, without losing anything the current Leaflet map does, so the user can decide whether to replace it.
 
@@ -140,7 +140,7 @@ Run one at a time, model `sonnet`. Branch `feat/3d-map-poc` from the tip of `cla
   - `npx next build --webpack` succeeds with the fit fix.
   - At 375px, the 2D/3D button shows on Places and on Plan's day map, a tap switches 3D to 2D, nothing overlaps, and there is no horizontal scroll.
   - Fixed: MapLibre's control buttons (zoom, compass, 2D/3D) were 29 px. On touch screens (`pointer: coarse`) they are now the app's 44 px targets.
-- Not checked: real Safari and a real phone.
+- Real Safari: confirmed working by the user (2026-10-23). Real phone: skipped (user decision, 2026-10-23).
 
 ### W8 (moved to the recommendations feature) Nearby suggestions from the tiles' POI layer
 
@@ -306,4 +306,4 @@ Options: replace Leaflet on the Map tab (and later Plan), keep 3D as an optional
 
 ## Next step
 
-Phase 3 is done. Before shipping: the real-phone and real-Safari checks, then a PR from `feat/3d-map-poc` to `main`. The deployment needs the app image rebuilt (no migration change, so the migrator image is unchanged).
+Open a PR from `feat/3d-map-poc` to `main`. To deploy, rebuild only the app image (no migration changes).

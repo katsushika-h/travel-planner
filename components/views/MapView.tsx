@@ -1,9 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { api } from "@/lib/api-client";
-import { currentTime } from "@/components/layout/useNow";
 import { dayIndexForDate } from "@/lib/date-utils";
 import { hasMapCoordinates } from "@/lib/map-coordinates";
 import {
@@ -15,7 +14,6 @@ import {
 } from "@/lib/nearby-places";
 import { mapsNameSearchUrl, type PlaceDetails } from "@/lib/place-details";
 import { sortDayDisplayItems } from "@/lib/schedule-order";
-import { isTripInProgress, todayDate, todayTimeline } from "@/lib/today";
 import { estimateWalk, formatDistance, haversineMeters } from "@/lib/travel-legs";
 import type { TravelObject, Trip } from "@/types/travel";
 import type { MapSuggestion, NearbyFeatureLike } from "./MapLibreMap";
@@ -41,6 +39,13 @@ function dayLabel(date: string) {
     month: "short",
     day: "numeric",
   }).format(new Date(`${date}T12:00:00Z`));
+}
+
+/** Compact phone label such as "Sun 29", without the month. */
+function shortDayLabel(date: string) {
+  return new Intl.DateTimeFormat(undefined, { timeZone: "UTC", weekday: "short", day: "numeric" }).format(
+    new Date(`${date}T12:00:00Z`),
+  );
 }
 
 function walkMinutes(seconds: number) {
@@ -154,21 +159,6 @@ function PlaceDetailsPanel({
 
 type Report = { features: NearbyFeatureLike[]; zoom: number; circleInView: boolean };
 
-/** Today's next mapped stop while the trip is under way, else the earliest day's first mapped stop, else none. */
-function defaultAnchorId(trip: Trip, items: readonly TravelObject[], mapped: readonly TravelObject[]) {
-  const mappedIds = new Set(mapped.map((item) => item.id));
-  const now = currentTime();
-  if (isTripInProgress(trip, now)) {
-    const date = todayDate(trip, now);
-    const timeline = todayTimeline(items, date, now, trip.timezone);
-    const upcoming = [timeline.next, ...timeline.upcoming].find((stop) => stop && mappedIds.has(stop.item.id));
-    if (upcoming) return upcoming.item.id;
-  }
-  const dates = [...new Set(mapped.filter((item) => item.date).map((item) => item.date!.slice(0, 10)))].sort();
-  if (!dates.length) return CENTRE;
-  return sortDayDisplayItems(mapped.filter((item) => item.date?.slice(0, 10) === dates[0]))[0].id;
-}
-
 export function MapView({
   trip,
   items,
@@ -183,18 +173,16 @@ export function MapView({
   onAddIdea: (place: NearbyPlace) => void;
 }) {
   const mappedItems = useMemo(() => items.filter((item) => hasMapCoordinates(item.location)), [items]);
-  const [initialAnchor] = useState(() => defaultAnchorId(trip, items, mappedItems));
-  const [anchorChoice, setAnchorChoice] = useState<string | null>(null);
+  const [selectedDates, setSelectedDates] = useState<Set<string>>(() => new Set());
+  // null = browse; CENTRE = searching around the map centre; otherwise the id of the picked pin.
+  const [anchorId, setAnchorId] = useState<string | null>(null);
   const [radius, setRadius] = useState<number>(NEARBY_RADIUS.default);
   const [appliedRadius, setAppliedRadius] = useState<number>(NEARBY_RADIUS.default);
   const [category, setCategory] = useState<NearbyCategory>("food");
   const [report, setReport] = useState<Report | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
-  const firstMapped = mappedItems[0]?.location;
-  const [centreAnchor, setCentreAnchor] = useState<{ lat: number; lng: number } | null>(
-    firstMapped ? { lat: firstMapped.lat!, lng: firstMapped.lng! } : null,
-  );
+  const [centreAnchor, setCentreAnchor] = useState<{ lat: number; lng: number } | null>(null);
   const latestCentre = useRef<{ lat: number; lng: number } | null>(null);
   const radiusTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const listRef = useRef<HTMLUListElement>(null);
@@ -206,48 +194,57 @@ export function MapView({
 
   useEffect(() => () => clearTimeout(radiusTimer.current), []);
 
-  const anchorId = anchorChoice ?? initialAnchor;
-  const anchorItem = anchorId === CENTRE ? null : (mappedItems.find((item) => item.id === anchorId) ?? null);
-  const centreMode = anchorItem === null;
-  const anchorLat = anchorItem?.location?.lat;
-  const anchorLng = anchorItem?.location?.lng;
-  const anchor = useMemo(
-    () => (anchorLat != null && anchorLng != null ? { lat: anchorLat, lng: anchorLng } : centreAnchor),
-    [anchorLat, anchorLng, centreAnchor],
-  );
-
-  const groups = useMemo(() => {
-    const byDate = new Map<string, TravelObject[]>();
-    const ideas: TravelObject[] = [];
+  const days = useMemo(() => {
+    const counts = new Map<string, number>();
     for (const item of mappedItems) {
-      if (!item.date) ideas.push(item);
-      else byDate.set(item.date.slice(0, 10), [...(byDate.get(item.date.slice(0, 10)) ?? []), item]);
+      if (!item.date) continue;
+      const date = item.date.slice(0, 10);
+      counts.set(date, (counts.get(date) ?? 0) + 1);
     }
-    return {
-      days: [...byDate]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([date, list]) => ({
-          date,
-          label: `${dayIndexForDate(date, trip.startDate) > 0 ? `Day ${dayIndexForDate(date, trip.startDate)} · ` : ""}${dayLabel(date)}`,
-          items: sortDayDisplayItems(list),
-        })),
-      ideas,
-    };
-  }, [mappedItems, trip.startDate]);
-
+    return [...counts].sort(([left], [right]) => left.localeCompare(right));
+  }, [mappedItems]);
+  const availableDates = useMemo(() => new Set(days.map(([date]) => date)), [days]);
+  const activeDates = useMemo(
+    () => new Set([...selectedDates].filter((date) => availableDates.has(date))),
+    [availableDates, selectedDates],
+  );
+  const dimmedItemIds = useMemo(
+    () =>
+      activeDates.size
+        ? new Set(
+            mappedItems.filter((item) => !item.date || !activeDates.has(item.date.slice(0, 10))).map((item) => item.id),
+          )
+        : new Set<string>(),
+    [activeDates, mappedItems],
+  );
+  // One selected day numbers its stops in display order; otherwise a pin shows its trip day.
   const markerNumbers = useMemo(() => {
     const numbers = new Map<string, number>();
+    if (activeDates.size === 1) {
+      const [date] = activeDates;
+      sortDayDisplayItems(mappedItems.filter((item) => item.date?.slice(0, 10) === date)).forEach((item, index) =>
+        numbers.set(item.id, index + 1),
+      );
+      return numbers;
+    }
     for (const item of mappedItems) {
       if (!item.date) continue;
       const dayNumber = dayIndexForDate(item.date.slice(0, 10), trip.startDate);
       if (dayNumber > 0) numbers.set(item.id, dayNumber);
     }
     return numbers;
-  }, [mappedItems, trip.startDate]);
-  const dimmedItemIds = useMemo(
-    () => new Set(anchorItem ? mappedItems.filter((item) => item.id !== anchorItem.id).map((item) => item.id) : []),
-    [anchorItem, mappedItems],
-  );
+  }, [activeDates, mappedItems, trip.startDate]);
+  const unmappedCount = items.length - mappedItems.length;
+
+  const centreMode = anchorId === CENTRE;
+  const anchorItem =
+    anchorId === null || centreMode ? null : (mappedItems.find((item) => item.id === anchorId) ?? null);
+  const searching = centreMode || anchorItem !== null;
+  const itemAnchor = useMemo(() => {
+    const location = mappedItems.find((item) => item.id === anchorId)?.location;
+    return location?.lat != null && location.lng != null ? { lat: location.lat, lng: location.lng } : null;
+  }, [anchorId, mappedItems]);
+  const anchor = centreMode ? centreAnchor : itemAnchor;
 
   const places = useMemo(
     () =>
@@ -314,10 +311,39 @@ export function MapView({
     [centreMode],
   );
 
-  function changeAnchor(value: string) {
-    setAnchorChoice(value);
+  function changeAnchor(value: string | null) {
+    setAnchorId(value);
+    setExpandedId(null);
     setSelectedPlaceId(null);
+    setHoveredId(null);
+    setFailedKey(null);
     if (value === CENTRE && latestCentre.current) setCentreAnchor(latestCentre.current);
+  }
+
+  function openAnchorDetails() {
+    const item = items.find((candidate) => candidate.id === anchorId);
+    if (item) onSelect(item);
+  }
+
+  function pickPin(item: TravelObject) {
+    if (item.id !== anchorId) changeAnchor(item.id);
+  }
+
+  function filterDay(date: string, event: MouseEvent<HTMLButtonElement>) {
+    if (searching) changeAnchor(null);
+    setSelectedDates((current) => {
+      if (!event.shiftKey && !window.matchMedia("(max-width: 639px)").matches)
+        return current.size === 1 && current.has(date) ? new Set() : new Set([date]);
+      const next = new Set(current);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  }
+
+  function showAllDays() {
+    if (searching) changeAnchor(null);
+    setSelectedDates(new Set());
   }
 
   function changeRadius(value: number) {
@@ -329,176 +355,141 @@ export function MapView({
   const categoryLabel = NEARBY_CATEGORIES.find((entry) => entry.id === category)!.label.toLowerCase();
   const radiusText = `${appliedRadius} m`;
   let status: string | null = null;
-  if (!report) status = "Looking for places…";
+  if (!report || !anchor) status = "Looking for places…";
   else if (report.zoom < MIN_ZOOM || report.features.length === 0) status = "Zoom in to see nearby places";
 
-  const selectClass =
-    "block min-h-11 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-2 text-sm text-foreground outline-none focus:border-foreground sm:min-h-9";
   const labelClass = "text-xs font-medium uppercase tracking-wide text-muted";
+  const allActive = activeDates.size === 0;
+  // Browse: on phones each row is a 44px touch target around a 32px pill; from sm up the pill is `display: contents`,
+  // so the desktop grid is a list. Search: the pills row at every width.
+  const rowBase = searching
+    ? "flex min-h-11 shrink-0 items-center text-left transition-colors"
+    : "grid items-baseline text-left transition-colors hover:bg-surface max-sm:flex max-sm:min-h-11 max-sm:shrink-0 max-sm:items-center sm:min-h-14 sm:grid-cols-[52px_minmax(0,1fr)_auto] sm:gap-x-3 sm:border-b sm:border-divider sm:py-3";
+  const pillClass = (active: boolean) =>
+    `${searching ? "flex h-8 items-center gap-x-2 whitespace-nowrap rounded-full border px-3" : "max-sm:flex max-sm:h-8 max-sm:items-center max-sm:gap-x-2 max-sm:whitespace-nowrap max-sm:rounded-full max-sm:border max-sm:px-3 sm:contents"} ${active ? (searching ? "border-ink" : "max-sm:border-ink") : searching ? "border-divider" : "max-sm:border-divider"}`;
+  const hide = searching ? "hidden" : "max-sm:hidden";
+
+  const anchorNumber = anchorItem ? markerNumbers.get(anchorItem.id) : undefined;
+  const anchorDayNumber = anchorItem?.date ? dayIndexForDate(anchorItem.date.slice(0, 10), trip.startDate) : 0;
+  const anchorWhen = anchorItem
+    ? anchorItem.date
+      ? `${anchorDayNumber > 0 ? `Day ${anchorDayNumber} · ` : ""}${dayLabel(anchorItem.date.slice(0, 10))}`
+      : "Idea"
+    : "Moves with the map";
+  const anchorTitle = anchorItem ? anchorItem.title || "Untitled item" : "Map centre";
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-4 pb-4 pt-4 max-sm:gap-2 max-sm:pb-0 max-sm:pt-2 sm:flex-row sm:gap-12 sm:px-12 sm:pb-8 sm:pt-6"
+      className={`flex min-h-0 flex-1 flex-col gap-4 px-4 pb-4 pt-4 max-sm:gap-2 max-sm:pb-0 max-sm:pt-2 sm:grid sm:grid-cols-[18rem_minmax(0,1fr)] sm:gap-x-12 sm:gap-y-0 sm:overflow-hidden sm:px-12 sm:pb-8 sm:pt-6 lg:grid-cols-[20rem_minmax(0,1fr)] ${searching ? "overflow-hidden sm:grid-rows-[auto_minmax(0,1fr)]" : "overflow-y-auto sm:grid-rows-[minmax(0,1fr)_auto]"}`}
       aria-label="Nearby places"
     >
-      <div className="flex min-h-0 shrink-0 flex-col max-sm:order-2 max-sm:flex-[55_1_0%] max-sm:overflow-y-auto sm:w-72 lg:w-80">
+      <nav
+        aria-label="Filter map by day"
+        className="flex min-w-0 shrink-0 flex-col max-sm:order-1 sm:col-start-1 sm:row-start-1 sm:min-h-0"
+      >
         <h1 className="hidden text-[22px] font-medium tracking-tight sm:mb-4 sm:block">Nearby</h1>
-        <div className="flex flex-col gap-4 max-sm:gap-3 sm:border-t sm:border-foreground sm:pt-4">
-          <label className="block">
-            <span className={labelClass}>Around</span>
-            <select value={anchorId} onChange={(event) => changeAnchor(event.target.value)} className={selectClass}>
-              <option value={CENTRE}>Map centre</option>
-              {groups.days.map((group) => (
-                <optgroup key={group.date} label={group.label}>
-                  {group.items.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.title}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-              {groups.ideas.length > 0 && (
-                <optgroup label="Ideas">
-                  {groups.ideas.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.title}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-            {!mappedItems.length && (
-              <span className="mt-1 block text-xs leading-relaxed text-muted">
-                Add a Google Maps link with coordinates to an item to search around it.
-              </span>
-            )}
-          </label>
-          <div>
-            <label htmlFor="nearby-radius" className="flex items-baseline justify-between gap-2">
-              <span className={labelClass}>Radius</span>
-              <span className="text-xs text-muted">
-                {radius} m · about {walkMinutes(estimateWalk(radius).seconds)} min walk
-              </span>
-            </label>
-            <input
-              id="nearby-radius"
-              type="range"
-              min={NEARBY_RADIUS.min}
-              max={NEARBY_RADIUS.max}
-              step={NEARBY_RADIUS.step}
-              value={radius}
-              onChange={(event) => changeRadius(Number(event.target.value))}
-              className="block h-11 w-full accent-foreground sm:h-7"
-            />
+        {mappedItems.length === 0 ? (
+          <div className="py-2 sm:border-t sm:border-foreground sm:pt-4">
+            <p className="text-sm font-medium">No locations to map yet</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              Paste a Google Maps link containing coordinates into an item. Links without embedded coordinates stay
+              saved but cannot appear on this map.
+            </p>
           </div>
-          <div role="group" aria-label="Category" className="grid grid-cols-3 border border-divider">
-            {NEARBY_CATEGORIES.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                aria-pressed={category === entry.id}
-                onClick={() => setCategory(entry.id)}
-                className={`min-h-11 text-sm transition-colors hover:bg-surface sm:min-h-9 ${category === entry.id ? "bg-surface font-semibold text-foreground shadow-[inset_0_-2px_0_var(--accent)]" : "text-muted"}`}
-              >
-                {entry.label}
+        ) : (
+          <>
+            <div
+              className={`flex gap-2 overflow-x-auto pb-1 ${searching ? "sm:mb-3" : "sm:flex-col sm:gap-0 sm:overflow-y-auto sm:border-t sm:border-foreground sm:pb-0"}`}
+            >
+              <button type="button" aria-pressed={allActive} onClick={showAllDays} className={rowBase}>
+                <span className={pillClass(allActive)}>
+                  <span className={`font-mono text-lg font-light ${hide} ${allActive ? "text-accent" : "text-faint"}`}>
+                    —
+                  </span>
+                  <span className="flex flex-col gap-0.5">
+                    <span
+                      className={`text-[15px] max-sm:text-[13px] ${searching ? "text-[13px]" : ""} ${allActive ? "font-semibold" : ""}`}
+                    >
+                      All days
+                    </span>
+                    <span className={`text-xs text-muted ${hide}`}>{trip.title}</span>
+                  </span>
+                  <span className="font-mono text-xs text-muted">{mappedItems.length}</span>
+                </span>
               </button>
-            ))}
-          </div>
-        </div>
-        <div className="mt-4 flex flex-col sm:min-h-0 sm:flex-1">
-          {status ? (
-            <p className="py-3 text-sm text-muted">{status}</p>
-          ) : (
-            <>
-              {places.length === 0 ? (
-                <p className="py-3 text-sm text-muted">
-                  No {categoryLabel} within {radiusText}.{appliedRadius < NEARBY_RADIUS.max && " Try a wider radius."}
+              {days.map(([date, count]) => {
+                const dayNumber = dayIndexForDate(date, trip.startDate);
+                const active = activeDates.has(date);
+                return (
+                  <button
+                    key={date}
+                    type="button"
+                    aria-pressed={active}
+                    title={`${count} mapped ${count === 1 ? "item" : "items"}`}
+                    onClick={(event) => filterDay(date, event)}
+                    className={rowBase}
+                  >
+                    <span className={pillClass(active)}>
+                      <span className={`font-mono text-lg font-light ${hide} ${active ? "text-accent" : "text-faint"}`}>
+                        {dayNumber > 0 ? String(dayNumber).padStart(2, "0") : "·"}
+                      </span>
+                      <span className="flex flex-col gap-0.5">
+                        <span
+                          className={`text-[15px] max-sm:text-[13px] ${searching ? "text-[13px]" : ""} ${active ? "font-semibold" : ""}`}
+                        >
+                          <span className={searching ? "" : "sm:hidden"}>
+                            {dayNumber > 0 ? `${dayNumber} ` : ""}
+                            {shortDayLabel(date)}
+                          </span>
+                          <span className={searching ? "hidden" : "max-sm:hidden"}>{dayLabel(date)}</span>
+                        </span>
+                        <span className={`text-xs text-muted ${hide}`}>
+                          {count} {count === 1 ? "stop" : "stops"}
+                        </span>
+                      </span>
+                      <span className="font-mono text-xs text-muted">{count}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {!searching && (
+              <>
+                <p className="mt-4 text-[13px] leading-normal text-muted max-sm:hidden">
+                  Picking a day fits the map to its stops.
+                  <span className="hidden sm:inline"> Shift-click to select several days.</span>
+                  {unmappedCount > 0 &&
+                    ` ${unmappedCount} ${unmappedCount === 1 ? "item has" : "items have"} no location and ${unmappedCount === 1 ? "isn't" : "aren't"} shown.`}
                 </p>
-              ) : (
-                <ul ref={listRef} className="border-t border-divider sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
-                  {shown.map((place) => {
-                    const active = hoveredId === place.id || selectedPlaceId === place.id;
-                    const expanded = expandedId === place.id;
-                    const key = place.osm ? `${place.osm.osmType}/${place.osm.osmId}` : null;
-                    const cached = key ? (detailsCache.get(key) ?? null) : null;
-                    const rowStatus = cached || !key ? null : failedKey === key ? "error" : "loading";
-                    return (
-                      <li
-                        key={place.id}
-                        data-place-id={place.id}
-                        onMouseEnter={() => setHoveredId(place.id)}
-                        onMouseLeave={() => setHoveredId(null)}
-                        className={`border-b border-divider transition-colors ${active ? "bg-surface" : ""}`}
-                      >
-                        <div className="flex items-center gap-2 py-2">
-                          <button
-                            type="button"
-                            aria-expanded={expanded}
-                            onClick={() => {
-                              setExpandedId(expanded ? null : place.id);
-                              if (!expanded) {
-                                setFailedKey(null);
-                                setSelectedPlaceId(place.id);
-                              }
-                            }}
-                            className="min-h-11 min-w-0 flex-1 text-left sm:min-h-9"
-                          >
-                            <span className="block truncate text-sm font-medium">{place.name}</span>
-                            <span className="block truncate text-xs text-muted">
-                              {place.subclass.replace(/_/g, " ")} · {formatDistance(place.meters)} ·{" "}
-                              {walkMinutes(place.walkSeconds)} min walk
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onAddIdea(place)}
-                            aria-label={`Add ${place.name} as an idea`}
-                            className="min-h-11 shrink-0 border border-divider px-3 text-xs hover:bg-surface sm:min-h-8"
-                          >
-                            + Idea
-                          </button>
-                        </div>
-                        {expanded && (
-                          <PlaceDetailsPanel
-                            place={place}
-                            details={cached}
-                            status={rowStatus}
-                            onRetry={() => {
-                              setFailedKey(null);
-                              setAttempt((count) => count + 1);
-                            }}
-                          />
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              {report && !report.circleInView && (
-                <p className="mt-2 text-xs text-muted">
-                  Part of the radius is off screen, so some places may be missing.
-                </p>
-              )}
-            </>
-          )}
-          <p className="mt-3 pb-3 text-xs text-muted sm:pb-0">
-            From OpenStreetMap. No ratings or opening hours; coverage varies.
-          </p>
-        </div>
-      </div>
-      <div className="flex min-h-[320px] min-w-0 flex-1 flex-col bg-surface max-sm:order-1 max-sm:min-h-0 max-sm:flex-[45_1_0%] sm:min-h-0">
+                {unmappedCount > 0 && (
+                  <p
+                    className="mt-2 w-fit rounded-full border border-divider px-3 py-1 text-xs text-muted sm:hidden"
+                    title={`${unmappedCount} ${unmappedCount === 1 ? "item has" : "items have"} no location and ${unmappedCount === 1 ? "isn't" : "aren't"} shown on the map.`}
+                  >
+                    {unmappedCount} without location
+                  </p>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </nav>
+      <div
+        className={`flex min-h-0 min-w-0 flex-col bg-surface max-sm:order-2 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:min-h-0 ${searching ? "min-h-[320px] max-sm:min-h-0 max-sm:flex-[45_1_0%]" : "min-h-[320px] flex-1"}`}
+      >
         <MapLibreMap
           key={trip.id}
           trip={trip}
           items={mappedItems}
           typeColors={typeColors}
           onSelect={onSelect}
+          onMarkerClick={pickPin}
           markerNumbers={markerNumbers}
           selectedItemId={anchorItem?.id ?? null}
           dimmedItemIds={dimmedItemIds}
-          fitKey="nearby"
+          fitKey={[...activeDates].sort().join(",") || "all"}
           nearby={
-            anchor
+            searching && anchor
               ? {
                   anchor,
                   radiusMeters: appliedRadius,
@@ -514,6 +505,168 @@ export function MapView({
           className="min-h-[360px] flex-1 max-sm:min-h-0"
         />
       </div>
+      {!searching ? (
+        <div className="shrink-0 max-sm:order-3 max-sm:pb-3 sm:col-start-1 sm:row-start-2 sm:mt-4">
+          {mappedItems.length > 0 && (
+            <p className="text-[13px] leading-normal text-muted">Pick a pin on the map to find places near it.</p>
+          )}
+          <button
+            type="button"
+            onClick={() => changeAnchor(CENTRE)}
+            className="inline-flex min-h-11 items-center text-[13px] underline underline-offset-2 hover:text-foreground sm:min-h-8"
+          >
+            Search around the map centre
+          </button>
+        </div>
+      ) : (
+        <div className="flex min-h-0 shrink-0 flex-col max-sm:order-3 max-sm:flex-[55_1_0%] max-sm:overflow-y-auto sm:col-start-1 sm:row-start-2">
+          <div className="flex flex-col gap-4 max-sm:gap-3 sm:border-t sm:border-foreground sm:pt-4">
+            <div>
+              <span className={labelClass}>Around</span>
+              <div className="flex items-center gap-3 border-b border-divider py-2">
+                <span
+                  aria-hidden="true"
+                  className="grid size-7 shrink-0 place-items-center rounded-full border-2 border-accent font-mono text-xs"
+                >
+                  {anchorItem ? (anchorNumber ?? "·") : <span className="size-1.5 rounded-full bg-accent" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{anchorTitle}</p>
+                  <p className="truncate text-xs text-muted">{anchorWhen}</p>
+                </div>
+                {anchorItem && (
+                  <button
+                    type="button"
+                    onClick={openAnchorDetails}
+                    className="min-h-11 shrink-0 border border-divider px-3 text-xs hover:bg-surface sm:min-h-8"
+                  >
+                    Details
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => changeAnchor(null)}
+                  aria-label={`Stop searching around ${anchorItem ? anchorTitle : "the map centre"}`}
+                  className="grid size-11 shrink-0 place-items-center text-lg leading-none text-muted hover:bg-surface hover:text-foreground sm:size-8"
+                >
+                  <span aria-hidden="true">×</span>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label htmlFor="nearby-radius" className="flex items-baseline justify-between gap-2">
+                <span className={labelClass}>Radius</span>
+                <span className="text-xs text-muted">
+                  {radius} m · about {walkMinutes(estimateWalk(radius).seconds)} min walk
+                </span>
+              </label>
+              <input
+                id="nearby-radius"
+                type="range"
+                min={NEARBY_RADIUS.min}
+                max={NEARBY_RADIUS.max}
+                step={NEARBY_RADIUS.step}
+                value={radius}
+                onChange={(event) => changeRadius(Number(event.target.value))}
+                className="block h-11 w-full accent-foreground sm:h-7"
+              />
+            </div>
+            <div role="group" aria-label="Category" className="grid grid-cols-3 border border-divider">
+              {NEARBY_CATEGORIES.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  aria-pressed={category === entry.id}
+                  onClick={() => setCategory(entry.id)}
+                  className={`min-h-11 text-sm transition-colors hover:bg-surface sm:min-h-9 ${category === entry.id ? "bg-surface font-semibold text-foreground shadow-[inset_0_-2px_0_var(--accent)]" : "text-muted"}`}
+                >
+                  {entry.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4 flex flex-col sm:min-h-0 sm:flex-1">
+            {status ? (
+              <p className="py-3 text-sm text-muted">{status}</p>
+            ) : (
+              <>
+                {places.length === 0 ? (
+                  <p className="py-3 text-sm text-muted">
+                    No {categoryLabel} within {radiusText}.{appliedRadius < NEARBY_RADIUS.max && " Try a wider radius."}
+                  </p>
+                ) : (
+                  <ul ref={listRef} className="border-t border-divider sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
+                    {shown.map((place) => {
+                      const active = hoveredId === place.id || selectedPlaceId === place.id;
+                      const expanded = expandedId === place.id;
+                      const key = place.osm ? `${place.osm.osmType}/${place.osm.osmId}` : null;
+                      const cached = key ? (detailsCache.get(key) ?? null) : null;
+                      const rowStatus = cached || !key ? null : failedKey === key ? "error" : "loading";
+                      return (
+                        <li
+                          key={place.id}
+                          data-place-id={place.id}
+                          onMouseEnter={() => setHoveredId(place.id)}
+                          onMouseLeave={() => setHoveredId(null)}
+                          className={`border-b border-divider transition-colors ${active ? "bg-surface" : ""}`}
+                        >
+                          <div className="flex items-center gap-2 py-2">
+                            <button
+                              type="button"
+                              aria-expanded={expanded}
+                              onClick={() => {
+                                setExpandedId(expanded ? null : place.id);
+                                if (!expanded) {
+                                  setFailedKey(null);
+                                  setSelectedPlaceId(place.id);
+                                }
+                              }}
+                              className="min-h-11 min-w-0 flex-1 text-left sm:min-h-9"
+                            >
+                              <span className="block truncate text-sm font-medium">{place.name}</span>
+                              <span className="block truncate text-xs text-muted">
+                                {place.subclass.replace(/_/g, " ")} · {formatDistance(place.meters)} ·{" "}
+                                {walkMinutes(place.walkSeconds)} min walk
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onAddIdea(place)}
+                              aria-label={`Add ${place.name} as an idea`}
+                              className="min-h-11 shrink-0 border border-divider px-3 text-xs hover:bg-surface sm:min-h-8"
+                            >
+                              + Idea
+                            </button>
+                          </div>
+                          {expanded && (
+                            <PlaceDetailsPanel
+                              place={place}
+                              details={cached}
+                              status={rowStatus}
+                              onRetry={() => {
+                                setFailedKey(null);
+                                setAttempt((count) => count + 1);
+                              }}
+                            />
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {report && !report.circleInView && (
+                  <p className="mt-2 text-xs text-muted">
+                    Part of the radius is off screen, so some places may be missing.
+                  </p>
+                )}
+              </>
+            )}
+            <p className="mt-3 pb-3 text-xs text-muted sm:pb-0">
+              From OpenStreetMap. No ratings or opening hours; coverage varies.
+            </p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

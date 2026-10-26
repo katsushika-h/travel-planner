@@ -24,14 +24,14 @@ Out of scope for phase 1: Overpass "Search more" (phase 2), querying off-screen 
 
 Mockup: shown in the planning conversation (2026-10-23); the layout below is its description.
 
-- **Desktop:** left rail (same width as the old day list) above the map:
-  - **Around:** a picker of mapped trip stops grouped by day, plus "Map centre". Default: today's next stop if the trip is running, otherwise the first mapped stop.
+- **Browse (initial):** the Map tab's day list as before (All days and one row per day; shift-click selects several days on desktop; pills on phones). Picking days dims the others and fits their stops. A hint says "Pick a pin on the map to find places near it", with a "Search around the map centre" button. (User decision 2026-10-23: the "Around" dropdown was clunky, so the day list is back and a pin click picks the anchor.)
+- **Search:** clicking any trip pin (dimmed ones included) makes it the anchor. The day list shrinks to a pills row; picking a day there returns to Browse. An "Around" card shows the pin's number, title and day, with "Details" (opens the inspector) and × (back to Browse, refitting the day). Below it:
   - **Radius:** a slider with its value ("500 m · about 7 min walk").
   - **Category:** Food / Sights / Transit segmented switch.
   - **Results:** rows with name, kind (OSM subclass), distance and walk minutes, and a "+ Idea" button. A saved idea is a trip item, so it drops out of the list by name or proximity; that is the "added" feedback.
   - **Footer:** "From OpenStreetMap. No ratings or opening hours; coverage varies."
 - **Map:** the anchor stop pin highlighted, other trip stops dimmed, a dashed radius ring in `--accent`, and suggestion pins as small dots in the item-type colour. Hovering a row enlarges its pin and vice versa; clicking a pin scrolls to and highlights its row.
-- **Phone:** map on top, a sheet below with the anchor, slider, category chips and list.
+- **Phone:** day pills, then the map, then the hint (Browse) or the card, controls and list (Search).
 - **Empty and partial states:** "Zoom in to see nearby places" when the map is below zoom 14; "Part of the radius is off screen, so some places may be missing" when the circle does not fit the view; "No food within 500 m" with a hint to widen the radius.
 
 ## Workstreams
@@ -72,7 +72,7 @@ Contract: `lib/place-details.ts` (`PlaceDetails`, `decodeTileFeatureId`, `mapsNa
 - N1: ids are `class:name:lat5,lng5`, so they stay stable across idle reports; `walkSeconds` comes from `estimateWalk` and includes its 1.3 detour factor.
 - N2: the ring is re-added on every `style.load` (theme switch, raster fallback) under `building-3d`; suggestion dots are DOM markers rebuilt only when the `suggestions` array changes, so the view must keep it referentially stable. The `fitKey` fit is skipped while `nearby` is set.
 
-- N3: the default anchor is picked once per trip (today's next mapped stop while the trip runs, else the first mapped stop of the earliest day, else Map centre). Map centre mode uses the reported centre with `fit: false` and moves the anchor only after the centre moves 25 m. "Zoom in to see nearby places" covers both zoom below 14 and a viewport with no POI features (the raster fallback cannot be told apart from an empty area). The anchor stop is passed as `selectedItemId`, so its popup opens as on Plan.
+- N3 (superseded by the day menu): the anchor was a dropdown with a today-based default. Map centre mode uses the reported centre with `fit: false` and moves the anchor only after the centre moves 25 m. "Zoom in to see nearby places" covers both zoom below 14 and a viewport with no POI features (the raster fallback cannot be told apart from an empty area). The anchor stop is passed as `selectedItemId`, so its popup opens as on Plan.
 - "+ Idea" saves the place at once (`openCreateItem` creates the item and opens it in the inspector); it is not a draft form.
 - At zoom 14 a phone-width map fits about a 500 m radius; above that the "off screen" note shows.
 
@@ -96,6 +96,7 @@ Results (2026-10-23, `Codex Mobile UI QA` trip, Higashiyama):
 - Desktop, dark: the ring, 50 food dots and the list load a few seconds after tiles arrive ("Looking for places…" until then). Sights at 1000 m refit the map; parks use the activity colour. "+ Idea" on "Kyoto Lookout" saved an undated Sightseeing idea with its pin and Open in Maps link, and the row left the list.
 - Phone (375 px), light: map above, controls and list below, no horizontal scroll; the "off screen" note shows at 1000 m. Fixed: the list collapsed under the footer because of `min-h-0` on phones.
 - Place details: Maruyama Park expanded with its English name, Wikidata description, Wikipedia extract and thumbnail, credit, website, Maps and OSM links; a fast-food place opened from its map dot showed its English name and links only. Both lookups returned 200; the expanded row fits 375 px with no horizontal scroll. `npm run check` (274 tests) and the webpack build pass.
+- Day menu and pin picking (2026-10-23): desktop dark, Sun 29 Nov fits its four stops; clicking pin 2 anchors "Kyoto arrival" with results; × returns to the day fit. Phone light: day pills, map and hint; tapping a pin anchors it with the card at 375 px and no horizontal scroll. A stop marker click on the Nearby map calls `onMarkerClick`; Plan's map is unchanged.
 - Not checked: a real phone; Map centre mode by panning; the Retry state.
 - The ring is faint in dark mode over dark tiles; acceptable for now.
 

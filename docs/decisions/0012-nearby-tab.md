@@ -6,7 +6,7 @@
 
 **Decision:**
 
-- The Map tab is relabelled "Nearby" and lists places of one category (food, sights, transit) within an adjustable radius (200–1000 m, default 500 m) of a chosen stop or the map centre. Its whole-trip overview is removed.
+- The Map tab is relabelled "Nearby" and lists places of one category (food, sights, transit) within an adjustable radius (200–1000 m, default 500 m) of a trip pin picked on the map, or of the map centre. The day list stays for browsing; picking a pin switches it to search.
 - Places come from the tiles' OpenMapTiles `poi` layer through `querySourceFeatures`, with no new API, key or request. Results are sorted nearest first; matching, de-duplication and sorting live in `lib/nearby-places.ts`.
 - Adding a place saves it at once as an undated idea, with its coordinates and a Google Maps search link built from them, and opens it in the inspector.
 - The internal tab key stays `"map"`, so persisted tab state is unchanged.

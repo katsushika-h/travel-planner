@@ -390,6 +390,8 @@ export interface MapLibreMapProps {
   items: TravelObject[];
   typeColors: Record<string, string>;
   onSelect: (item: TravelObject) => void;
+  /** Replaces `onSelect` for clicks on a stop's pin; the popup's "Open details" button still calls `onSelect`. */
+  onMarkerClick?: (item: TravelObject) => void;
   markerNumbers?: ReadonlyMap<string, number>;
   selectedItemId?: string | null;
   hoveredItemId?: string | null;
@@ -422,6 +424,7 @@ export function MapLibreMap({
   items,
   typeColors,
   onSelect,
+  onMarkerClick,
   markerNumbers,
   selectedItemId = null,
   hoveredItemId = null,
@@ -447,7 +450,7 @@ export function MapLibreMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreInstance | null>(null);
   const markersRef = useRef(new Map<string, Marker>());
-  const callbacksRef = useRef({ onSelect, onHover, onUserMove });
+  const callbacksRef = useRef({ onSelect, onMarkerClick, onHover, onUserMove });
   const legsRef = useRef(legs);
   const styleReadyRef = useRef(false);
   const lastFitRef = useRef("");
@@ -460,8 +463,8 @@ export function MapLibreMap({
   }, [onPoiFeatures]);
 
   useEffect(() => {
-    callbacksRef.current = { onSelect, onHover, onUserMove };
-  }, [onHover, onSelect, onUserMove]);
+    callbacksRef.current = { onSelect, onMarkerClick, onHover, onUserMove };
+  }, [onHover, onMarkerClick, onSelect, onUserMove]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -572,7 +575,10 @@ export function MapLibreMap({
       element.style.cursor = "pointer";
       const popup = popupContent(item, number);
       popup.querySelector("button")?.addEventListener("click", () => callbacksRef.current.onSelect(item));
-      element.addEventListener("click", () => callbacksRef.current.onSelect(item));
+      element.addEventListener("click", () => {
+        const { onMarkerClick, onSelect } = callbacksRef.current;
+        (onMarkerClick ?? onSelect)(item);
+      });
       element.addEventListener("mouseenter", () => callbacksRef.current.onHover?.(item.id));
       element.addEventListener("mouseleave", () => callbacksRef.current.onHover?.(null));
       const marker = new maplibregl.Marker({ element, anchor: "center" })
@@ -762,8 +768,13 @@ export function MapLibreMap({
     );
     // Showing or clearing a preview pin reframes the day so the pin is seen in relation to its stops.
     const nextFit = `${fitKey ?? "items"}:${recenterToken}:${preview?.id ?? ""}`;
-    // The nearby circle owns the camera; lastFitRef stays stale so leaving nearby mode refits the items.
-    if (!map || hasNearby || lastFitRef.current === nextFit) return;
+    if (!map) return;
+    // The nearby circle owns the camera; forgetting the last fit makes leaving nearby mode refit the items.
+    if (hasNearby) {
+      lastFitRef.current = "";
+      return;
+    }
+    if (lastFitRef.current === nextFit) return;
     const timer = window.setTimeout(() => {
       map.resize();
       if (!points.length) return;
