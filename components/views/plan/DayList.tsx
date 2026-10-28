@@ -17,6 +17,7 @@ import { ItemNoteCard } from "@/components/notes/ItemNoteCard";
 import type { SheetAction } from "@/components/ui/ActionSheet";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { formatTripDate } from "@/lib/date-utils";
+import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { isNote } from "@/lib/note-domain";
 import type { DisplayLeg, TravelMode } from "@/lib/routed-legs";
 import { occursOnItineraryDate } from "@/lib/schedule-domain";
@@ -102,6 +103,7 @@ type RowHandlers = {
   onSaveNote: (id: string, data: { title: string; noteBody: string }) => Promise<void>;
   onDeleteNote: (note: TravelObject) => void;
   onActions: RowActions;
+  onFindNearby?: (item: TravelObject) => void;
 };
 
 function DateSection({
@@ -222,6 +224,7 @@ function DateSection({
         onPick={(picked, additive) => handlers.onPick(picked, additive, date)}
         onEdit={handlers.onEdit}
         onHover={handlers.onHover}
+        onFindNearby={handlers.onFindNearby}
       />
     );
   };
@@ -357,6 +360,7 @@ export function DayList({
   onDeleteNote,
   onReorder,
   onLogExpense,
+  onFindNearby,
   mapOpen,
   onMapOpenChange,
   map,
@@ -387,6 +391,8 @@ export function DayList({
   onReorder: (item: TravelObject, date: string, order: number) => Promise<void>;
   /** Phone: opens the Spend expense form, linked to the item when given. */
   onLogExpense?: (item: TravelObject | null) => void;
+  /** Opens the Nearby tab searching around a stop with coordinates. */
+  onFindNearby?: (item: TravelObject) => void;
   /** Below `md` the itinerary and the day map share the screen; the app header toggles this. */
   mapOpen: boolean;
   onMapOpenChange: (open: boolean) => void;
@@ -646,6 +652,8 @@ export function DayList({
         },
       );
     }
+    if (onFindNearby && hasMapCoordinates(item.location))
+      actions.push({ id: "nearby", label: "Find nearby", onSelect: () => onFindNearby(item) });
     actions.push({ id: "open", label: "Open", onSelect: () => onEdit(item) });
     return { title: item.title, actions };
   }
@@ -687,6 +695,7 @@ export function DayList({
       setDeletingNote(note);
     },
     onActions: openItemActions,
+    onFindNearby,
   };
 
   return (

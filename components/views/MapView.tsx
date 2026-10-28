@@ -164,19 +164,24 @@ export function MapView({
   trip,
   items,
   typeColors,
+  startAnchorId,
   onSelect,
   onAddIdea,
 }: {
   trip: Trip;
   items: TravelObject[];
   typeColors: Record<string, string>;
+  /** Opens in search mode around this item (Plan's "Find nearby"), when it has coordinates. */
+  startAnchorId?: string;
   onSelect: (item: TravelObject) => void;
   onAddIdea: (place: NearbyPlace) => void;
 }) {
   const mappedItems = useMemo(() => items.filter((item) => hasMapCoordinates(item.location)), [items]);
   const [selectedDates, setSelectedDates] = useState<Set<string>>(() => new Set());
   // null = browse; CENTRE = searching around the map centre; otherwise the id of the picked pin.
-  const [anchorId, setAnchorId] = useState<string | null>(null);
+  const [anchorId, setAnchorId] = useState<string | null>(() =>
+    startAnchorId && mappedItems.some((item) => item.id === startAnchorId) ? startAnchorId : null,
+  );
   const [radius, setRadius] = useState<number>(NEARBY_RADIUS.default);
   const [appliedRadius, setAppliedRadius] = useState<number>(NEARBY_RADIUS.default);
   const [category, setCategory] = useState<NearbyCategory>("food");

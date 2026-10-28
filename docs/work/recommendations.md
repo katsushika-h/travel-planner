@@ -110,6 +110,7 @@ Planned checks:
 ## Later phases
 
 - **Phase 2:** "Search more (OpenStreetMap)" through a cached `app/api/nearby` route modelled on `lib/parking-client.ts` (identifying User-Agent, timeout, cache by area and category), only on click, with progress and a fallback to tile results. Tiles cover about 97% of food but about 55% of sights and 35% of transit (E1). Planned in detail below.
+- **Find nearby from Plan (done 2026-10-28, `feat/plan-find-nearby`, stacked on `feat/nearby-search-more`):** a stop with coordinates offers "Nearby" next to Maps and Edit in its expanded desktop row, and "Find nearby" in the phone row's action sheet. It opens the Nearby tab in search mode around that stop (`AppShell` `nearbyFor` → `MapView` `startAnchorId`, the same pattern as Plan's "Add expense" → Spend); choosing the Nearby tab directly clears it. Checked in the browser on desktop (Kiyomizu-dera: map centred on the stop, 19 food places; Plan → Nearby tab returns to Browse) and at 375 px (sheet action opens Nearby around the stop, no horizontal scroll); `npm run check` passes.
 - **Phase 3 (only if needed):** fetch and decode zoom-14 tiles directly (`@mapbox/vector-tile`, `pbf`) to query a stop without moving the map, and to allow a radius above 1000 m.
 
 ## Phase 2 — Search more (OpenStreetMap)

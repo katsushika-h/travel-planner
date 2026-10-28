@@ -18,7 +18,7 @@ Potential features to implement after the POC. These are ideas, not commitments 
 - [x] **Day notes** — notes attached to a day (ADR 0004, ADR 0005).
 - [x] **Calendar export** — export the trip as an `.ics` file.
 - [x] **PDF export** — a printable itinerary (`/trips/<id>/print`, Trip menu → Export… → Printable PDF) saved through the browser's print dialog: each day's items with times, places, notes and planned costs, a Google Maps link per item, and a Google Maps route link per day.
-- [x] **Nearby recommendations** — the Map tab is a "Nearby" finder: food, sights or transit within 200–1000 m of a picked trip pin or the map centre, from the map tiles plus an on-click OpenStreetMap "Search more", with on-click place details, added as ideas (ADR 0012, `docs/work/recommendations.md`).
+- [x] **Nearby recommendations** — the Map tab is a "Nearby" finder: food, sights or transit within 200–1000 m of a picked trip pin, a Plan stop's "Find nearby", or the map centre, from the map tiles plus an on-click OpenStreetMap "Search more", with on-click place details, added as ideas (ADR 0012, `docs/work/recommendations.md`).
 - [x] **Travel distance** — walking distance and time between consecutive stops, with parking suggestions for driving legs (`docs/work/travel-distance.md`).
 
 ## Open

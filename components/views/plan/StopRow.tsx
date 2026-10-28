@@ -3,6 +3,7 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { DisplayLeg, TravelMode } from "@/lib/routed-legs";
 import type { TravelObject, UpdateTravelObjectInput } from "@/types/travel";
+import { hasMapCoordinates } from "@/lib/map-coordinates";
 import { markdownToPlainText } from "@/lib/text-utils";
 import { LegLine } from "./LegLine";
 import { ParkingControl } from "./ParkingControl";
@@ -112,6 +113,7 @@ export function StopRow({
   onPick,
   onEdit,
   onHover,
+  onFindNearby,
 }: {
   item: TravelObject;
   date: string;
@@ -141,6 +143,8 @@ export function StopRow({
   onPick: (item: TravelObject, additive: boolean) => void;
   onEdit: (item: TravelObject) => void;
   onHover: (itemId: string | null) => void;
+  /** Opens the Nearby tab searching around this stop; offered only when it has coordinates. */
+  onFindNearby?: (item: TravelObject) => void;
 }) {
   const {
     listeners,
@@ -215,6 +219,15 @@ export function StopRow({
               >
                 Maps
               </a>
+            )}
+            {onFindNearby && hasMapCoordinates(item.location) && (
+              <button
+                type="button"
+                onClick={() => onFindNearby(item)}
+                className="flex min-h-11 items-center underline underline-offset-4 hover:text-accent sm:min-h-0"
+              >
+                Nearby
+              </button>
             )}
             <button
               type="button"

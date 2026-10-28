@@ -117,10 +117,13 @@ export function AppShell() {
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
-  // Opens Spend with the new-expense form (linked to an item when given); cleared when another destination is chosen.
+  // Opens Spend with the new-expense form (linked to an item when given), or Nearby searching around a Plan stop;
+  // both are cleared when another destination is chosen.
   const [expenseFor, setExpenseFor] = useState<{ itemId?: string; description?: string } | undefined>();
-  function clearExpenseStart() {
+  const [nearbyFor, setNearbyFor] = useState<string | undefined>();
+  function clearViewStarts() {
     setExpenseFor(undefined);
+    setNearbyFor(undefined);
   }
   const mobileDestination =
     activeTab === "days" ? "trip" : activeTab === "map" ? "places" : activeTab === "expenses" ? "spend" : "more";
@@ -337,6 +340,7 @@ export function AppShell() {
       }
       const tab = plannerTabOrder.find((id) => plannerTabShortcuts[id] === event.key);
       if (tab) {
+        setNearbyFor(undefined);
         setActiveTab(tab);
         event.preventDefault();
       }
@@ -477,7 +481,7 @@ export function AppShell() {
               type="button"
               aria-current={activeTab === "calendar" ? "page" : undefined}
               onClick={() => {
-                clearExpenseStart();
+                clearViewStarts();
                 setActiveTab("calendar");
                 setCalendarMode("week");
                 closeMobileMenu();
@@ -489,7 +493,7 @@ export function AppShell() {
             <button
               type="button"
               onClick={() => {
-                clearExpenseStart();
+                clearViewStarts();
                 setActiveTab("days");
                 setIdeasRequested(true);
                 closeMobileMenu();
@@ -504,7 +508,7 @@ export function AppShell() {
                 type="button"
                 aria-current={activeTab === id ? "page" : undefined}
                 onClick={() => {
-                  clearExpenseStart();
+                  clearViewStarts();
                   setActiveTab(id);
                   closeMobileMenu();
                 }}
@@ -527,7 +531,10 @@ export function AppShell() {
                 type="button"
                 aria-current={activeTab === id ? "page" : undefined}
                 title={`${plannerTabLabels[id]} (${plannerTabShortcuts[id]})`}
-                onClick={() => setActiveTab(id)}
+                onClick={() => {
+                  setNearbyFor(undefined);
+                  setActiveTab(id);
+                }}
                 className={`min-h-11 py-3 text-sm outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring ${activeTab === id ? "font-medium text-foreground shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted hover:text-foreground"}`}
               >
                 {plannerTabLabels[id]}
@@ -785,6 +792,10 @@ export function AppShell() {
                     setExpenseFor(item ? { itemId: item.id, description: item.title } : {});
                     setActiveTab("expenses");
                   }}
+                  onFindNearby={(item) => {
+                    setNearbyFor(item.id);
+                    setActiveTab("map");
+                  }}
                   mapOpen={dayMapOpen}
                   onMapOpenChange={setDayMapOpen}
                   ideasRequested={ideasRequested}
@@ -813,10 +824,11 @@ export function AppShell() {
                 />
               ) : (
                 <MapView
-                  key={activeTrip.id}
+                  key={`${activeTrip.id}:${nearbyFor ?? ""}`}
                   trip={activeTrip}
                   items={events}
                   typeColors={eventTypeColors}
+                  startAnchorId={nearbyFor}
                   onSelect={inspectItem}
                   onAddIdea={(place) =>
                     void openCreateItem(undefined, undefined, place.type, place.name.slice(0, 100), undefined, {
@@ -865,7 +877,7 @@ export function AppShell() {
                 label: "Trip",
                 icon: List,
                 onClick: () => {
-                  clearExpenseStart();
+                  clearViewStarts();
                   setActiveTab("days");
                 },
               },
@@ -874,7 +886,7 @@ export function AppShell() {
                 label: "Nearby",
                 icon: MapIcon,
                 onClick: () => {
-                  clearExpenseStart();
+                  clearViewStarts();
                   setActiveTab("map");
                 },
               },
@@ -883,7 +895,7 @@ export function AppShell() {
                 label: "Spend",
                 icon: ReceiptText,
                 onClick: () => {
-                  clearExpenseStart();
+                  clearViewStarts();
                   setActiveTab("expenses");
                 },
               },

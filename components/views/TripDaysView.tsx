@@ -60,6 +60,7 @@ export function TripDaysView({
   onSaveNote,
   onDeleteNote,
   onLogExpense,
+  onFindNearby,
   mapOpen = false,
   onMapOpenChange = () => undefined,
   ideasRequested = false,
@@ -91,6 +92,8 @@ export function TripDaysView({
   onDeleteNote: (id: string) => Promise<void>;
   /** Phone: the + menu's "Add expense". */
   onLogExpense?: (item: TravelObject | null) => void;
+  /** Opens the Nearby tab searching around a stop with coordinates. */
+  onFindNearby?: (item: TravelObject) => void;
   /** Phone: show the day map instead of the itinerary. Owned by the app header toggle. */
   mapOpen?: boolean;
   onMapOpenChange?: (open: boolean) => void;
@@ -439,6 +442,7 @@ export function TripDaysView({
             onDeleteNote={onDeleteNote}
             onReorder={(item, itemDate, order) => onReorder(item, itemDate, order, false)}
             onLogExpense={onLogExpense}
+            onFindNearby={onFindNearby}
             mapOpen={mapOpen}
             onMapOpenChange={onMapOpenChange}
             map={
