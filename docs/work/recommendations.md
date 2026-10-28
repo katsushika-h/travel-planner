@@ -1,6 +1,6 @@
 # Nearby recommendations
 
-Status: Phase 1 and place details complete (2026-10-23); phase 2 (Overpass) not started on `feat/nearby-recommendations`, branched from `feat/3d-map-poc` (needs the MapLibre map).
+Status: Phase 1 and place details complete and merged to `main` (PR #41, 2026-10-26); remaining verification closed 2026-10-28 except a real phone. Phase 2 (Overpass) not started.
 
 Goal: Repurpose the Map tab as a "Nearby" finder. Around a chosen stop or the map centre, list places of one category within an adjustable radius, and add any of them to the trip as an undated idea. Plan already shows each day's stops on a map, so the Map tab's whole-trip overview is dropped (ADR 0012).
 
@@ -97,7 +97,9 @@ Results (2026-10-23, `Codex Mobile UI QA` trip, Higashiyama):
 - Phone (375 px), light: map above, controls and list below, no horizontal scroll; the "off screen" note shows at 1000 m. Fixed: the list collapsed under the footer because of `min-h-0` on phones.
 - Place details: Maruyama Park expanded with its English name, Wikidata description, Wikipedia extract and thumbnail, credit, website, Maps and OSM links; a fast-food place opened from its map dot showed its English name and links only. Both lookups returned 200; the expanded row fits 375 px with no horizontal scroll. `npm run check` (274 tests) and the webpack build pass.
 - Day menu and pin picking (2026-10-23): desktop dark, Sun 29 Nov fits its four stops; clicking pin 2 anchors "Kyoto arrival" with results; × returns to the day fit. Phone light: day pills, map and hint; tapping a pin anchors it with the card at 375 px and no horizontal scroll. A stop marker click on the Nearby map calls `onMarkerClick`; Plan's map is unchanged.
-- Not checked: a real phone; Map centre mode by panning; the Retry state.
+- Map centre mode and Retry (2026-10-28, desktop, `Codex Mobile UI QA`): below zoom 14 the list shows "Zoom in to see nearby places"; at 14.2 over central Kyoto it lists 50 food places. Panning a few hundred metres to Pontocho moved the ring to within 10 m of the new centre and replaced the list. With `/api/place-details` failing, an expanded row shows "Couldn't load details." and Retry; with the route restored, Retry loads the details. `npm run check` (274 tests) and the webpack build pass.
+- Not checked: a real phone.
+- The in-app browser pane throttles rendering while hidden, so MapLibre's `idle` (and the list) can lag until the map next renders; this is the test browser, not an app bug.
 - The ring is faint in dark mode over dark tiles; acceptable for now.
 
 Planned checks:
