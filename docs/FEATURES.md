@@ -18,6 +18,7 @@ Potential features to implement after the POC. These are ideas, not commitments 
 - [x] **Day notes** — notes attached to a day (ADR 0004, ADR 0005).
 - [x] **Calendar export** — export the trip as an `.ics` file.
 - [x] **PDF export** — a printable itinerary (`/trips/<id>/print`, Trip menu → Export… → Printable PDF) saved through the browser's print dialog: each day's items with times, places, notes and planned costs, a Google Maps link per item, and a Google Maps route link per day.
+- [x] **Nearby recommendations** — the Map tab is a "Nearby" finder: food, sights or transit within 200–1000 m of a picked trip pin or the map centre, from the map tiles, with on-click place details, added as ideas (ADR 0012, `docs/work/recommendations.md`).
 - [x] **Travel distance** — walking distance and time between consecutive stops, with parking suggestions for driving legs (`docs/work/travel-distance.md`).
 
 ## Open
@@ -27,7 +28,7 @@ Potential features to implement after the POC. These are ideas, not commitments 
 - [ ] **Suggested-time auto-planning** — optionally calculate suggested times for flexible ordered activities using the day start, estimated durations, travel times, and existing fixed-time bookings; keep suggestions distinct from confirmed times until the user accepts them.
 - [ ] **User accounts and trip ownership** — allow users to log in, create their own trips, and access only the trips they own instead of every trip in the database.
 - [ ] **Reservation import gaps** — the PDF rules listed as not implemented in section 9 of `docs/work/reservation-pdf-extraction-recipe.md`, and OCR for image-only scans.
-- [ ] **Recommendations** — the Map tab becomes a "Nearby" finder: places by type (food, sights, transit) within an adjustable radius (200–1000 m, default 500 m) of a stop or the map centre, added as ideas. In progress in `docs/work/recommendations.md` (ADR 0012).
+- [ ] **Nearby: search more** — phase 2 of `docs/work/recommendations.md`: an on-click "Search more (OpenStreetMap)" through a cached Overpass route, since the map tiles cover only about 55% of sights and 35% of transit.
 - [ ] **Public transit routing** — travel legs currently support only walking and driving.
 - [ ] **Packing and to-do checklists** — per trip or per day.
 - [ ] **Read-only share link** — let travel companions view a trip; depends on some form of access control.
