@@ -304,19 +304,34 @@ function mapAppGestures(map: MapLibreInstance) {
   // Chrome and Safari report a trackpad's wheelDeltaY as -3 × deltaY and a mouse wheel in notches of 120. Firefox
   // has no wheelDeltaY, so there only sideways scrolling is known to be a trackpad.
   let pinchAt = -Infinity;
+  const isTrackpad = (event: WheelEvent) => {
+    const legacy = (event as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY;
+    return (
+      event.deltaMode === WheelEvent.DOM_DELTA_PIXEL &&
+      (event.deltaX !== 0 || (legacy !== undefined && legacy !== 0 && legacy === -3 * event.deltaY))
+    );
+  };
   const wheel = (event: WheelEvent) => {
     if (event.ctrlKey) {
       pinchAt = event.timeStamp;
       return;
     }
-    const legacy = (event as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY;
-    const trackpad =
-      event.deltaMode === WheelEvent.DOM_DELTA_PIXEL &&
-      (event.deltaX !== 0 || (legacy !== undefined && legacy !== 0 && legacy === -3 * event.deltaY));
-    if (!trackpad) return;
+    if (!isTrackpad(event)) return;
     event.stopPropagation();
     event.preventDefault();
     map.panBy([event.deltaX, event.deltaY], { animate: false }, { originalEvent: event });
+  };
+  // Popups sit outside the canvas container, where MapLibre listens, so a wheel over an open popup would otherwise
+  // do nothing. A trackpad scroll pans here; a mouse wheel or pinch is re-sent to the canvas for MapLibre to zoom
+  // (the copy loses `wheelDeltaY`, so it is classified first).
+  const popupWheel = (event: WheelEvent) => {
+    if (!(event.target instanceof Element) || !event.target.closest(".maplibregl-popup")) return;
+    event.preventDefault();
+    if (!event.ctrlKey && isTrackpad(event)) {
+      map.panBy([event.deltaX, event.deltaY], { animate: false }, { originalEvent: event });
+      return;
+    }
+    map.getCanvas().dispatchEvent(new WheelEvent("wheel", event));
   };
 
   // iOS Safari sends gesture events alongside touches, which MapLibre already handles; only a trackpad needs these.
@@ -366,9 +381,12 @@ function mapAppGestures(map: MapLibreInstance) {
     ["gestureend", gestureEnd, { capture: true }],
   ];
   for (const [type, listener, options] of listeners) container.addEventListener(type, listener, options);
+  const outer = map.getContainer();
+  outer.addEventListener("wheel", popupWheel, { passive: false });
   return () => {
     end();
     for (const [type, listener, options] of listeners) container.removeEventListener(type, listener, options);
+    outer.removeEventListener("wheel", popupWheel);
   };
 }
 
