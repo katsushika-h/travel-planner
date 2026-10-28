@@ -10,6 +10,7 @@ import {
   NEARBY_RADIUS,
   nearbyPlaces,
   type NearbyCategory,
+  type NearbyFeature,
   type NearbyPlace,
 } from "@/lib/nearby-places";
 import { mapsNameSearchUrl, type PlaceDetails } from "@/lib/place-details";
@@ -191,6 +192,10 @@ export function MapView({
   const [attempt, setAttempt] = useState(0);
   const [, setCacheVersion] = useState(0);
   const [detailsCache] = useState(() => new Map<string, PlaceDetails>());
+  // "Search more" (Overpass) results kept for the session per request key; `search` is the in-flight or failed request.
+  const [extraCache] = useState(() => new Map<string, NearbyFeature[]>());
+  const [search, setSearch] = useState<{ key: string; status: "loading" | "error" } | null>(null);
+  const searchController = useRef<AbortController | null>(null);
 
   useEffect(() => () => clearTimeout(radiusTimer.current), []);
 
@@ -246,12 +251,27 @@ export function MapView({
   }, [anchorId, mappedItems]);
   const anchor = centreMode ? centreAnchor : itemAnchor;
 
-  const places = useMemo(
+  const requestKey = anchor ? `${category}|${appliedRadius}|${anchor.lat.toFixed(4)}|${anchor.lng.toFixed(4)}` : null;
+  const extraFeatures = (requestKey && extraCache.get(requestKey)) || null;
+  const tilePlaces = useMemo(
     () =>
       anchor && report
         ? nearbyPlaces({ features: report.features, anchor, radiusMeters: appliedRadius, category, items })
         : [],
     [anchor, report, appliedRadius, category, items],
+  );
+  const places = useMemo(
+    () =>
+      anchor && report && extraFeatures
+        ? nearbyPlaces({
+            features: [...report.features, ...extraFeatures],
+            anchor,
+            radiusMeters: appliedRadius,
+            category,
+            items,
+          })
+        : tilePlaces,
+    [anchor, report, extraFeatures, appliedRadius, category, items, tilePlaces],
   );
   const shown = places.slice(0, MAX_ROWS);
   // MapLibreMap rebuilds its markers when this array changes and the POI report fires on every idle, so the array
@@ -282,6 +302,34 @@ export function MapView({
     // expandedOsm is derived from expandedKey.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandedKey, attempt]);
+
+  // A new key (anchor, category or radius) cancels the request in flight; unmounting does too.
+  useEffect(
+    () => () => {
+      searchController.current?.abort();
+      setSearch(null);
+    },
+    [requestKey],
+  );
+
+  function searchMore() {
+    if (!anchor || !requestKey) return;
+    const key = requestKey;
+    searchController.current?.abort();
+    const controller = new AbortController();
+    searchController.current = controller;
+    setSearch({ key, status: "loading" });
+    api
+      .nearby(anchor.lat, anchor.lng, appliedRadius, category, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        extraCache.set(key, result.features);
+        setSearch(null);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setSearch({ key, status: "error" });
+      });
+  }
 
   function expandPlace(id: string) {
     setExpandedId(id);
@@ -357,6 +405,18 @@ export function MapView({
   let status: string | null = null;
   if (!report || !anchor) status = "Looking for places…";
   else if (report.zoom < MIN_ZOOM || report.features.length === 0) status = "Zoom in to see nearby places";
+
+  const searchStatus = search && search.key === requestKey ? search.status : null;
+  const extraCount = extraFeatures ? Math.max(0, places.length - tilePlaces.length) : 0;
+  // Only the nearest MAX_ROWS are listed, so say when the added places all lie beyond them.
+  const tileIds = new Set(tilePlaces.map((place) => place.id));
+  const extraListed = shown.filter((place) => !tileIds.has(place.id)).length;
+  const extraText =
+    extraCount === 0
+      ? "Nothing more on OpenStreetMap"
+      : extraListed > 0
+        ? `${extraListed} more from OpenStreetMap`
+        : `${extraCount} more from OpenStreetMap, farther than the ${MAX_ROWS} listed`;
 
   const labelClass = "text-xs font-medium uppercase tracking-wide text-muted";
   const allActive = activeDates.size === 0;
@@ -661,7 +721,27 @@ export function MapView({
                 )}
               </>
             )}
-            <p className="mt-3 pb-3 text-xs text-muted sm:pb-0">
+            {!status && (
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 text-xs text-muted">
+                {searchStatus === "loading" ? (
+                  <p className="flex min-h-11 items-center sm:min-h-8">Searching OpenStreetMap…</p>
+                ) : extraFeatures ? (
+                  <p className="flex min-h-11 items-center sm:min-h-8">{extraText}</p>
+                ) : (
+                  <>
+                    {searchStatus === "error" && <p>OpenStreetMap search failed.</p>}
+                    <button
+                      type="button"
+                      onClick={searchMore}
+                      className="inline-flex min-h-11 items-center text-[13px] text-foreground underline underline-offset-2 sm:min-h-8"
+                    >
+                      {searchStatus === "error" ? "Retry" : "Search more (OpenStreetMap)"}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+            <p className="mt-1 pb-3 text-xs text-muted sm:pb-0">
               From OpenStreetMap. No ratings or opening hours; coverage varies.
             </p>
           </div>

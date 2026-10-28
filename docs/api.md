@@ -34,6 +34,7 @@ curl -s -X PATCH http://localhost:3000/api/travel-objects/<objectId> \
 | POST | `/api/maps/resolve` | Expand a Google Maps link and extract coordinates |
 | POST | `/api/route-legs` | Walking or driving distances between points |
 | GET | `/api/parking` | Parking near a point |
+| GET | `/api/nearby` | Named OpenStreetMap places around a point |
 | GET | `/api/place-details` | Details for an OpenStreetMap place |
 
 ## Trips
@@ -229,6 +230,10 @@ Deleting a linked item keeps the expense and sets `travelObjectId` to `null`.
 ### Parking
 
 `GET /api/parking?lat={lat}&lng={lng}` returns `{ "parking": [{ name, lat, lng, meters, fee, access, source }] }`: up to 5 public car parks within 1 km, from OpenStreetMap or openrouteservice. Upstream failures return `502`.
+
+### Nearby places
+
+`GET /api/nearby?lat={lat}&lng={lng}&radius={200-1000}&category={food|sights|transit}` returns `{ "features": [{ id, properties: { name, class, subclass }, geometry }] }`: named OpenStreetMap places from one Overpass query, shaped like the map tiles' POI features (`id` is OSM id × 10 + 1 node, 2 way, 3 relation; `geometry` is a Point, a way's or relation's centre). Up to 200 places, nearest first; results are cached for 24 hours. Invalid input returns `400` and upstream failures `502`. Call only on a user click.
 
 ### Place details
 

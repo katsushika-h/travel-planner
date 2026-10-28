@@ -109,5 +109,44 @@ Planned checks:
 
 ## Later phases
 
-- **Phase 2:** "Search more (OpenStreetMap)" through a cached `app/api/nearby` route modelled on `lib/parking-client.ts` (identifying User-Agent, timeout, cache by area and category), only on click, with progress and a fallback to tile results. Tiles cover about 97% of food but about 55% of sights and 35% of transit (E1).
+- **Phase 2:** "Search more (OpenStreetMap)" through a cached `app/api/nearby` route modelled on `lib/parking-client.ts` (identifying User-Agent, timeout, cache by area and category), only on click, with progress and a fallback to tile results. Tiles cover about 97% of food but about 55% of sights and 35% of transit (E1). Planned in detail below.
 - **Phase 3 (only if needed):** fetch and decode zoom-14 tiles directly (`@mapbox/vector-tile`, `pbf`) to query a stop without moving the map, and to allow a radius above 1000 m.
+
+## Phase 2 — Search more (OpenStreetMap)
+
+Status: complete on `feat/nearby-search-more` (2026-10-28); a real phone is not checked.
+
+Goal: one click fills the gaps in the tile POIs (mostly sights and transit) with an Overpass query for the current anchor, radius and category. Tile results stay the default and keep working if Overpass fails.
+
+Contract (shared by O1 and O2):
+
+- `GET /api/nearby?lat={lat}&lng={lng}&radius={200–1000}&category={food|sights|transit}` returns `{ "features": NearbyFeature[] }` (type from `lib/nearby-places.ts`): GeoJSON-like points with `id` = OSM id × 10 + 1/2/3 (node/way/relation, as `decodeTileFeatureId` reads), `properties: { name, class, subclass }` using the OpenMapTiles `poi` class and subclass names that `NEARBY_CATEGORIES` lists, and `geometry: { type: "Point", coordinates: [lng, lat] }` (way and relation centres). Named elements only. `400` for bad input, `502` when Overpass fails.
+- `api.nearby(lat, lng, radius, category, signal?)` in `lib/api-client.ts` returns that body.
+- The view passes tile and Overpass features together to `nearbyPlaces`, which also drops a second feature with the same decoded OSM element (a way's tile point and Overpass centre can be more than 20 m apart).
+
+### O1 server route, filter change and tests
+
+- Server-only `lib/nearby-client.ts` modelled on `lib/parking-client.ts`: one Overpass POST (`nwr(around:…)` per tag of the category, `out center tags`, a result cap), the same User-Agent, retry statuses and backoff within a budget, and an in-memory cache (24 h, 500 entries) keyed by category, radius and coordinates rounded to 4 decimals.
+- Pure `overpassToFeatures(elements, category)` mapping OSM tags to OpenMapTiles class/subclass (e.g. `amenity=restaurant` → restaurant, `tourism=gallery` → art_gallery, `railway=station|halt|tram_stop` → railway, `highway=bus_stop` and `amenity=bus_station` → bus, `aeroway=aerodrome` → airport), dropping unnamed or unmapped elements; Node tests with fixture JSON.
+- `app/api/nearby/route.ts`, `api.nearby`, the OSM-element de-duplication in `nearbyPlaces` with a test, and a `docs/api.md` entry.
+
+### O2 Search more in the Nearby view
+
+- `components/views/MapView.tsx` only. In Search mode, below the results (and in the "No … within" state), a "Search more (OpenStreetMap)" button. On click it calls `api.nearby` for the current anchor, applied radius and category; states: "Searching OpenStreetMap…" (with cancel on anchor/category/radius change), "N more from OpenStreetMap" or "Nothing more on OpenStreetMap", and an error line with Retry. Tile results stay shown throughout.
+- Results are kept for the session per request key (category, radius, anchor rounded as on the server) and merged with tile features while that key is current. Map centre mode re-keys when the anchor moves, so the button comes back.
+- No automatic requests: Overpass runs only on the click.
+
+### Checklist
+
+- [x] O1 route, mapping, de-duplication, tests, `docs/api.md`
+- [x] O2 Search more UI
+- [x] Review, `npm run check`, webpack build
+- [x] Browser check: sights and transit around a Kyoto stop, desktop and 375 px, error and Retry
+- [x] ADR 0012 note, `docs/FEATURES.md`, `AGENTS.md` code map (`docs/architecture.md` lists no routes)
+
+### Findings and verification
+
+- Review changes: Overpass returns elements in ID order, so the server fetches up to 1000 and returns the nearest 200; `railway=subway_entrance` was dropped (entrances are named "Exit 1" and the like). Only the nearest 50 places are listed, so when every added place lies beyond them the line says "N more from OpenStreetMap, farther than the 50 listed".
+- Tag mapping: subclass is the raw OSM value, so a shrine reads "place of worship" from Overpass but "shinto"/"buddhist" from the tiles; de-duplication matches on class and on OSM element, so this does not double-list.
+- Browser (2026-10-28, `Codex Mobile UI QA`, Gion-Shijō, desktop): Transit at 500 m returned 29 Overpass features, all already in the tiles ("Nothing more on OpenStreetMap"). Sights at 1000 m added 6, beyond the 50 listed. Overpass took 40–60 s for the 1000 m sights query (the public server was busy). A forced 502 showed "OpenStreetMap search failed." with Retry while the 50 tile rows stayed; Retry then succeeded. At 375 px the status row is 44 px tall with no horizontal scroll.
+- `npm run check` (279 tests) and `npx next build --webpack` pass.

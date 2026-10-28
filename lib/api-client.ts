@@ -1,3 +1,4 @@
+import type { NearbyCategory, NearbyFeature } from "@/lib/nearby-places";
 import type { OsmElementType, PlaceDetails } from "@/lib/place-details";
 import type { RouteRequestLeg, RouteSlot } from "@/lib/routed-legs";
 import type {
@@ -106,6 +107,12 @@ export const api = {
         source: string;
       }[];
     }>(`/api/parking?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`, { signal }),
+  /** Named OpenStreetMap places of a category around a point, as tile-shaped features; call only on a user click. */
+  nearby: (lat: number, lng: number, radius: number, category: NearbyCategory, signal?: AbortSignal) =>
+    request<{ features: NearbyFeature[] }>(
+      `/api/nearby?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&radius=${radius}&category=${category}`,
+      { signal },
+    ),
   /** OpenStreetMap, Wikidata and Wikipedia details for one place; call only on a user click. */
   placeDetails: (osmType: OsmElementType, osmId: number, signal?: AbortSignal) =>
     request<PlaceDetails>(`/api/place-details?type=${osmType}&id=${osmId}`, { signal }),

@@ -14,6 +14,6 @@
 **Consequences:**
 
 - Results only cover tiles the map has loaded at zoom 14 or closer, which caps the radius at 1000 m and means the camera moves to the chosen stop.
-- Tile coverage is good for food and thin for sights and transit; an explicit Overpass search is the planned complement (`docs/work/recommendations.md`).
+- Tile coverage is good for food and thin for sights and transit in some areas, so a "Search more (OpenStreetMap)" click queries Overpass through `app/api/nearby` (cached 24 h on the server) and merges its results with the tile places; nothing calls Overpass without that click.
 - Clicking a result fetches its details through `app/api/place-details` (OSM API 0.6 element, Wikidata description, English Wikipedia summary), one lookup per click, cached on the server for 24 h. Wikipedia text carries its CC BY-SA credit and link; a Google Maps name search link covers reviews and photos without API use.
 - OpenStreetMap has no ratings, reviews or live opening hours; the view says so.
