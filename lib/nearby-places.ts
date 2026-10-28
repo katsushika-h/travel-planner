@@ -122,11 +122,13 @@ export function nearbyPlaces({
     if (tripNames.has(key)) continue;
     if (tripPoints.some((stop) => haversineMeters(stop, point) <= TRIP_MATCH_METERS)) continue;
     const osm = decodeTileFeatureId(feature.id);
+    // The same OSM element can have a tile point and an Overpass centre far apart, so match it by id at any distance.
     const repeat = places.find(
       (place) =>
-        place.osmClass === osmClass &&
-        normalizeName(place.name) === key &&
-        haversineMeters(place, point) <= EDGE_DUPLICATE_METERS,
+        (osm && place.osm?.osmType === osm.osmType && place.osm.osmId === osm.osmId) ||
+        (place.osmClass === osmClass &&
+          normalizeName(place.name) === key &&
+          haversineMeters(place, point) <= EDGE_DUPLICATE_METERS),
     );
     if (repeat) {
       repeat.osm ??= osm;

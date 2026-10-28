@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { NEARBY_CATEGORIES, NEARBY_RADIUS, mapsSearchUrl, nearbyPlaces } from "../lib/nearby-places.ts";
+import { nearbyTagFilters, overpassToFeatures } from "../lib/nearby-overpass.ts";
 import { estimateWalk, haversineMeters } from "../lib/travel-legs.ts";
 
 const anchor = { lat: 35, lng: 135 };
@@ -165,4 +166,141 @@ test("a tile-edge repeat fills in a missing osm id but keeps the first one", () 
     { ...feature("Cafe", "cafe", 101), id: 52 },
   ]);
   assert.deepEqual(kept[0].osm, { osmType: "node", osmId: 1 });
+});
+
+test("the same OSM element is a repeat at any distance, other elements are not", () => {
+  const places = run(
+    [
+      { ...feature("Temple", "place_of_worship", 100), id: 72 },
+      { ...feature("Temple (centre)", "place_of_worship", 300), id: 72 },
+      { ...feature("Temple", "place_of_worship", 300), id: 71 },
+      { ...feature("Temple", "place_of_worship", 450), id: 73 },
+    ],
+    { category: "sights" },
+  );
+  assert.deepEqual(
+    places.map((p) => [p.name, p.osm.osmType]),
+    [
+      ["Temple", "way"],
+      ["Temple", "node"],
+      ["Temple", "relation"],
+    ],
+  );
+});
+
+const element = (type, id, tags, extra = {}) => ({ type, id, tags, ...extra });
+
+test("overpassToFeatures maps nodes and way centres to tile-shaped features", () => {
+  const features = overpassToFeatures(
+    [
+      element("node", 5, { name: "Cafe A", amenity: "cafe" }, { lat: 35.1, lon: 135.2 }),
+      element("way", 6, { name: "Park B", leisure: "park" }, { center: { lat: 35.3, lon: 135.4 } }),
+      element("relation", 7, { name: "Sta C", railway: "station" }, { center: { lat: 35.5, lon: 135.6 } }),
+    ],
+    "food",
+  );
+  // Only the cafe belongs to the food category.
+  assert.deepEqual(features, [
+    {
+      id: 51,
+      properties: { name: "Cafe A", class: "cafe", subclass: "cafe" },
+      geometry: { type: "Point", coordinates: [135.2, 35.1] },
+    },
+  ]);
+  assert.deepEqual(
+    overpassToFeatures(
+      [element("way", 6, { name: "Park B", leisure: "park" }, { center: { lat: 35.3, lon: 135.4 } })],
+      "sights",
+    ),
+    [
+      {
+        id: 62,
+        properties: { name: "Park B", class: "park", subclass: "park" },
+        geometry: { type: "Point", coordinates: [135.4, 35.3] },
+      },
+    ],
+  );
+  assert.equal(
+    overpassToFeatures(
+      [element("relation", 7, { name: "Sta", railway: "station" }, { center: { lat: 1, lon: 2 } })],
+      "transit",
+    )[0].id,
+    73,
+  );
+});
+
+test("overpassToFeatures drops unnamed, unmapped and coordinate-less elements", () => {
+  const features = overpassToFeatures(
+    [
+      element("node", 1, { amenity: "cafe" }, { lat: 1, lon: 2 }),
+      element("node", 2, { name: "  ", amenity: "cafe" }, { lat: 1, lon: 2 }),
+      element("node", 3, { name: "Shop", shop: "convenience" }, { lat: 1, lon: 2 }),
+      element("way", 4, { name: "No centre", amenity: "cafe" }),
+      element("node", 5, { name: "Bad id", amenity: "cafe" }, { lat: 1, lon: 2, id: -1 }),
+      element("node", 6, { name: "Ok", amenity: "cafe" }, { lat: 1, lon: 2 }),
+      null,
+      "x",
+    ],
+    "food",
+  );
+  assert.deepEqual(
+    features.map((f) => f.properties.name),
+    ["Ok"],
+  );
+});
+
+test("overpassToFeatures maps every category class and only the classes NEARBY_CATEGORIES lists", () => {
+  const cases = {
+    food: [
+      [{ amenity: "restaurant" }, "restaurant"],
+      [{ amenity: "cafe" }, "cafe"],
+      [{ amenity: "fast_food" }, "fast_food"],
+      [{ amenity: "bar" }, "bar"],
+      [{ amenity: "pub" }, "beer"],
+      [{ amenity: "biergarten" }, "beer"],
+      [{ amenity: "ice_cream" }, "ice_cream"],
+      [{ shop: "ice_cream" }, "ice_cream"],
+      [{ shop: "bakery" }, "bakery"],
+    ],
+    sights: [
+      [{ tourism: "attraction" }, "attraction"],
+      [{ tourism: "museum" }, "museum"],
+      [{ tourism: "gallery" }, "art_gallery"],
+      [{ amenity: "place_of_worship" }, "place_of_worship"],
+      [{ amenity: "theatre" }, "theatre"],
+      [{ leisure: "park" }, "park"],
+      [{ historic: "castle" }, "castle"],
+      [{ historic: "monument" }, "monument"],
+    ],
+    transit: [
+      [{ railway: "station" }, "railway"],
+      [{ railway: "halt" }, "railway"],
+      [{ railway: "tram_stop" }, "railway"],
+      [{ highway: "bus_stop" }, "bus"],
+      [{ amenity: "bus_station" }, "bus"],
+      [{ amenity: "ferry_terminal" }, "ferry_terminal"],
+      [{ aerialway: "station" }, "aerialway"],
+      [{ aeroway: "aerodrome" }, "airport"],
+    ],
+  };
+  for (const category of NEARBY_CATEGORIES) {
+    const listed = new Set(category.classes);
+    const seen = new Set();
+    for (const [tags, osmClass] of cases[category.id]) {
+      const [feature] = overpassToFeatures(
+        [element("node", 1, { name: "X", ...tags }, { lat: 1, lon: 2 })],
+        category.id,
+      );
+      assert.equal(feature.properties.class, osmClass);
+      assert.equal(feature.properties.subclass, Object.values(tags)[0]);
+      assert.ok(listed.has(osmClass));
+      seen.add(osmClass);
+    }
+    assert.deepEqual([...seen].sort(), [...listed].sort());
+  }
+});
+
+test("nearbyTagFilters lists one filter per mapped tag", () => {
+  assert.ok(nearbyTagFilters("sights").includes("[tourism=gallery]"));
+  assert.equal(nearbyTagFilters("transit").length, 8);
 });
