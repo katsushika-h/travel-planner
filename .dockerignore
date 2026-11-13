@@ -7,4 +7,5 @@ node_modules
 deploy/.env
 npm-debug.log*
 notion.png
-
+# Local MCP server for AI clients; not part of the app image.
+mcp-server
