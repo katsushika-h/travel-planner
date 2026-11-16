@@ -1,5 +1,5 @@
 import { isRecord, readTrimmedString } from "./api-validation.ts";
-import { EXPENSE_CATEGORIES, decimalToThousandths } from "./expense-domain.ts";
+import { EXPENSE_CATEGORIES, decimalToThousandths, parseRate } from "./expense-domain.ts";
 import type { ExpenseCategory } from "../types/travel.ts";
 
 type ExpenseFields = {
@@ -67,4 +67,18 @@ export function readExpenseFields(body: unknown, mode: "create" | "update") {
         : readTrimmedString(body.travelObjectId, "travelObjectId", { maxLength: 100 })!;
   if (!creating && Object.keys(data).length === 0) throw new Error("Provide at least one field to update.");
   return data;
+}
+
+/** Validates trip exchange rates: other-currency codes mapped to positive decimal strings. */
+export function readExchangeRates(value: unknown, defaultCurrency: string) {
+  if (!isRecord(value)) throw new Error("exchangeRates must be an object.");
+  const rates: Record<string, string> = {};
+  for (const [code, rate] of Object.entries(value)) {
+    if (!/^[A-Z]{3}$/.test(code)) throw new Error("exchangeRates keys must be three-letter currency codes.");
+    if (code === defaultCurrency) continue;
+    if (typeof rate !== "string" || !parseRate(rate))
+      throw new Error(`exchangeRates.${code} must be a positive decimal string with at most eight decimal places.`);
+    rates[code] = rate.trim();
+  }
+  return rates;
 }

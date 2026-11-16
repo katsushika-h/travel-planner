@@ -1,4 +1,35 @@
-import type { Expense, ExpenseCategory } from "../types/travel.ts";
+import type { Expense, ExpenseCategory, TravelObject } from "../types/travel.ts";
+
+/** An itinerary item cost counted as spend because no expense is logged for it. Read-only; edit the item instead. */
+export type BookedExpense = Expense & {
+  fromItem: true;
+  /** Hotels and flights are booked ahead, so they count as pre-trip spend whatever their date. */
+  advance: boolean;
+};
+
+/** The itinerary type whose colour represents each expense category; shopping and other have none. */
+export const CATEGORY_ITEM_TYPE: Record<ExpenseCategory, string> = {
+  accommodation: "hotel",
+  transport: "flight",
+  food: "food",
+  activities: "activity",
+  shopping: "unclassified",
+  other: "unclassified",
+};
+
+const ITEM_TYPE_CATEGORIES: Record<string, ExpenseCategory> = {
+  hotel: "accommodation",
+  flight: "transport",
+  commute: "transport",
+  food: "food",
+  activity: "activities",
+  sightseeing: "activities",
+};
+
+/** Expense category for an itinerary item type; custom types fall under "other". */
+export function itemExpenseCategory(type: string): ExpenseCategory {
+  return ITEM_TYPE_CATEGORIES[type] ?? "other";
+}
 
 export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   "accommodation",
@@ -88,7 +119,11 @@ export function expenseDashboard(
   const end = trip.endDate.slice(0, 10);
   const rows = expenses
     .filter((expense) => expense.currency === currency)
-    .map((expense) => ({ expense, value: decimalToThousandths(expense.amount), pre: expense.date < start }));
+    .map((expense) => ({
+      expense,
+      value: decimalToThousandths(expense.amount),
+      pre: ("advance" in expense && expense.advance) || expense.date < start,
+    }));
 
   let pre = zero;
   let during = zero;
@@ -147,4 +182,80 @@ export function expenseDashboard(
       .slice(0, 5)
       .map(({ expense, pre: isPre }) => ({ expense, pre: isPre })),
   };
+}
+
+/**
+ * Every itinerary item cost as spend; hotels and flights are advance bookings, the rest count on their date. An item with any logged expense linked to it is skipped, so the
+ * logged amounts win and nothing is counted twice.
+ */
+export function bookedItemExpenses(
+  items: Pick<
+    TravelObject,
+    "id" | "tripId" | "title" | "type" | "date" | "cost" | "kind" | "createdAt" | "updatedAt"
+  >[],
+  expenses: Pick<Expense, "travelObjectId">[],
+  tripStart: string,
+): BookedExpense[] {
+  const covered = new Set(expenses.map((expense) => expense.travelObjectId).filter(Boolean));
+  return items.flatMap((item) => {
+    const category = itemExpenseCategory(item.type);
+    const cost = item.cost;
+    if (item.kind !== "event" || covered.has(item.id) || !cost) return [];
+    if (!Number.isFinite(cost.amount) || cost.amount <= 0 || !/^[A-Za-z]{3}$/.test(cost.currency)) return [];
+    const amount = thousandthsToDecimal(BigInt(Math.round(cost.amount * 1000)));
+    return [
+      {
+        id: `item:${item.id}`,
+        tripId: item.tripId,
+        travelObjectId: item.id,
+        description: item.title,
+        date: item.date?.slice(0, 10) ?? tripStart.slice(0, 10),
+        amount,
+        currency: cost.currency.toUpperCase(),
+        category,
+        notes: null,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        fromItem: true as const,
+        advance: item.type === "hotel" || item.type === "flight",
+      },
+    ];
+  });
+}
+
+const RATE_SCALE = BigInt(100_000_000);
+
+/** Parses a positive decimal rate with up to eight fractional digits, scaled by 1e8; null when invalid. */
+export function parseRate(rate: string): bigint | null {
+  const match = /^(0|[1-9][0-9]{0,5})(?:\.([0-9]{1,8}))?$/.exec(rate.trim());
+  if (!match) return null;
+  const scaled = BigInt(match[1]) * RATE_SCALE + BigInt((match[2] ?? "").padEnd(8, "0"));
+  return scaled > BigInt(0) ? scaled : null;
+}
+
+/**
+ * Restates every expense in `target` using the trip's manual rates. Currencies without a valid rate are
+ * left out and returned in `missing`, so the combined total never guesses.
+ */
+export function convertExpenses<T extends Expense>(
+  expenses: T[],
+  target: string,
+  rates: Record<string, string> | null | undefined,
+) {
+  const missing = new Set<string>();
+  const converted: Expense[] = [];
+  for (const expense of expenses) {
+    if (expense.currency === target) {
+      converted.push(expense);
+      continue;
+    }
+    const rate = rates?.[expense.currency] ? parseRate(rates[expense.currency]) : null;
+    if (!rate) {
+      missing.add(expense.currency);
+      continue;
+    }
+    const value = (decimalToThousandths(expense.amount) * rate + RATE_SCALE / BigInt(2)) / RATE_SCALE;
+    converted.push({ ...expense, currency: target, amount: thousandthsToDecimal(value) });
+  }
+  return { converted, missing: [...missing].sort() };
 }

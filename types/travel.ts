@@ -57,6 +57,8 @@ export interface Trip {
   endDate: string;
   timezone: string;
   defaultCurrency: string;
+  /** Decimal-string rates into `defaultCurrency` (1 unit of the key = rate units), for the combined spend total. */
+  exchangeRates?: Record<string, string> | null;
   createdAt: string;
 }
 

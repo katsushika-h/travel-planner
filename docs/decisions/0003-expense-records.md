@@ -1,4 +1,4 @@
-# ADR 0003: Keep actual expenses separate from planned item costs
+# ADR 0003: Expense records, with hotel and flight costs counted as bookings
 
 **Status:** Accepted (2026-09-28)
 
@@ -6,4 +6,8 @@
 
 **Why:** An item cost does not prove that payment occurred. Separate records prevent planned and actual totals from being double-counted. Decimal strings preserve entered monetary values through the API and avoid binary floating-point addition in expense summaries.
 
-**Consequences:** Clients must send positive amount strings with at most ten whole and three fractional digits. The first release has fixed categories and no budget targets, split payments, refunds, exchange rates, or receipt uploads. Existing cost data and schedule APIs remain unchanged. Advance bookings such as flights and hotels are logged as expenses dated before the trip and shown together with on-trip spending; item `cost` is never counted for them.
+**Consequences:** Clients must send positive amount strings with at most ten whole and three fractional digits. The first release has fixed categories and no budget targets, split payments, refunds, exchange rates, or receipt uploads. Existing cost data and schedule APIs remain unchanged.
+
+**Amendment (2026-10-19):** Every itinerary item `cost` now counts as spend automatically, shown read-only beside logged expenses (hotels and flights as pre-trip spend, other items on their date), with the category taken from the item type (custom types become other). If any expense is linked to an item, its cost is skipped and the logged amounts win, so nothing is counted twice; log expenses linked to their items as the trip goes. Nothing is stored or backfilled; the bookings are derived from items on each render.
+
+**Amendment (2026-10-19, combined total):** `Trip.exchangeRates` (nullable JSON, decimal strings keyed by currency code, rates into `defaultCurrency`) holds manual rates. When more than one currency is in use, Spend opens on an "All" tab that converts every entry into the default currency and labels the result approximate. A currency without a rate is left out and named, never guessed. Per-currency tabs stay exact, and no rate is fetched from a service. Changing `defaultCurrency` without new rates clears them, since they were stated against the old currency.

@@ -13,6 +13,8 @@ model Trip {
   endDate         DateTime
   timezone        String
   defaultCurrency String         @default("USD")
+  /// Rates into defaultCurrency as decimal strings, keyed by currency code. Used only for the combined spend total.
+  exchangeRates   Json?
   createdAt       DateTime       @default(now())
   travelObjects   TravelObject[]
   expenses        Expense[]

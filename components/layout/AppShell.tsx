@@ -810,6 +810,8 @@ export function AppShell() {
                   trip={activeTrip}
                   items={events}
                   startWith={expenseFor}
+                  onTripChange={onTripSaved}
+                  typeColors={eventTypeColors}
                 />
               ) : (
                 <MapView

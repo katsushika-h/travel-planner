@@ -7,6 +7,8 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SpendDashboard } from "@/components/views/expenses/SpendDashboard";
 import { api } from "@/lib/api-client";
 import {
+  bookedItemExpenses,
+  convertExpenses,
   decimalToThousandths,
   EXPENSE_CATEGORIES,
   expenseDashboard,
@@ -41,6 +43,8 @@ function newDraft(trip: Trip): Draft {
   };
 }
 
+const COMBINED = "ALL";
+
 const fieldClass =
   "mt-1 block min-h-11 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-2 text-sm text-foreground outline-none placeholder:text-faint focus:border-foreground";
 const controlClass =
@@ -50,11 +54,17 @@ export function ExpensesView({
   trip,
   items,
   startWith,
+  onTripChange,
+  typeColors,
 }: {
   trip: Trip;
   items: TravelObject[];
   /** Opens the new-expense form, linked to this item when given (used by the Trip list's "Add expense"). */
   startWith?: { itemId?: string; description?: string };
+  /** Called with the saved trip after its exchange rates change. */
+  onTripChange: (trip: Trip) => void;
+  /** Per-trip itinerary type colours, reused for the matching expense categories. */
+  typeColors: Record<string, string>;
 }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,24 +117,46 @@ export function ExpensesView({
       ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [formOpen]);
 
-  const totals = useMemo(() => expenseTotals(expenses), [expenses]);
+  const booked = useMemo(() => bookedItemExpenses(items, expenses, trip.startDate), [expenses, items, trip.startDate]);
+  const allExpenses = useMemo(() => [...expenses, ...booked], [expenses, booked]);
+  const totals = useMemo(() => expenseTotals(allExpenses), [allExpenses]);
   const planned = useMemo(() => plannedCostTotals(items), [items]);
   const itemTitles = useMemo(() => new Map(items.map((item) => [item.id, item.title])), [items]);
-  const currencies = useMemo(() => [...new Set(expenses.map((expense) => expense.currency))].sort(), [expenses]);
+  const currencies = useMemo(() => [...new Set(allExpenses.map((expense) => expense.currency))].sort(), [allExpenses]);
   const plannedByCurrency = useMemo(
     () => new Map(planned.map(({ currency, amount }) => [currency, amount])),
     [planned],
   );
-  const activeCurrency = totals.currencies.some(({ currency }) => currency === dashCurrency)
-    ? dashCurrency
-    : (totals.currencies[0]?.currency ?? "");
-  const dashboard = useMemo(
-    () => (activeCurrency ? expenseDashboard(expenses, trip, activeCurrency, todayInTimeZone(trip.timezone)) : null),
-    [activeCurrency, expenses, trip],
+  const hasCombined = totals.currencies.length > 1;
+  const activeCurrency =
+    (dashCurrency === COMBINED && hasCombined) || totals.currencies.some(({ currency }) => currency === dashCurrency)
+      ? dashCurrency
+      : hasCombined
+        ? COMBINED
+        : (totals.currencies[0]?.currency ?? "");
+  const combined = useMemo(
+    () => convertExpenses(allExpenses, trip.defaultCurrency, trip.exchangeRates),
+    [allExpenses, trip.defaultCurrency, trip.exchangeRates],
   );
+  const dashboard = useMemo(() => {
+    if (!activeCurrency) return null;
+    const today = todayInTimeZone(trip.timezone);
+    return activeCurrency === COMBINED
+      ? expenseDashboard(combined.converted, trip, trip.defaultCurrency, today)
+      : expenseDashboard(allExpenses, trip, activeCurrency, today);
+  }, [activeCurrency, allExpenses, combined.converted, trip]);
+
+  async function saveRates(rates: Record<string, string>) {
+    setError("");
+    try {
+      onTripChange(await api.updateTrip(trip.id, { exchangeRates: rates }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save exchange rates.");
+    }
+  }
   const visibleExpenses = useMemo(() => {
     const search = query.trim().toLocaleLowerCase();
-    return expenses
+    return allExpenses
       .filter(
         (expense) =>
           (!search ||
@@ -142,7 +174,7 @@ export function ExpensesView({
         const dateOrder = left.date.localeCompare(right.date);
         return (sort === "oldest" ? dateOrder : -dateOrder) || left.description.localeCompare(right.description);
       });
-  }, [categoryFilter, currencyFilter, expenses, itemTitles, query, sort]);
+  }, [allExpenses, categoryFilter, currencyFilter, itemTitles, query, sort]);
 
   function startCreate() {
     setEditingId(null);
@@ -263,9 +295,21 @@ export function ExpensesView({
             <SpendDashboard
               dashboard={dashboard}
               currencies={totals.currencies.map(({ currency }) => currency)}
+              active={activeCurrency}
               onCurrency={setDashCurrency}
-              planned={plannedByCurrency.get(activeCurrency)}
+              combined={
+                hasCombined
+                  ? {
+                      defaultCurrency: trip.defaultCurrency,
+                      rates: trip.exchangeRates ?? {},
+                      missing: combined.missing,
+                      onSaveRates: saveRates,
+                    }
+                  : undefined
+              }
+              planned={activeCurrency === COMBINED ? undefined : plannedByCurrency.get(dashboard.currency)}
               itemTitles={itemTitles}
+              typeColors={typeColors}
             />
           ) : (
             <p className="pb-8 pt-8 text-sm text-muted">No expenses recorded yet.</p>
@@ -394,7 +438,7 @@ export function ExpensesView({
               <section aria-label="Expenses" className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-t border-foreground pt-3">
                   <p className="text-xs text-muted">
-                    {visibleExpenses.length} of {expenses.length} expenses
+                    {visibleExpenses.length} of {allExpenses.length} expenses
                   </p>
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     <label className="sr-only" htmlFor="expense-search">
@@ -489,8 +533,16 @@ export function ExpensesView({
                               {expense.notes && (
                                 <span className="mt-0.5 block text-xs font-normal text-muted">{expense.notes}</span>
                               )}
-                              {expense.date < trip.startDate.slice(0, 10) && (
-                                <span className="mt-0.5 block text-xs font-normal text-muted">Booked before trip</span>
+                              {"fromItem" in expense ? (
+                                <span className="mt-0.5 block text-xs font-normal text-muted">
+                                  Booking from the itinerary · edit the item&apos;s cost to change it
+                                </span>
+                              ) : (
+                                expense.date < trip.startDate.slice(0, 10) && (
+                                  <span className="mt-0.5 block text-xs font-normal text-muted">
+                                    Booked before trip
+                                  </span>
+                                )
                               )}
                             </span>
                             <span className="text-muted max-lg:hidden">{categoryName(expense.category)}</span>
@@ -503,22 +555,26 @@ export function ExpensesView({
                               {formatExpenseAmount(expense.amount, expense.currency)}
                             </span>
                             <span className="flex justify-end max-lg:order-4 max-lg:col-span-2">
-                              <button
-                                type="button"
-                                onClick={() => startEdit(expense)}
-                                aria-label={`Edit ${expense.description}`}
-                                className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-foreground lg:size-8"
-                              >
-                                <Pencil size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeleteTarget(expense)}
-                                aria-label={`Delete ${expense.description}`}
-                                className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-danger lg:size-8"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                              {!("fromItem" in expense) && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => startEdit(expense)}
+                                    aria-label={`Edit ${expense.description}`}
+                                    className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-foreground lg:size-8"
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget(expense)}
+                                    aria-label={`Delete ${expense.description}`}
+                                    className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-danger lg:size-8"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </>
+                              )}
                             </span>
                           </li>
                         );
@@ -527,7 +583,7 @@ export function ExpensesView({
                   </>
                 ) : (
                   <div className="py-10 text-center text-sm text-muted">
-                    {expenses.length
+                    {allExpenses.length
                       ? "No expenses match these filters."
                       : "No expenses yet. Log one to start tracking spending."}
                   </div>

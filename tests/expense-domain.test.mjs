@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decimalToThousandths, expenseDashboard, expenseTotals, plannedCostTotals } from "../lib/expense-domain.ts";
-import { readExpenseFields } from "../lib/expense-validation.ts";
+import {
+  bookedItemExpenses,
+  convertExpenses,
+  decimalToThousandths,
+  expenseDashboard,
+  expenseTotals,
+  plannedCostTotals,
+} from "../lib/expense-domain.ts";
+import { readExchangeRates, readExpenseFields } from "../lib/expense-validation.ts";
 
 const base = {
   description: "  Train ticket  ",
@@ -114,4 +121,66 @@ test("expense dashboard keeps pre-trip bookings and on-trip spending in one set 
   assert.equal(dashboard.largest[0].expense.amount, "400.000");
   assert.equal(dashboard.largest[0].pre, true);
   assert.equal(expenseDashboard([], trip, "SGD", "2026-10-01").perDay, null);
+});
+
+test("hotel and flight costs count as pre-trip spend, other item costs on their date, unless an expense is logged for the item", () => {
+  const item = (id, type, cost) => ({
+    id,
+    tripId: "t",
+    title: id,
+    type,
+    kind: "event",
+    date: "2026-11-30",
+    cost,
+    createdAt: "",
+    updatedAt: "",
+  });
+  const items = [
+    item("hotel-a", "hotel", { amount: 650.5, currency: "SGD" }),
+    item("flight-a", "flight", { amount: 300, currency: "SGD" }),
+    item("hotel-b", "hotel", { amount: 200, currency: "SGD" }),
+    item("dinner", "food", { amount: 50, currency: "SGD" }),
+    item("free-hotel", "hotel", { amount: 0, currency: "SGD" }),
+  ];
+  const booked = bookedItemExpenses(items, [{ travelObjectId: "hotel-b" }], "2026-11-29T00:00:00.000Z");
+  assert.deepEqual(
+    booked.map(({ id, amount, category }) => [id, amount, category]),
+    [
+      ["item:hotel-a", "650.500", "accommodation"],
+      ["item:flight-a", "300.000", "transport"],
+      ["item:dinner", "50.000", "food"],
+    ],
+  );
+  const trip = { startDate: "2026-11-29", endDate: "2026-12-07" };
+  const dashboard = expenseDashboard(booked, trip, "SGD", "2026-10-01");
+  assert.equal(dashboard.pre, "950.500");
+  assert.equal(dashboard.during, "50.000");
+});
+
+test("combined totals convert with manual rates and never guess a missing one", () => {
+  const make = (amount, currency) => ({
+    id: currency + amount,
+    amount,
+    currency,
+    date: "2026-11-30",
+    category: "food",
+    description: "x",
+  });
+  const { converted, missing } = convertExpenses(
+    [make("10.000", "SGD"), make("1000.000", "JPY"), make("5.000", "EUR")],
+    "SGD",
+    { JPY: "0.0091", USD: "1.35" },
+  );
+  assert.deepEqual(missing, ["EUR"]);
+  assert.deepEqual(
+    converted.map(({ currency, amount }) => [currency, amount]),
+    [
+      ["SGD", "10.000"],
+      ["SGD", "9.100"],
+    ],
+  );
+  assert.deepEqual(readExchangeRates({ JPY: " 0.0091 ", SGD: "1" }, "SGD"), { JPY: "0.0091" });
+  for (const bad of [{ JPY: "0" }, { JPY: 0.009 }, { JPY: "1e-2" }, { jpy: "1" }, { JPY: "0.123456789" }]) {
+    assert.throws(() => readExchangeRates(bad, "SGD"));
+  }
 });
