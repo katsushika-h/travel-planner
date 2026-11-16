@@ -105,7 +105,7 @@ export function SpendDashboard({
             }
           />
         </div>
-        <Kpi label="Booked before trip" value={money(pre)} note="Itinerary costs and advance bookings" />
+        <Kpi label="Booked before trip" value={money(pre)} note="Hotels, flights and earlier-dated costs" />
         <Kpi label="During trip" value={money(during)} />
         <Kpi
           label="Per day on trip"

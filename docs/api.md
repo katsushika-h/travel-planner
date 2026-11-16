@@ -64,7 +64,7 @@ curl -s -X PATCH http://localhost:3000/api/travel-objects/<objectId> \
 | `timezone` | Required IANA name, such as `Asia/Tokyo` |
 | `defaultCurrency` | Optional three-letter uppercase code; anything else falls back to `SGD` |
 
-`PATCH /api/trips/{tripId}` accepts the same fields, all optional. An invalid `defaultCurrency` is rejected rather than replaced. The date-order rule is checked against the stored dates.
+`PATCH /api/trips/{tripId}` accepts the same fields, all optional. An invalid `defaultCurrency` is rejected rather than replaced. The date-order rule is checked against the stored dates. `exchangeRates` is an object of three-letter codes to positive decimal strings (up to eight decimals) stating each currency in `defaultCurrency`; changing `defaultCurrency` without sending new rates clears the stored ones.
 
 `DELETE /api/trips/{tripId}` deletes the trip and, by cascade, its items, attachments, and expenses.
 

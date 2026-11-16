@@ -123,7 +123,7 @@ test("expense dashboard keeps pre-trip bookings and on-trip spending in one set 
   assert.equal(expenseDashboard([], trip, "SGD", "2026-10-01").perDay, null);
 });
 
-test("item costs count as pre-trip spend unless an expense is logged for the item", () => {
+test("hotel and flight costs count as pre-trip spend, other item costs on their date, unless an expense is logged for the item", () => {
   const item = (id, type, cost) => ({
     id,
     tripId: "t",
@@ -153,8 +153,8 @@ test("item costs count as pre-trip spend unless an expense is logged for the ite
   );
   const trip = { startDate: "2026-11-29", endDate: "2026-12-07" };
   const dashboard = expenseDashboard(booked, trip, "SGD", "2026-10-01");
-  assert.equal(dashboard.pre, "1000.500");
-  assert.equal(dashboard.during, "0.000");
+  assert.equal(dashboard.pre, "950.500");
+  assert.equal(dashboard.during, "50.000");
 });
 
 test("combined totals convert with manual rates and never guess a missing one", () => {

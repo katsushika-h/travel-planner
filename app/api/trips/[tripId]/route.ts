@@ -1,4 +1,5 @@
 import { isRecord, readDate, readJsonBody, readTimeZone, readTrimmedString } from "@/lib/api-validation";
+import { Prisma } from "@prisma/client";
 import { readExchangeRates } from "@/lib/expense-validation";
 import { prisma } from "@/lib/prisma";
 
@@ -45,6 +46,15 @@ export async function PATCH(request: Request, { params }: Context) {
 
     if (!existing) {
       return Response.json({ error: "Trip not found." }, { status: 404 });
+    }
+
+    // Rates are stated against the default currency, so a currency change invalidates them unless replaced.
+    if (
+      data.defaultCurrency !== undefined &&
+      data.defaultCurrency !== existing.defaultCurrency &&
+      data.exchangeRates === undefined
+    ) {
+      data.exchangeRates = Prisma.JsonNull;
     }
 
     const startDate = (data.startDate as Date | undefined) ?? existing.startDate;

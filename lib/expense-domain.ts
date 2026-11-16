@@ -1,7 +1,11 @@
 import type { Expense, ExpenseCategory, TravelObject } from "../types/travel.ts";
 
 /** An itinerary item cost counted as spend because no expense is logged for it. Read-only; edit the item instead. */
-export type BookedExpense = Expense & { fromItem: true };
+export type BookedExpense = Expense & {
+  fromItem: true;
+  /** Hotels and flights are booked ahead, so they count as pre-trip spend whatever their date. */
+  advance: boolean;
+};
 
 /** The itinerary type whose colour represents each expense category; shopping and other have none. */
 export const CATEGORY_ITEM_TYPE: Record<ExpenseCategory, string> = {
@@ -118,7 +122,7 @@ export function expenseDashboard(
     .map((expense) => ({
       expense,
       value: decimalToThousandths(expense.amount),
-      pre: "fromItem" in expense || expense.date < start,
+      pre: ("advance" in expense && expense.advance) || expense.date < start,
     }));
 
   let pre = zero;
@@ -181,7 +185,7 @@ export function expenseDashboard(
 }
 
 /**
- * Every itinerary item cost as spend. An item with any logged expense linked to it is skipped, so the
+ * Every itinerary item cost as spend; hotels and flights are advance bookings, the rest count on their date. An item with any logged expense linked to it is skipped, so the
  * logged amounts win and nothing is counted twice.
  */
 export function bookedItemExpenses(
@@ -213,6 +217,7 @@ export function bookedItemExpenses(
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
         fromItem: true as const,
+        advance: item.type === "hotel" || item.type === "flight",
       },
     ];
   });
