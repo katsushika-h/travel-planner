@@ -1,6 +1,6 @@
 # MCP server learning plan
 
-**Status:** In progress (steps 1–2 done). Learning project.
+**Status:** In progress (steps 1–3 done). Learning project.
 
 **Goal:** Build a small Model Context Protocol (MCP) server that lets an AI client such as Claude Code read and edit trips through the existing HTTP API, and learn how each part of MCP maps onto that API along the way.
 
@@ -59,7 +59,7 @@ Each step has a **Learn** goal, a **Do** task, and a **Check** that proves it wo
 - **Learn:** the `tools/list` and `tools/call` messages, and how a zod schema becomes the JSON Schema the model sees.
 - **Do:** register a `ping` tool that takes `{ name: string }` and returns `{ content: [{ type: "text", text: "Hello, <name>" }] }`. Run the MCP Inspector: `npx @modelcontextprotocol/inspector npx tsx mcp-server/src/index.ts`.
 - **Check:** in the Inspector, connect, list tools, call `ping`, and read the raw JSON-RPC messages in its history panel. Find the `initialize` exchange and your tool's `inputSchema`.
-- [ ] Done
+- [x] Done
 
 ### 4. An API client for the server
 
@@ -145,11 +145,11 @@ Each step has a **Learn** goal, a **Do** task, and a **Check** that proves it wo
 
 ## Current state
 
-Steps 1–2 done. `mcp-server/` is its own npm package (`@modelcontextprotocol/sdk` 1.32.2, `zod` 4.6.7, `tsx`, `typescript`) with `src/index.ts`: an `McpServer` on a `StdioServerTransport` and no tools yet. Run it with `npm start` inside `mcp-server/` after `npm install` there. The root `tsconfig.json` and `.dockerignore` exclude `mcp-server`, so the app's type check and image do not depend on it; root ESLint and Prettier still cover it. `docs/api.md` and `lib/api-client.ts` are the references for every tool.
+Steps 1–3 done; the `ping` tool is registered and was checked over raw stdio and in the Inspector. `mcp-server/` is its own npm package (`@modelcontextprotocol/sdk` 1.32.2, `zod` 4.6.7, `tsx`, `typescript`) with `src/index.ts`: an `McpServer` on a `StdioServerTransport` with one tool, `ping`. Run it with `npm start` inside `mcp-server/` after `npm install` there. The root `tsconfig.json` and `.dockerignore` exclude `mcp-server`, so the app's type check and image do not depend on it; root ESLint and Prettier still cover it. `docs/api.md` and `lib/api-client.ts` are the references for every tool.
 
 ## Remaining work
 
-Steps 3–12.
+Steps 4–12.
 
 ## Findings
 
@@ -157,6 +157,7 @@ Record surprises here as you go, such as a tool description that confused the mo
 
 - Step 1: a dated item created without times gets `placementTime: "09:00"` and `dayOrder: 0`. Setting `startTime`/`endTime` clears `placementTime`. Every error body is `{ "error": "…" }` with a sentence a model can act on, such as `startTime and endTime must both be set or both be null.`, so the MCP server can pass messages through unchanged. `DELETE /api/trips/{id}` returns `204` with no body and removes the trip's items.
 - Step 2: in SDK 1.32, `registerTool` replaces the deprecated `tool()` method. A server with no tools advertises empty `capabilities`, and `tools/list` then fails with JSON-RPC error `-32601 Method not found`; registering a tool adds the `tools` capability. Replies can arrive out of order, so clients match them by `id`.
+- Step 3: the zod shape `{ name: z.string().describe(…) }` becomes a draft-07 JSON Schema in `tools/list`, with `.describe()` text as the property `description` and `required: ["name"]`. Registering the tool makes `initialize` advertise `capabilities.tools.listChanged: true`. Bad arguments (`name: 42`) do **not** produce a JSON-RPC error: the SDK returns a normal result with `isError: true` and the message `Input validation error: … expected string, received number at name`, so the model can read it and retry. In the same run the `id: 4` reply arrived before `id: 3`.
 
 ## Verification
 
@@ -164,7 +165,8 @@ Record the checks actually run for each step.
 
 - Step 1 (2026-11-11): `curl` against `npm run dev` with local Postgres: `GET /api/trips` 200, `POST /api/trips` 201, `POST /api/travel-objects` 201, `PATCH` times 200, `PATCH` start without end 400, `PATCH` `dayIndex` 400, `GET` unknown item 404, `DELETE` trip 204. The test trip was deleted afterwards.
 - Step 2 (2026-11-11): `npm run typecheck` in `mcp-server/` passed. Piping raw `initialize`, `notifications/initialized`, and `tools/list` messages into `npx tsx src/index.ts` returned `serverInfo` `travel-planner` 0.1.0 and `-32601` for `tools/list`, with the startup log on stderr only. Root `npm run check` passed (279 tests).
+- Step 3 (2026-11-14): `npm run typecheck` in `mcp-server/` passed. Piping `initialize`, `notifications/initialized`, `tools/list`, and two `tools/call` messages into `npx tsx src/index.ts` listed `ping` with its schema and annotations, returned `Hello, Zen`, and returned `isError: true` for a numeric `name`. The Inspector check (connect, list tools, call `ping`, read the History panel) was then done by hand.
 
 ## Next step
 
-Step 3: register a `ping` tool and inspect it with the MCP Inspector.
+Step 4: the `request()` helper in `mcp-server/src/api.ts`.
