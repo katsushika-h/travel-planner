@@ -30,7 +30,7 @@ Travel Planner is a single-user itinerary app built with Next.js 16, React 19, T
 - The app has no authentication or per-user trip ownership. Do not assume either exists when changing routes.
 - Map coordinates are extracted from supported Google Maps URLs. Preserve URLs without coordinates; they cannot be plotted. Do not introduce Google API billing unless requested. Keep visible OpenStreetMap attribution and comply with tile/geocoding usage policies.
 - Attachments are stored as PostgreSQL `Bytes`. The repository tracks some `.next` artifacts despite `.gitignore`; avoid including generated output in source changes.
-- Actual `Expense` records are separate from itinerary-item `cost` values, except that the Spend tab counts every item cost as spend (hotels and flights as pre-trip, others on their date) unless an expense is linked to the item (ADR 0003). Expense API amounts are decimal strings; group totals by currency without conversion or double-counting.
+- Actual `Expense` records are separate from itinerary-item `cost` values, except that the Spend tab counts every item cost as spend (hotels and flights as pre-trip, others on their date) unless an expense is linked to the item (ADR 0003). Expense categories are itinerary types (legacy values are read through `expenseType`). Expense API amounts are decimal strings; totals convert only with the trip's manual rates, never double-counting.
 
 ## Commands and deployment
 

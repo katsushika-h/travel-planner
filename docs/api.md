@@ -195,7 +195,7 @@ Actual spending, separate from an item's planned `cost` (ADR 0003).
 | `date` | Required on create, `YYYY-MM-DD` |
 | `amount` | Required on create. Positive **decimal string**, at most 10 whole and 3 fractional digits, such as `"12.5"`. Returned with three decimals |
 | `currency` | Required on create, three-letter uppercase code |
-| `category` | Required on create: `accommodation`, `transport`, `food`, `activities`, `shopping`, or `other` |
+| `category` | Required on create: an itinerary item type such as `flight`, `hotel` or a custom type, at most 20 characters. Older values (`accommodation`, `activities`, `other`) are shown as `hotel`, `activity` and `unclassified` |
 | `notes` | Up to 2,500 bytes; `null` or `""` clears it |
 | `travelObjectId` | Optional linked item, which must belong to the same trip; `null` unlinks |
 

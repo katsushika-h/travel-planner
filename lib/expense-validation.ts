@@ -1,5 +1,5 @@
-import { isRecord, readTrimmedString } from "./api-validation.ts";
-import { EXPENSE_CATEGORIES, decimalToThousandths, parseRate } from "./expense-domain.ts";
+import { isRecord, readEventType, readTrimmedString } from "./api-validation.ts";
+import { decimalToThousandths, parseRate } from "./expense-domain.ts";
 import type { ExpenseCategory } from "../types/travel.ts";
 
 type ExpenseFields = {
@@ -40,9 +40,7 @@ function readExpenseCurrency(value: unknown) {
 }
 
 function readExpenseCategory(value: unknown): ExpenseCategory {
-  if (typeof value !== "string" || !EXPENSE_CATEGORIES.includes(value as ExpenseCategory))
-    throw new Error("category must be a supported expense category.");
-  return value as ExpenseCategory;
+  return readEventType(value, "category");
 }
 
 export function readExpenseFields(body: unknown, mode: "create"): ExpenseFields;

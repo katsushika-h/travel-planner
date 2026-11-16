@@ -6,7 +6,9 @@ import {
   decimalToThousandths,
   expenseDashboard,
   expenseTotals,
+  expenseType,
   plannedCostTotals,
+  sumAmounts,
 } from "../lib/expense-domain.ts";
 import { readExchangeRates, readExpenseFields } from "../lib/expense-validation.ts";
 
@@ -41,7 +43,10 @@ test("expense updates validate only supplied fields and nullable links", () => {
   });
   assert.deepEqual(readExpenseFields({ amount: "3.5" }, "update"), { amount: "3.500" });
   assert.throws(() => readExpenseFields({}, "update"), /Provide at least one field/);
-  assert.throws(() => readExpenseFields({ category: "unknown" }, "update"), /supported expense category/);
+  assert.deepEqual(readExpenseFields({ category: " flight " }, "update"), { category: "flight" });
+  assert.deepEqual(readExpenseFields({ category: "Day trips" }, "update"), { category: "Day trips" });
+  assert.throws(() => readExpenseFields({ category: "x".repeat(21) }, "update"), /20 characters/);
+  assert.throws(() => readExpenseFields({ category: "" }, "update"));
   assert.throws(() => readExpenseFields({ currency: "usd" }, "update"), /three-letter currency code/);
 });
 
@@ -105,7 +110,7 @@ test("expense dashboard keeps pre-trip bookings and on-trip spending in one set 
   assert.deepEqual(
     dashboard.categories.map(({ category, total, pre, during }) => [category, total, pre, during]),
     [
-      ["accommodation", "400.000", "400.000", "0.000"],
+      ["hotel", "400.000", "400.000", "0.000"],
       ["transport", "250.500", "250.500", "0.000"],
       ["food", "20.000", "0.000", "20.000"],
     ],
@@ -146,8 +151,8 @@ test("hotel and flight costs count as pre-trip spend, other item costs on their 
   assert.deepEqual(
     booked.map(({ id, amount, category }) => [id, amount, category]),
     [
-      ["item:hotel-a", "650.500", "accommodation"],
-      ["item:flight-a", "300.000", "transport"],
+      ["item:hotel-a", "650.500", "hotel"],
+      ["item:flight-a", "300.000", "flight"],
       ["item:dinner", "50.000", "food"],
     ],
   );
@@ -155,6 +160,39 @@ test("hotel and flight costs count as pre-trip spend, other item costs on their 
   const dashboard = expenseDashboard(booked, trip, "SGD", "2026-10-01");
   assert.equal(dashboard.pre, "950.500");
   assert.equal(dashboard.during, "50.000");
+});
+
+test("legacy categories are filed under the matching itinerary type", () => {
+  assert.deepEqual(
+    ["accommodation", "activities", "other", "transport", "shopping", "flight", "Day trips"].map(expenseType),
+    ["hotel", "activity", "unclassified", "transport", "shopping", "flight", "Day trips"],
+  );
+});
+
+test("any selected currency converts through the trip's default currency and sums exactly", () => {
+  const entries = [
+    { amount: "10.000", currency: "SGD" },
+    { amount: "1000.000", currency: "JPY" },
+    { amount: "5.000", currency: "EUR" },
+  ];
+  const rates = { JPY: "0.0091", EUR: "1.4" };
+  const inJpy = convertExpenses(entries, "JPY", rates, "SGD");
+  assert.deepEqual(inJpy.missing, []);
+  assert.deepEqual(
+    inJpy.converted.map(({ currency, amount }) => [currency, amount]),
+    [
+      ["JPY", "1098.901"],
+      ["JPY", "1000.000"],
+      ["JPY", "769.231"],
+    ],
+  );
+  assert.equal(sumAmounts(inJpy.converted), "2868.132");
+  const noEuroRate = convertExpenses(entries, "EUR", { JPY: "0.0091" }, "SGD");
+  assert.deepEqual(noEuroRate.missing, ["EUR"]);
+  assert.deepEqual(
+    noEuroRate.converted.map(({ currency }) => currency),
+    ["EUR"],
+  );
 });
 
 test("combined totals convert with manual rates and never guess a missing one", () => {
