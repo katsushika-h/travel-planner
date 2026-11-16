@@ -19,7 +19,8 @@ export interface CostData {
   currency: string;
 }
 
-export type ExpenseCategory = "accommodation" | "transport" | "food" | "activities" | "shopping" | "other";
+/** An itinerary item type (built-in or custom); older expenses may hold a legacy category, see `expenseType`. */
+export type ExpenseCategory = EventType;
 
 export interface Expense {
   id: string;

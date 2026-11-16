@@ -1,4 +1,4 @@
-import type { Expense, ExpenseCategory, TravelObject } from "../types/travel.ts";
+import type { Expense, TravelObject } from "../types/travel.ts";
 
 /** An itinerary item cost counted as spend because no expense is logged for it. Read-only; edit the item instead. */
 export type BookedExpense = Expense & {
@@ -7,38 +7,17 @@ export type BookedExpense = Expense & {
   advance: boolean;
 };
 
-/** The itinerary type whose colour represents each expense category; shopping and other have none. */
-export const CATEGORY_ITEM_TYPE: Record<ExpenseCategory, string> = {
+/** Expense categories from before they used itinerary types, mapped to the matching type. */
+const LEGACY_CATEGORY_TYPES: Record<string, string> = {
   accommodation: "hotel",
-  transport: "flight",
-  food: "food",
   activities: "activity",
-  shopping: "unclassified",
   other: "unclassified",
 };
 
-const ITEM_TYPE_CATEGORIES: Record<string, ExpenseCategory> = {
-  hotel: "accommodation",
-  flight: "transport",
-  commute: "transport",
-  food: "food",
-  activity: "activities",
-  sightseeing: "activities",
-};
-
-/** Expense category for an itinerary item type; custom types fall under "other". */
-export function itemExpenseCategory(type: string): ExpenseCategory {
-  return ITEM_TYPE_CATEGORIES[type] ?? "other";
+/** The itinerary type an expense is filed under; legacy categories map to their matching type. */
+export function expenseType(category: string) {
+  return LEGACY_CATEGORY_TYPES[category] ?? category;
 }
-
-export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
-  "accommodation",
-  "transport",
-  "food",
-  "activities",
-  "shopping",
-  "other",
-];
 
 export function decimalToThousandths(amount: string): bigint {
   const [whole, fraction = ""] = amount.split(".");
@@ -65,7 +44,7 @@ export function expenseTotals(expenses: Expense[]) {
     categories: [...categories]
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, amount]) => {
-        const [currency, category] = key.split(":") as [string, ExpenseCategory];
+        const [currency, category] = key.split(":") as [string, string];
         return { currency, category, amount: thousandthsToDecimal(amount) };
       }),
   };
@@ -82,11 +61,18 @@ export function plannedCostTotals(items: { cost?: { amount: number; currency: st
     .map(([currency, amount]) => ({ currency, amount }));
 }
 
-export function formatExpenseAmount(amount: string | number, currency: string) {
+/**
+ * Formats an amount in its currency. Exact amounts keep up to three decimals; `rounded` (for converted,
+ * approximate figures) uses the currency's usual precision, so yen show no fraction.
+ */
+export function formatExpenseAmount(amount: string | number, currency: string, { rounded = false } = {}) {
   const format = (currencyDisplay: "narrowSymbol" | "symbol") =>
-    new Intl.NumberFormat(undefined, { style: "currency", currency, currencyDisplay, maximumFractionDigits: 3 }).format(
-      Number(amount),
-    );
+    new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      currencyDisplay,
+      ...(rounded ? {} : { maximumFractionDigits: 3 }),
+    }).format(Number(amount));
   try {
     const narrow = format("narrowSymbol");
     // A bare "$" would read as USD for SGD, AUD and similar, so those keep the unambiguous symbol or code.
@@ -127,18 +113,18 @@ export function expenseDashboard(
 
   let pre = zero;
   let during = zero;
-  const categories = new Map<ExpenseCategory, { pre: bigint; during: bigint }>(
-    EXPENSE_CATEGORIES.map((category) => [category, { pre: zero, during: zero }]),
-  );
+  const categories = new Map<string, { pre: bigint; during: bigint }>();
   const byDate = new Map<string, bigint>();
   for (const { expense, value, pre: isPre } of rows) {
-    const bucket = categories.get(expense.category);
+    const type = expenseType(expense.category);
+    const bucket = categories.get(type) ?? { pre: zero, during: zero };
+    categories.set(type, bucket);
     if (isPre) {
       pre += value;
-      if (bucket) bucket.pre += value;
+      bucket.pre += value;
     } else {
       during += value;
-      if (bucket) bucket.during += value;
+      bucket.during += value;
       byDate.set(expense.date, (byDate.get(expense.date) ?? zero) + value);
     }
   }
@@ -163,16 +149,16 @@ export function expenseDashboard(
     pre: thousandthsToDecimal(pre),
     during: thousandthsToDecimal(during),
     perDay,
-    categories: EXPENSE_CATEGORIES.map((category) => {
-      const { pre: p, during: d } = categories.get(category)!;
-      return {
-        category,
-        total: thousandthsToDecimal(p + d),
-        pre: thousandthsToDecimal(p),
-        during: thousandthsToDecimal(d),
-        value: p + d,
-      };
-    })
+    categories: [...categories]
+      .map(([category, { pre: p, during: d }]) => {
+        return {
+          category,
+          total: thousandthsToDecimal(p + d),
+          pre: thousandthsToDecimal(p),
+          during: thousandthsToDecimal(d),
+          value: p + d,
+        };
+      })
       .filter(({ value }) => value > zero)
       .sort((left, right) => (left.value === right.value ? 0 : left.value > right.value ? -1 : 1)),
     days,
@@ -198,7 +184,6 @@ export function bookedItemExpenses(
 ): BookedExpense[] {
   const covered = new Set(expenses.map((expense) => expense.travelObjectId).filter(Boolean));
   return items.flatMap((item) => {
-    const category = itemExpenseCategory(item.type);
     const cost = item.cost;
     if (item.kind !== "event" || covered.has(item.id) || !cost) return [];
     if (!Number.isFinite(cost.amount) || cost.amount <= 0 || !/^[A-Za-z]{3}$/.test(cost.currency)) return [];
@@ -212,7 +197,7 @@ export function bookedItemExpenses(
         date: item.date?.slice(0, 10) ?? tripStart.slice(0, 10),
         amount,
         currency: cost.currency.toUpperCase(),
-        category,
+        category: item.type,
         notes: null,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
@@ -234,28 +219,38 @@ export function parseRate(rate: string): bigint | null {
 }
 
 /**
- * Restates every expense in `target` using the trip's manual rates. Currencies without a valid rate are
- * left out and returned in `missing`, so the combined total never guesses.
+ * Restates every entry in `target`. `rates` state one unit of each currency in `base` (the trip's default
+ * currency), so any pair converts through `base`. Currencies without a valid rate are left out and returned
+ * in `missing`, so a converted total never guesses.
  */
-export function convertExpenses<T extends Expense>(
+export function convertExpenses<T extends { amount: string; currency: string }>(
   expenses: T[],
   target: string,
   rates: Record<string, string> | null | undefined,
+  base = target,
 ) {
+  const rateFor = (currency: string) =>
+    currency === base ? RATE_SCALE : rates?.[currency] ? parseRate(rates[currency]) : null;
   const missing = new Set<string>();
-  const converted: Expense[] = [];
+  const converted: T[] = [];
+  const targetRate = rateFor(target);
   for (const expense of expenses) {
     if (expense.currency === target) {
       converted.push(expense);
       continue;
     }
-    const rate = rates?.[expense.currency] ? parseRate(rates[expense.currency]) : null;
-    if (!rate) {
-      missing.add(expense.currency);
+    const rate = rateFor(expense.currency);
+    if (!rate || !targetRate) {
+      missing.add(rate ? target : expense.currency);
       continue;
     }
-    const value = (decimalToThousandths(expense.amount) * rate + RATE_SCALE / BigInt(2)) / RATE_SCALE;
+    const value = (decimalToThousandths(expense.amount) * rate * BigInt(2) + targetRate) / (targetRate * BigInt(2));
     converted.push({ ...expense, currency: target, amount: thousandthsToDecimal(value) });
   }
   return { converted, missing: [...missing].sort() };
+}
+
+/** Exact sum of decimal-string amounts, all in one currency. */
+export function sumAmounts(entries: { amount: string }[]) {
+  return thousandthsToDecimal(entries.reduce((sum, { amount }) => sum + decimalToThousandths(amount), BigInt(0)));
 }

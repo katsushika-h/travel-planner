@@ -10,13 +10,14 @@ import {
   bookedItemExpenses,
   convertExpenses,
   decimalToThousandths,
-  EXPENSE_CATEGORIES,
   expenseDashboard,
-  expenseTotals,
+  expenseType,
   formatExpenseAmount,
   plannedCostTotals,
+  sumAmounts,
+  thousandthsToDecimal,
 } from "@/lib/expense-domain";
-import type { CreateExpenseInput, Expense, ExpenseCategory, TravelObject, Trip } from "@/types/travel";
+import type { CreateExpenseInput, Expense, TravelObject, Trip } from "@/types/travel";
 
 type Draft = Omit<CreateExpenseInput, "notes" | "travelObjectId"> & { notes: string; travelObjectId: string };
 
@@ -37,13 +38,11 @@ function newDraft(trip: Trip): Draft {
     date: todayInTimeZone(trip.timezone),
     amount: "",
     currency: trip.defaultCurrency,
-    category: "other",
+    category: "unclassified",
     notes: "",
     travelObjectId: "",
   };
 }
-
-const COMBINED = "ALL";
 
 const fieldClass =
   "mt-1 block min-h-11 w-full rounded-none border-0 border-b border-input-rule bg-transparent px-0 py-2 text-sm text-foreground outline-none placeholder:text-faint focus:border-foreground";
@@ -56,6 +55,7 @@ export function ExpensesView({
   startWith,
   onTripChange,
   typeColors,
+  types,
 }: {
   trip: Trip;
   items: TravelObject[];
@@ -65,6 +65,8 @@ export function ExpensesView({
   onTripChange: (trip: Trip) => void;
   /** Per-trip itinerary type colours, reused for the matching expense categories. */
   typeColors: Record<string, string>;
+  /** The trip's itinerary types (built-in, custom and in use); expenses are filed under these. */
+  types: string[];
 }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +82,11 @@ export function ExpensesView({
       ? {
           ...newDraft(trip),
           ...(startWith.itemId
-            ? { description: (startWith.description ?? "").slice(0, 100), travelObjectId: startWith.itemId }
+            ? {
+                description: (startWith.description ?? "").slice(0, 100),
+                travelObjectId: startWith.itemId,
+                category: items.find((item) => item.id === startWith.itemId)?.type ?? "unclassified",
+              }
             : {}),
         }
       : newDraft(trip),
@@ -97,7 +103,7 @@ export function ExpensesView({
     void api
       .expenses(trip.id)
       .then((result) => {
-        if (!cancelled) setExpenses(result);
+        if (!cancelled) setExpenses(result.map((expense) => ({ ...expense, category: expenseType(expense.category) })));
       })
       .catch((cause) => {
         if (!cancelled) setLoadError(cause instanceof Error ? cause.message : "Could not load expenses.");
@@ -119,32 +125,39 @@ export function ExpensesView({
 
   const booked = useMemo(() => bookedItemExpenses(items, expenses, trip.startDate), [expenses, items, trip.startDate]);
   const allExpenses = useMemo(() => [...expenses, ...booked], [expenses, booked]);
-  const totals = useMemo(() => expenseTotals(allExpenses), [allExpenses]);
-  const planned = useMemo(() => plannedCostTotals(items), [items]);
   const itemTitles = useMemo(() => new Map(items.map((item) => [item.id, item.title])), [items]);
-  const currencies = useMemo(() => [...new Set(allExpenses.map((expense) => expense.currency))].sort(), [allExpenses]);
-  const plannedByCurrency = useMemo(
-    () => new Map(planned.map(({ currency, amount }) => [currency, amount])),
-    [planned],
+  const currencies = useMemo(
+    () => [...new Set([trip.defaultCurrency, ...allExpenses.map((expense) => expense.currency)])].sort(),
+    [allExpenses, trip.defaultCurrency],
   );
-  const hasCombined = totals.currencies.length > 1;
-  const activeCurrency =
-    (dashCurrency === COMBINED && hasCombined) || totals.currencies.some(({ currency }) => currency === dashCurrency)
-      ? dashCurrency
-      : hasCombined
-        ? COMBINED
-        : (totals.currencies[0]?.currency ?? "");
-  const combined = useMemo(
-    () => convertExpenses(allExpenses, trip.defaultCurrency, trip.exchangeRates),
-    [allExpenses, trip.defaultCurrency, trip.exchangeRates],
+  const categories = useMemo(
+    () => [...new Set([...types, ...allExpenses.map((expense) => expense.category)])],
+    [allExpenses, types],
   );
-  const dashboard = useMemo(() => {
-    if (!activeCurrency) return null;
-    const today = todayInTimeZone(trip.timezone);
-    return activeCurrency === COMBINED
-      ? expenseDashboard(combined.converted, trip, trip.defaultCurrency, today)
-      : expenseDashboard(allExpenses, trip, activeCurrency, today);
-  }, [activeCurrency, allExpenses, combined.converted, trip]);
+  const multiCurrency = currencies.length > 1;
+  const activeCurrency = currencies.includes(dashCurrency) ? dashCurrency : trip.defaultCurrency;
+  const convert = useMemo(
+    () => (entries: Expense[]) => convertExpenses(entries, activeCurrency, trip.exchangeRates, trip.defaultCurrency),
+    [activeCurrency, trip.defaultCurrency, trip.exchangeRates],
+  );
+  const converted = useMemo(() => convert(allExpenses), [allExpenses, convert]);
+  const dashboard = useMemo(
+    () =>
+      allExpenses.length
+        ? expenseDashboard(converted.converted, trip, activeCurrency, todayInTimeZone(trip.timezone))
+        : null,
+    [activeCurrency, allExpenses.length, converted.converted, trip],
+  );
+  const planned = useMemo(() => {
+    const costs = plannedCostTotals(items).map(({ currency, amount }) => ({
+      currency,
+      amount: thousandthsToDecimal(BigInt(Math.round(amount * 1000))),
+    }));
+    if (!costs.length) return undefined;
+    const result = convertExpenses(costs, activeCurrency, trip.exchangeRates, trip.defaultCurrency);
+    // A planned figure missing a currency would understate the plan, so it is left out entirely.
+    return result.missing.length ? undefined : Number(sumAmounts(result.converted));
+  }, [activeCurrency, items, trip.defaultCurrency, trip.exchangeRates]);
 
   async function saveRates(rates: Record<string, string>) {
     setError("");
@@ -175,6 +188,14 @@ export function ExpensesView({
         return (sort === "oldest" ? dateOrder : -dateOrder) || left.description.localeCompare(right.description);
       });
   }, [allExpenses, categoryFilter, currencyFilter, itemTitles, query, sort]);
+  const visibleTotal = useMemo(() => {
+    const result = convert(visibleExpenses);
+    return {
+      amount: sumAmounts(result.converted),
+      approximate: visibleExpenses.some((expense) => expense.currency !== activeCurrency),
+      missing: result.missing,
+    };
+  }, [activeCurrency, convert, visibleExpenses]);
 
   function startCreate() {
     setEditingId(null);
@@ -294,20 +315,20 @@ export function ExpensesView({
           ) : dashboard ? (
             <SpendDashboard
               dashboard={dashboard}
-              currencies={totals.currencies.map(({ currency }) => currency)}
+              currencies={currencies}
               active={activeCurrency}
               onCurrency={setDashCurrency}
-              combined={
-                hasCombined
+              rates={
+                multiCurrency
                   ? {
                       defaultCurrency: trip.defaultCurrency,
                       rates: trip.exchangeRates ?? {},
-                      missing: combined.missing,
+                      missing: converted.missing,
                       onSaveRates: saveRates,
                     }
                   : undefined
               }
-              planned={activeCurrency === COMBINED ? undefined : plannedByCurrency.get(dashboard.currency)}
+              planned={planned}
               itemTitles={itemTitles}
               typeColors={typeColors}
             />
@@ -359,12 +380,10 @@ export function ExpensesView({
                   Category
                   <select
                     value={draft.category}
-                    onChange={(event) =>
-                      setDraft((current) => ({ ...current, category: event.target.value as ExpenseCategory }))
-                    }
+                    onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))}
                     className={fieldClass}
                   >
-                    {EXPENSE_CATEGORIES.map((category) => (
+                    {[...new Set([...categories, draft.category])].map((category) => (
                       <option key={category} value={category} className="capitalize">
                         {categoryName(category)}
                       </option>
@@ -403,7 +422,16 @@ export function ExpensesView({
                   Itinerary item (optional)
                   <select
                     value={draft.travelObjectId}
-                    onChange={(event) => setDraft((current) => ({ ...current, travelObjectId: event.target.value }))}
+                    onChange={(event) => {
+                      const travelObjectId = event.target.value;
+                      const linkedType = items.find((item) => item.id === travelObjectId)?.type;
+                      // Linking an item files the expense under its type unless a category was already chosen.
+                      setDraft((current) => ({
+                        ...current,
+                        travelObjectId,
+                        category: current.category === "unclassified" && linkedType ? linkedType : current.category,
+                      }));
+                    }}
                     className={fieldClass}
                   >
                     <option value="">No linked item</option>
@@ -439,6 +467,18 @@ export function ExpensesView({
                 <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-t border-foreground pt-3">
                   <p className="text-xs text-muted">
                     {visibleExpenses.length} of {allExpenses.length} expenses
+                    {visibleExpenses.length > 0 && (
+                      <>
+                        {" · "}
+                        <span className="font-mono text-foreground">
+                          {visibleTotal.approximate && "≈ "}
+                          {formatExpenseAmount(visibleTotal.amount, activeCurrency, {
+                            rounded: visibleTotal.approximate,
+                          })}
+                        </span>
+                        {visibleTotal.missing.length > 0 && ` · ${visibleTotal.missing.join(", ")} not included`}
+                      </>
+                    )}
                   </p>
                   <div className="flex flex-wrap gap-x-4 gap-y-1">
                     <label className="sr-only" htmlFor="expense-search">
@@ -461,7 +501,7 @@ export function ExpensesView({
                       className={controlClass}
                     >
                       <option value="">All categories</option>
-                      {EXPENSE_CATEGORIES.map((category) => (
+                      {categories.map((category) => (
                         <option key={category} value={category}>
                           {categoryName(category)}
                         </option>

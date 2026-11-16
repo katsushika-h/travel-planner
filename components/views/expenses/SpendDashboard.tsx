@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CATEGORY_ITEM_TYPE, decimalToThousandths, expenseDashboard, formatExpenseAmount } from "@/lib/expense-domain";
+import { decimalToThousandths, expenseDashboard, expenseType, formatExpenseAmount } from "@/lib/expense-domain";
 import { typeColor } from "@/lib/type-color";
 
 type Dashboard = ReturnType<typeof expenseDashboard>;
@@ -29,26 +29,27 @@ function Kpi({ label, value, note, big }: { label: string; value: string; note?:
 }
 
 /**
- * One currency's spending as a single dashboard: pre-trip bookings and on-trip spending share every
- * figure, and the phase only shades the bars. Planned itinerary costs appear as a note, never in a total.
+ * All spending restated in the selected currency as one dashboard: pre-trip bookings and on-trip spending
+ * share every figure, and the phase only shades the bars. Planned itinerary costs appear as a note, never
+ * in a total.
  */
 export function SpendDashboard({
   dashboard,
   currencies,
   active,
   onCurrency,
-  combined,
+  rates,
   planned,
   itemTitles,
   typeColors,
 }: {
   dashboard: Dashboard;
   currencies: string[];
-  /** The selected tab: a currency code, or "ALL" for the combined view. */
+  /** The selected display currency; every amount is converted into it. */
   active: string;
   onCurrency: (currency: string) => void;
-  /** Present when more than one currency is in use; enables the combined tab and its rate editor. */
-  combined?: {
+  /** Present when more than one currency is in use: the rate editor and what could not be converted. */
+  rates?: {
     defaultCurrency: string;
     rates: Record<string, string>;
     missing: string[];
@@ -60,7 +61,8 @@ export function SpendDashboard({
   typeColors: Record<string, string>;
 }) {
   const { currency, total, pre, during, perDay, categories, days, largest } = dashboard;
-  const money = (amount: string) => formatExpenseAmount(amount, currency);
+  // Converted figures are approximate, so they use the currency's usual precision.
+  const money = (amount: string | number) => formatExpenseAmount(amount, currency, { rounded: Boolean(rates) });
   const over = planned != null && Number(total) > planned;
   const topCategory = categories[0]?.total ?? "0";
   const dayMax = days.reduce((max, { amount }) => (Number(amount) > max ? Number(amount) : max), 0);
@@ -68,9 +70,10 @@ export function SpendDashboard({
 
   return (
     <section aria-label={`Spend in ${currency}`} className="flex flex-col gap-10 pb-10 pt-6 sm:pt-8">
-      {combined && (
-        <div className="flex gap-4 text-[13px]">
-          {["ALL", ...currencies].map((code) => (
+      {rates && (
+        <div className="flex flex-wrap items-center gap-4 text-[13px]">
+          <span className="text-muted">Show in</span>
+          {currencies.map((code) => (
             <button
               key={code}
               type="button"
@@ -78,17 +81,17 @@ export function SpendDashboard({
               onClick={() => onCurrency(code)}
               className={`min-h-8 px-0.5 max-sm:min-h-11 max-sm:min-w-11 ${code === active ? "font-medium shadow-[inset_0_-1px_0_var(--ink)]" : "text-muted hover:text-foreground"}`}
             >
-              {code === "ALL" ? "All" : code}
+              {code}
             </button>
           ))}
         </div>
       )}
 
-      {combined && active === "ALL" && (
+      {rates && (
         <RateEditor
-          key={JSON.stringify(combined.rates)}
-          currencies={currencies.filter((code) => code !== combined.defaultCurrency)}
-          {...combined}
+          key={JSON.stringify(rates.rates)}
+          currencies={currencies.filter((code) => code !== rates.defaultCurrency)}
+          {...rates}
         />
       )}
 
@@ -96,11 +99,11 @@ export function SpendDashboard({
         <div className="col-span-2 lg:col-span-1">
           <Kpi
             big
-            label={active === "ALL" ? `Total spent · all currencies in ${currency}` : `Total spent · ${currency}`}
+            label={rates ? `Total spent · all currencies in ${currency}` : `Total spent · ${currency}`}
             value={money(total)}
             note={
               planned != null
-                ? `${dashboard.count} ${dashboard.count === 1 ? "expense" : "expenses"} · of ${formatExpenseAmount(planned, currency)} planned${over ? ` · ${formatExpenseAmount(Number(total) - planned, currency)} over` : ""}`
+                ? `${dashboard.count} ${dashboard.count === 1 ? "expense" : "expenses"} · of ${money(planned)} planned${over ? ` · ${money(Number(total) - planned)} over` : ""}`
                 : `${dashboard.count} ${dashboard.count === 1 ? "expense" : "expenses"}`
             }
           />
@@ -134,7 +137,7 @@ export function SpendDashboard({
                   <span
                     aria-hidden="true"
                     className="mr-2 inline-block size-2 rounded-full"
-                    style={{ backgroundColor: typeColor(CATEGORY_ITEM_TYPE[row.category], typeColors) }}
+                    style={{ backgroundColor: typeColor(row.category, typeColors) }}
                   />
                   {categoryName(row.category)}
                   <span className="ml-2 text-xs text-muted">{share(row.total, total).toFixed(0)}%</span>
@@ -146,14 +149,14 @@ export function SpendDashboard({
                   className="h-1 opacity-40"
                   style={{
                     width: `${share(row.pre, topCategory)}%`,
-                    backgroundColor: typeColor(CATEGORY_ITEM_TYPE[row.category], typeColors),
+                    backgroundColor: typeColor(row.category, typeColors),
                   }}
                 />
                 <div
                   className="h-1"
                   style={{
                     width: `${share(row.during, topCategory)}%`,
-                    backgroundColor: typeColor(CATEGORY_ITEM_TYPE[row.category], typeColors),
+                    backgroundColor: typeColor(row.category, typeColors),
                   }}
                 />
               </div>
@@ -203,7 +206,7 @@ export function SpendDashboard({
               <span className="min-w-0 flex-1">
                 {expense.description}
                 <span className="block text-xs text-muted">
-                  {categoryName(expense.category)} · {shortDate(expense.date)}
+                  {categoryName(expenseType(expense.category))} · {shortDate(expense.date)}
                   {isPre && " · before trip"}
                   {expense.travelObjectId &&
                     itemTitles.has(expense.travelObjectId) &&
@@ -277,9 +280,8 @@ function RateEditor({
       </div>
       <p className="text-[13px] text-muted">
         {missing.length
-          ? `${missing.join(", ")} not included until a rate is set. `
-          : "Rates are your own estimates, so the combined total is approximate. "}
-        Each currency tab stays exact.
+          ? `${missing.join(", ")} not included until a rate is set.`
+          : "Rates are your own estimates, so converted totals are approximate."}
       </p>
     </form>
   );
