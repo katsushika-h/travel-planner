@@ -56,6 +56,8 @@ export function ExpensesView({
   onTripChange,
   typeColors,
   types,
+  onOpenItem,
+  openItemId,
 }: {
   trip: Trip;
   items: TravelObject[];
@@ -67,6 +69,10 @@ export function ExpensesView({
   typeColors: Record<string, string>;
   /** The trip's itinerary types (built-in, custom and in use); expenses are filed under these. */
   types: string[];
+  /** Opens an itinerary item in the side inspector. */
+  onOpenItem: (item: TravelObject) => void;
+  /** The item currently open in the inspector, highlighted in the list. */
+  openItemId?: string | null;
 }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,6 +132,11 @@ export function ExpensesView({
   const booked = useMemo(() => bookedItemExpenses(items, expenses, trip.startDate), [expenses, items, trip.startDate]);
   const allExpenses = useMemo(() => [...expenses, ...booked], [expenses, booked]);
   const itemTitles = useMemo(() => new Map(items.map((item) => [item.id, item.title])), [items]);
+  const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
+  const openItem = (itemId: string) => {
+    const item = itemsById.get(itemId);
+    if (item) onOpenItem(item);
+  };
   const currencies = useMemo(
     () => [...new Set([trip.defaultCurrency, ...allExpenses.map((expense) => expense.currency)])].sort(),
     [allExpenses, trip.defaultCurrency],
@@ -277,10 +288,10 @@ export function ExpensesView({
   }
 
   const categoryName = (category: string) => category[0].toUpperCase() + category.slice(1);
-  const columns = "lg:grid-cols-[88px_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)_112px_72px]";
+  const columns = "@3xl:grid-cols-[88px_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)_112px_72px]";
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-8 pt-4 sm:px-12 sm:pt-6">
+    <section className="@container flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-8 pt-4 sm:px-12 sm:pt-6">
       <div className="flex items-center justify-between gap-3">
         <h1 className="sr-only">Spend</h1>
         <p className="min-w-0 text-[13px] text-muted">Everything spent on {trip.title}, before and during the trip.</p>
@@ -330,6 +341,7 @@ export function ExpensesView({
               }
               planned={planned}
               itemTitles={itemTitles}
+              onOpenItem={openItem}
               typeColors={typeColors}
             />
           ) : (
@@ -354,7 +366,7 @@ export function ExpensesView({
                   Cancel
                 </button>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 @3xl:grid-cols-3">
                 <label className="text-sm font-medium">
                   Description
                   <input
@@ -442,7 +454,7 @@ export function ExpensesView({
                     ))}
                   </select>
                 </label>
-                <label className="text-sm font-medium sm:col-span-2 lg:col-span-3">
+                <label className="text-sm font-medium sm:col-span-2 @3xl:col-span-3">
                   Notes (optional)
                   <textarea
                     maxLength={2500}
@@ -540,7 +552,7 @@ export function ExpensesView({
                 </div>
                 {visibleExpenses.length ? (
                   <>
-                    <div aria-hidden="true" className={`hidden gap-x-3 py-3 text-xs text-muted lg:grid ${columns}`}>
+                    <div aria-hidden="true" className={`hidden gap-x-3 py-3 text-xs text-muted @3xl:grid ${columns}`}>
                       <span>Date</span>
                       <span>Description</span>
                       <span>Category</span>
@@ -550,17 +562,29 @@ export function ExpensesView({
                     </div>
                     <ul>
                       {visibleExpenses.map((expense) => {
-                        const linked = expense.travelObjectId
-                          ? (itemTitles.get(expense.travelObjectId) ?? "Linked item unavailable")
-                          : null;
+                        const linkedItem = expense.travelObjectId ? itemsById.get(expense.travelObjectId) : undefined;
+                        const linked = expense.travelObjectId ? (
+                          linkedItem ? (
+                            <button
+                              type="button"
+                              onClick={() => onOpenItem(linkedItem)}
+                              className="text-left underline-offset-4 hover:text-foreground hover:underline"
+                            >
+                              {linkedItem.title}
+                            </button>
+                          ) : (
+                            "Linked item unavailable"
+                          )
+                        ) : null;
                         return (
                           <li
                             key={expense.id}
-                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-t border-divider py-2.5 text-sm hover:bg-surface max-lg:first:border-t-0 ${columns}`}
+                            aria-current={openItemId && expense.travelObjectId === openItemId ? true : undefined}
+                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-t border-divider py-2.5 text-sm hover:bg-surface aria-[current]:bg-surface @max-3xl:first:border-t-0 ${columns}`}
                           >
                             <span
                               title={expense.date}
-                              className="font-mono text-[13px] whitespace-nowrap text-muted max-lg:order-2 max-lg:col-span-2 lg:text-foreground"
+                              className="font-mono text-[13px] whitespace-nowrap text-muted @max-3xl:order-2 @max-3xl:col-span-2 @3xl:text-foreground"
                             >
                               {new Intl.DateTimeFormat("en-US", {
                                 timeZone: "UTC",
@@ -568,8 +592,18 @@ export function ExpensesView({
                                 day: "2-digit",
                               }).format(new Date(`${expense.date}T12:00:00Z`))}
                             </span>
-                            <span className="min-w-0 font-medium max-lg:order-1">
-                              {expense.description}
+                            <span className="min-w-0 font-medium @max-3xl:order-1">
+                              {"fromItem" in expense && linkedItem ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenItem(linkedItem)}
+                                  className="text-left underline-offset-4 hover:underline"
+                                >
+                                  {expense.description}
+                                </button>
+                              ) : (
+                                expense.description
+                              )}
                               {expense.notes && (
                                 <span className="mt-0.5 block text-xs font-normal text-muted">{expense.notes}</span>
                               )}
@@ -585,23 +619,23 @@ export function ExpensesView({
                                 )
                               )}
                             </span>
-                            <span className="text-muted max-lg:hidden">{categoryName(expense.category)}</span>
-                            <span className="min-w-0 text-muted max-lg:order-3 max-lg:col-span-2 max-lg:text-xs">
-                              <span className="lg:hidden">{categoryName(expense.category)}</span>
-                              {linked && <span className="lg:hidden"> · </span>}
-                              {linked ?? <span className="max-lg:hidden">—</span>}
+                            <span className="text-muted @max-3xl:hidden">{categoryName(expense.category)}</span>
+                            <span className="min-w-0 text-muted @max-3xl:order-3 @max-3xl:col-span-2 @max-3xl:text-xs">
+                              <span className="@3xl:hidden">{categoryName(expense.category)}</span>
+                              {linked && <span className="@3xl:hidden"> · </span>}
+                              {linked ?? <span className="@max-3xl:hidden">—</span>}
                             </span>
-                            <span className="text-right font-mono text-[13px] whitespace-nowrap max-lg:order-1">
+                            <span className="text-right font-mono text-[13px] whitespace-nowrap @max-3xl:order-1">
                               {formatExpenseAmount(expense.amount, expense.currency)}
                             </span>
-                            <span className="flex justify-end max-lg:order-4 max-lg:col-span-2">
+                            <span className="flex justify-end @max-3xl:order-4 @max-3xl:col-span-2">
                               {!("fromItem" in expense) && (
                                 <>
                                   <button
                                     type="button"
                                     onClick={() => startEdit(expense)}
                                     aria-label={`Edit ${expense.description}`}
-                                    className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-foreground lg:size-8"
+                                    className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-foreground @3xl:size-8"
                                   >
                                     <Pencil size={14} />
                                   </button>
@@ -609,7 +643,7 @@ export function ExpensesView({
                                     type="button"
                                     onClick={() => setDeleteTarget(expense)}
                                     aria-label={`Delete ${expense.description}`}
-                                    className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-danger lg:size-8"
+                                    className="grid size-11 place-items-center text-muted hover:bg-surface hover:text-danger @3xl:size-8"
                                   >
                                     <Trash2 size={14} />
                                   </button>

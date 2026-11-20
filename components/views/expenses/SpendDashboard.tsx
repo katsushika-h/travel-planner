@@ -41,6 +41,7 @@ export function SpendDashboard({
   rates,
   planned,
   itemTitles,
+  onOpenItem,
   typeColors,
 }: {
   dashboard: Dashboard;
@@ -58,6 +59,8 @@ export function SpendDashboard({
   /** Planned itinerary cost in this currency; never added to the actual total. */
   planned?: number;
   itemTitles: Map<string, string>;
+  /** Opens a linked itinerary item in the side inspector. */
+  onOpenItem: (itemId: string) => void;
   typeColors: Record<string, string>;
 }) {
   const { currency, total, pre, during, perDay, categories, days, largest } = dashboard;
@@ -95,8 +98,8 @@ export function SpendDashboard({
         />
       )}
 
-      <div className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-[1.5fr_1fr_1fr_1fr] lg:gap-x-8">
-        <div className="col-span-2 lg:col-span-1">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-8 @3xl:grid-cols-[1.5fr_1fr_1fr_1fr] @3xl:gap-x-8">
+        <div className="col-span-2 @3xl:col-span-1">
           <Kpi
             big
             label={rates ? `Total spent · all currencies in ${currency}` : `Total spent · ${currency}`}
@@ -117,7 +120,7 @@ export function SpendDashboard({
         />
       </div>
 
-      <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
+      <div className="grid gap-10 @3xl:grid-cols-2 @3xl:gap-16">
         <section aria-label="By category">
           <div className="flex items-baseline justify-between border-t border-foreground pb-2 pt-3">
             <h2 className="text-[15px] font-medium">By category</h2>
@@ -204,7 +207,17 @@ export function SpendDashboard({
             <li key={expense.id} className="flex items-baseline gap-3 border-b border-divider py-2.5 text-sm">
               <span className="w-5 font-mono text-xs text-muted">{index + 1}</span>
               <span className="min-w-0 flex-1">
-                {expense.description}
+                {expense.travelObjectId && itemTitles.has(expense.travelObjectId) ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenItem(expense.travelObjectId!)}
+                    className="text-left underline-offset-4 hover:underline"
+                  >
+                    {expense.description}
+                  </button>
+                ) : (
+                  expense.description
+                )}
                 <span className="block text-xs text-muted">
                   {categoryName(expenseType(expense.category))} · {shortDate(expense.date)}
                   {isPre && " · before trip"}

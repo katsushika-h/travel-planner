@@ -813,6 +813,8 @@ export function AppShell() {
                   onTripChange={onTripSaved}
                   typeColors={eventTypeColors}
                   types={eventTypes}
+                  onOpenItem={inspectItem}
+                  openItemId={selectedItem?.id}
                 />
               ) : (
                 <MapView
@@ -832,7 +834,7 @@ export function AppShell() {
                 />
               )}
             </div>
-            {activeTab !== "expenses" && selectedItem && (
+            {selectedItem && (
               <div
                 role={narrowScreen ? "dialog" : undefined}
                 aria-modal={narrowScreen ? true : undefined}
@@ -920,8 +922,6 @@ export function AppShell() {
             onClose={() => setSearchOpen(false)}
             onPick={(item) => {
               setSearchOpen(false);
-              // The inspector is not shown on Spend, so move to a view that has it first.
-              if (activeTab === "expenses") setActiveTab("days");
               inspectItem(item);
             }}
           />
