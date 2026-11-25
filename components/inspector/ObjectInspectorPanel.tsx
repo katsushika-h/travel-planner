@@ -272,8 +272,8 @@ export function ObjectInspectorPanel({
       onChange(currentItem!.id, { tags: merged });
     setTagDraft("");
   }
-  async function resolveMap() {
-    const url = location?.googleMapsUrl?.trim();
+  async function resolveMap(pasted?: string) {
+    const url = (pasted ?? location?.googleMapsUrl)?.trim();
     if (!url) return;
     setResolvingMap(true);
     setMapMessage("");
@@ -281,10 +281,14 @@ export function ObjectInspectorPanel({
       const result = await api.resolveMapsUrl(url);
       const hasCoordinates = result.lat != null && result.lng != null;
       const foundName = result.name && !location?.name ? result.name : location?.name;
-      if (hasCoordinates || foundName !== location?.name)
+      const title = currentItem!.title?.trim();
+      const renameTitle = Boolean(result.name) && (!title || title === "(untitled event)");
+      if (renameTitle) setTitleDraft(result.name!);
+      if (hasCoordinates || foundName !== location?.name || renameTitle)
         onChange(
           currentItem!.id,
           {
+            ...(renameTitle ? { title: result.name! } : {}),
             location: {
               ...location,
               name: foundName,
@@ -294,11 +298,23 @@ export function ObjectInspectorPanel({
           },
           true,
         );
+      let inferredType: string | null = null;
+      if (hasCoordinates && currentItem!.type === "unclassified") {
+        setMapMessage("Looking up place type…");
+        try {
+          inferredType = (await api.placeType(result.lat!, result.lng!, foundName ?? null)).type;
+        } catch {
+          /* the type is a convenience; keep the item unclassified */
+        }
+        if (inferredType) onChange(currentItem!.id, { type: inferredType }, true);
+      }
       setMapMessage(
         hasCoordinates
           ? result.coordinateSource === "featureId"
             ? "Approximate coordinates found"
-            : "Coordinates found"
+            : inferredType
+              ? `Coordinates found; type set to ${inferredType}`
+              : "Coordinates found"
           : result.name
             ? "Place name found; this link has no coordinates"
             : "Link saved; no coordinates found",
@@ -817,6 +833,14 @@ export function ObjectInspectorPanel({
                 aria-label="Google Maps link"
                 autoFocus={editingLink}
                 onChange={(e) => onChange(item.id, { location: { ...location, googleMapsUrl: e.target.value } })}
+                onPaste={(event) => {
+                  const text = event.clipboardData.getData("text").trim();
+                  if (!text) return;
+                  event.preventDefault();
+                  onChange(item.id, { location: { ...location, googleMapsUrl: text } });
+                  setEditingLink(true);
+                  void resolveMap(text).then(() => setEditingLink(false));
+                }}
                 onBlur={() => {
                   setEditingLink(false);
                   void resolveMap();

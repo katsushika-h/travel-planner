@@ -116,6 +116,11 @@ export const api = {
   /** OpenStreetMap, Wikidata and Wikipedia details for one place; call only on a user click. */
   placeDetails: (osmType: OsmElementType, osmId: number, signal?: AbortSignal) =>
     request<PlaceDetails>(`/api/place-details?type=${osmType}&id=${osmId}`, { signal }),
+  /** Item type inferred from the OpenStreetMap place at a pin, or null when there is no confident match. */
+  placeType: (lat: number, lng: number, name: string | null) =>
+    request<{ type: string | null }>(
+      `/api/place-type?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}${name ? `&name=${encodeURIComponent(name)}` : ""}`,
+    ),
   resolveMapsUrl: (url: string) =>
     request<{
       expandedUrl: string;
