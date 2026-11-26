@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
-import { Check, ChevronDown, Download, FileText, Keyboard, Monitor, Moon, Sun } from "lucide-react";
+import { Check, ChevronDown, Download, FileText, Globe, Keyboard, Monitor, Moon, Sun } from "lucide-react";
 import { CreateTripDialog } from "@/components/trip/CreateTripDialog";
 import { DeleteTripButton } from "@/components/trip/DeleteTripButton";
 import { EditTripDialog } from "@/components/trip/EditTripDialog";
@@ -105,7 +105,7 @@ function MenuSection({ label, children }: { label?: string; children: React.Reac
   );
 }
 
-/** Export… reveals the calendar file and the printable itinerary beneath it. */
+/** Export… reveals the calendar file, the printable itinerary and the offline HTML copy beneath it. */
 function ExportMenu({ trip, items, onDone }: { trip: Trip; items: TravelObject[] | null; onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -133,6 +133,9 @@ function ExportMenu({ trip, items, onDone }: { trip: Trip; items: TravelObject[]
             onClick={onDone}
           >
             <FileText /> Printable PDF
+          </a>
+          <a href={`/trips/${trip.id}/offline`} download className={menuItemClassName} onClick={onDone}>
+            <Globe /> Offline copy (.html)
           </a>
         </div>
       )}
